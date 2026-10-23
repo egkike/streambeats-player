@@ -112,22 +112,23 @@ win and you keep your own theme/fonts. This avoids the invalid
 "Configuration Errors" dialog goes away. The temp dir is left in
 `${TMPDIR:-/tmp}` (`streambeats-ghostty.XXXXXX`); delete it at will.
 
-## 4. Keep the window floating above your work (KDE Plasma)
+## 4. Keep the player pinned above your work (KDE Plasma)
 
-On 1.3.1 the player is an ordinary window, so ask KWin to keep it above other
-windows:
+On 1.3.1 the player is an ordinary window with a normal title bar, so you can
+drag it, minimize it, and close it like any app. To keep it always visible
+above other windows:
 
-- Right-click the title bar → **More Actions** → **Keep Above Others**.
-- The presets set `window-decoration = false`, so there is no title bar: use
-  **Alt+F3** → **More Actions** → **Keep Above Others** instead (Alt+F3 opens
-  the KDE window menu for any window).
-- Remove the `window-decoration` line from the preset if you prefer the title
-  bar and its menu back.
+- Right-click the title bar → **More Actions** → **Keep Above Others** (or
+  **Alt+F3** → same menu item).
+- To make it stick, use KWin's **Window Rules** (*System Settings → Window
+  Management → Window Rules*) with a rule matching the title
+  `streambeats player` and the action *Keep above other windows*. The same
+  place lets you pin it to a specific virtual desktop or activity.
 
-To make it stick, use KWin's **Window Rules** (*System Settings → Window
-Management → Window Rules*) with a rule matching the title
-`streambeats player` and the action *Keep above other windows*. The same place
-lets you pin it to a specific virtual desktop or activity.
+Resize and placement are normal: the compact size is a hint (`window-width =
+52` / `window-height = 36` cells on left/right presets, `84`/`30` on
+top/bottom); drag the window edges for something else, and KDE will remember
+your geometry for next launches.
 
 ## 5. Show and hide the panel
 
@@ -215,8 +216,6 @@ presets serve both modes. Confirm what your binary supports with
 - **`ctrl+alt+s` does nothing** — expected on 1.3.1, which has no
   `+toggle-quick-terminal` action; the player is a normal window until you
   upgrade (step 7).
-- **Window has no title bar** — the presets set `window-decoration = false`.
-  Use Alt+F3 for the KDE window menu, or delete that line.
 - **`unknown side`** — valid sides are `top`, `bottom`, `left`, `right`.
 - **No slide-in animation** — Linux animations require KDE with the "Sliding
   Popups" KWin plugin; other compositors show the panel without animating.
