@@ -25,26 +25,32 @@ paths are covered below — the presets are already configured for the upgrade.
 
 ### Ghostty 1.3.1 limitations
 
-Two 1.3.1 limitations shape this setup; both were verified at runtime on the
+Three 1.3.1 limitations shape this setup; all were verified at runtime on the
 KDE Plasma Wayland desktop:
 
-1. **`--config` must use the equals form.** `ghostty --config <path>` (space
-   separated) is *silently ignored* by 1.3.1 — the preset never loads and you
-   get a plain window. `ghostty --config=<path>` loads it. This is the likely
-   origin of the GTK dialog reporting an invalid/unknown field in
-   `streambeats-<side>.conf`: with the space form the preset is not applied as
-   a config file at all. The launcher always uses the equals form.
-2. **No CLI action to spawn a quick terminal.** `+toggle-quick-terminal` exists
-   only on Ghostty master (commit `4b7bf0b`, PR #12661), merged after the 1.3.1
-   release. On 1.3.1 a Ghostty launched from the CLI **cannot** be started in
-   quick-terminal mode, and in this build `ctrl+alt+s` toggles a quick terminal
-   inside the instance rather than raising the dedicated window.
+1. **`--config=<path>` is not a real option.** Ghostty has no `--config` flag
+   for pointing at a custom config file (feature request: ghostty discussions
+   #9434/#10058). Passing it works only through the *CLI pseudo-config*, and
+   the GTK runtime then reports `config: unknown field` in a "Configuration
+   Errors" dialog — even with an empty config file. The preset inside the
+   file is NOT applied.
+2. **No CLI action to spawn a quick terminal.** `+toggle-quick-terminal`
+   exists only on Ghostty master (commit `4b7bf0b`, PR #12661), merged after
+   the 1.3.1 release. On 1.3.1 a Ghostty launched from the CLI **cannot** be
+   started in quick-terminal mode, and in this build `ctrl+alt+s` toggles a
+   quick terminal inside the instance rather than raising the dedicated
+   window.
+3. **Runtime dialogs are silent to logging.** A config-error dialog prints
+   nothing to stdout/stderr and does not change the exit code; the launcher's
+   own stderr output stays clean. Validate with `ghostty
+   +validate-config --config-file=<file>` before blaming your config.
 
-Consequence: **today** the launcher gives you a dedicated normal window. The
-`quick-terminal-position` / `-size` / `-autohide` values and the
-`toggle_quick_terminal` keybind stay in every preset: 1.3.1 validates them, and
-the moment you run a Ghostty build carrying `+toggle-quick-terminal` the same
-presets drive a real edge-anchored quick terminal.
+Consequence: **today** the launcher gives you a dedicated normal window built
+through Ghostty's canonical config path (see step 3). The
+`quick-terminal-position` / `-autohide` values and the `toggle_quick_terminal`
+keybind stay in every preset: 1.3.1 validates them, and the moment you run a
+Ghostty build carrying `+toggle-quick-terminal` the same presets drive a real
+edge-anchored quick terminal.
 
 ## 1. Build the player
 
@@ -92,15 +98,19 @@ scripts/streambeats-quick top      # top strip
 ```
 
 The launcher resolves the preset relative to its own location, prints a
-one-line summary plus a note about the 1.3.1 limitation, then runs:
+one-line summary plus a note about the 1.3.1 limitation, then runs the
+player through Ghostty's **canonical config path**:
 
 ```sh
-ghostty --config=<preset> --config-default-files=false -e <streambeats binary>
+XDG_CONFIG_HOME=<temp dir> ghostty --gtk-single-instance=false -e <streambeats binary>
 ```
 
-`--config-default-files=false` keeps your personal Ghostty config out of the
-way, so the preset fully owns the panel geometry. Keep the **equals form** if
-you launch Ghostty yourself: the space form is ignored by 1.3.1.
+The temp dir contains `ghostty/config`, built at launch by concatenating your
+personal Ghostty config (if present) with the side preset, so the preset keys
+win and you keep your own theme/fonts. This avoids the invalid
+`--config=<path>` approach entirely: presets apply for real, and the
+"Configuration Errors" dialog goes away. The temp dir is left in
+`${TMPDIR:-/tmp}` (`streambeats-ghostty.XXXXXX`); delete it at will.
 
 ## 4. Keep the window floating above your work (KDE Plasma)
 
@@ -194,10 +204,14 @@ presets serve both modes. Confirm what your binary supports with
 - **Panel opens but shows a plain shell** — run `streambeats` from that shell,
   or quit the launcher and re-run `scripts/streambeats-quick <side>`; the
   `-e` command is the entry the launcher passes to Ghostty.
-- **GTK dialog about an unknown/invalid config field** — the preset was passed
-  with `--config <path>` (space form), which 1.3.1 silently ignores/mishandles.
-  Use `--config=<path>`. The launcher already does, and
-  `ghostty +validate-config --config-file=<preset>` passes for all four presets.
+- **GTK dialog about an unknown/invalid config field** — it means a
+  `--config=<path>` style invocation reached Ghostty. That flag does not
+  exist (ghostty discussions #9434/#10058); the runtime reports a
+  pseudo-config `cli:` entry as `config: unknown field` and applies none of
+  the file. The launcher builds a temp `XDG_CONFIG_HOME` (step 3) and uses
+  the canonical config path instead. Click `Ignorar`, re-run the launcher,
+  and the dialog should not return (verified against the full dialogue-
+  window capture pipeline).
 - **`ctrl+alt+s` does nothing** — expected on 1.3.1, which has no
   `+toggle-quick-terminal` action; the player is a normal window until you
   upgrade (step 7).
