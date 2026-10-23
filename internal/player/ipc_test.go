@@ -99,7 +99,7 @@ func TestClientLoadFileSendsLoadfileCommand(t *testing.T) {
 		cmd, _ := m["command"].([]any)
 		if len(cmd) >= 3 && cmd[0] == "loadfile" &&
 			cmd[1] == "https://t4.bcbits.com/stream/TOKEN/mp3-128/1" &&
-			cmd[2] == "play" {
+			cmd[2] == "replace" {
 			found = true
 		}
 	}
@@ -121,10 +121,40 @@ func TestClientGetPropertyReturnsValueAndCorrelatesID(t *testing.T) {
 		t.Errorf("duration = %v, want 142.761", d)
 	}
 
-	srvr := srv
-	_ = srvr
-	if err := c.Request("set", "volume", 60); err != nil {
-		t.Fatalf("Request(set volume): %v", err)
+	vol, err := c.GetProperty("volume")
+	if err != nil {
+		t.Fatalf("GetProperty(volume): %v", err)
+	}
+	_ = vol
+	if err := c.SetVolume(60); err != nil {
+		t.Fatalf("SetVolume: %v", err)
+	}
+	if err := c.Pause(); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	// mpv 0.41 rejects native-typed values on `set"; the client must use
+	// set_property with JSON-native types (float volume, bool pause).
+	var setVolume, setPause bool
+	for _, sent := range srv.sent {
+		var m map[string]any
+		_ = json.Unmarshal([]byte(sent), &m)
+		cmd, _ := m["command"].([]any)
+		if len(cmd) == 3 && cmd[0] == "set_property" && cmd[1] == "volume" {
+			if v, ok := cmd[2].(float64); ok && v == 60 {
+				setVolume = true
+			}
+		}
+		if len(cmd) == 3 && cmd[0] == "set_property" && cmd[1] == "pause" {
+			if v, ok := cmd[2].(bool); ok && v {
+				setPause = true
+			}
+		}
+	}
+	if !setVolume {
+		t.Errorf("SetVolume did not send set_property volume 60 (float); got %v", srv.sent)
+	}
+	if !setPause {
+		t.Errorf("Pause did not send set_property pause true (bool); got %v", srv.sent)
 	}
 }
 

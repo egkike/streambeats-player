@@ -111,14 +111,15 @@ func (c *Client) requestRaw(args []any) (response, error) {
 
 // LoadFile plays a URL or path, clearing the queue, and names the entry.
 func (c *Client) LoadFile(path, title string) error {
-	if err := c.Request("loadfile", path, "play"); err != nil {
+	// mpv removed the old "play" loadfile flag; "replace" starts playing
+	// immediately, clearing the queue (verified against mpv 0.41: "play"
+	// answers "invalid parameter").
+	if err := c.Request("loadfile", path, "replace"); err != nil {
 		return err
 	}
+	// media-title is read-only; the writable option is force-media-title.
 	if title != "" {
-		err := c.Request("set", "media-title", title)
-		if err != nil {
-			return err
-		}
+		return c.SetProperty("force-media-title", title)
 	}
 	return nil
 }
@@ -136,16 +137,23 @@ func (c *Client) GetProperty(prop string) (float64, error) {
 	return v, nil
 }
 
+// SetProperty writes a property using mpv's native-typed set_property
+// command. mpv 0.41 rejects JSON-native types on the `set` command (its
+// arguments are parsed as strings), so typed writes go through set_property.
+func (c *Client) SetProperty(prop string, value any) error {
+	return c.Request("set_property", prop, value)
+}
+
 // SetVolume sets playback volume in percent [0..100].
 func (c *Client) SetVolume(percent int) error {
-	return c.Request("set", "volume", percent)
+	return c.SetProperty("volume", float64(percent))
 }
 
 // Pause pauses playback.
-func (c *Client) Pause() error { return c.Request("set", "pause", true) }
+func (c *Client) Pause() error { return c.SetProperty("pause", true) }
 
 // Play resumes playback.
-func (c *Client) Play() error { return c.Request("set", "pause", false) }
+func (c *Client) Play() error { return c.SetProperty("pause", false) }
 
 // Stop clears what is playing.
 func (c *Client) Stop() error { return c.Request("stop") }
