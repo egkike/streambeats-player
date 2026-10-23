@@ -52,6 +52,28 @@ Presets live in `assets/ghostty/streambeats-<side>.conf` (default side:
   without mpv.
 - `docs/ghostty.md` — quick terminal integration details.
 
+## Run detached (survives the invoking terminal)
+
+The commands above tie the player to your shell; closing the terminal window
+would kill it. Launch it under your user manager instead:
+
+```sh
+systemd-run --user --unit=streambeats-player \
+  "${PWD}/scripts/streambeats-quick" right
+```
+
+Then:
+
+```sh
+systemctl --user status streambeats-player   # check
+systemctl --user stop streambeats-player     # stop player
+journalctl --user -u streambeats-player      # launcher/ghostty logs
+```
+
+(Verified on this machine: the unit goes active, `WAYLAND_DISPLAY` is
+inherited by the user manager under KDE Plasma, and the floating window
+opens with the catalog.)
+
 ## Notes
 
 - Runs beside herdr as an independent Ghostty window; nothing needs to be
