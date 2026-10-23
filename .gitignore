@@ -1,0 +1,4 @@
+/bin/
+/streambeats
+*.cache/
+.DS_Store
