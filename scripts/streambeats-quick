@@ -1,12 +1,12 @@
 #!/bin/sh
-# streambeats-quick — open the streambeats player in a Ghostty quick terminal.
+# streambeats-quick — open the streambeats player in a Ghostty side panel.
 #
 #   streambeats-quick [top|bottom|left|right]   # default: right
 #
 # Starts a Ghostty instance configured with the matching side preset
 # (assets/ghostty/streambeats-<side>.conf) and runs the streambeats player in
-# it. Press the toggle keybind (ctrl+alt+s by default, see the preset) to slide
-# the panel in and out.
+# it. On Ghostty 1.3.1 that preset renders as a normal dedicated window (no CLI
+# action exists to spawn a quick terminal); see docs/ghostty.md.
 #
 # See docs/ghostty.md and odd/tasks/streambeats.md (T7 / S3, S7, S8).
 
@@ -16,9 +16,11 @@ usage() {
 	cat <<'EOF'
 Usage: streambeats-quick [top|bottom|left|right]
 
-Open the streambeats player in a Ghostty quick terminal anchored to a screen
-edge (default: right). The quick terminal is an independent Ghostty window,
-separate from any herdr session.
+Open the streambeats player in a Ghostty side panel anchored to a screen edge
+(default: right). Each side has its own preset. On Ghostty 1.3.1 the panel is a
+normal dedicated window; the quick-terminal keys in the preset take effect once
+your Ghostty supports the +toggle-quick-terminal action. The panel is an
+independent Ghostty window, separate from any herdr session.
 
 Options:
   -h, --help   Show this help and exit.
@@ -85,8 +87,16 @@ else
 fi
 
 printf 'streambeats-quick: side=%s preset=%s player=%s\n' "$side" "$preset" "$player_bin" >&2
+printf '%s\n' \
+	'streambeats-quick: note: Ghostty 1.3.1 cannot spawn a quick terminal from the CLI' \
+	'  (the +toggle-quick-terminal action landed after that release), so this panel' \
+	'  opens as a normal dedicated window. Auto-opening the quick terminal needs a' \
+	'  newer Ghostty build; the side presets already configure position, size and' \
+	'  autohide for it.' \
+	'streambeats-quick: note: inside the panel, ctrl+alt+s toggles the Ghostty quick' \
+	'  terminal once your binary supports that action.' >&2
 
 exec "$ghostty_bin" \
-	--config "$preset" \
+	"--config=$preset" \
 	--config-default-files=false \
 	-e "$player_bin"
