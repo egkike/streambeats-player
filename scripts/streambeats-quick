@@ -1,0 +1,92 @@
+#!/bin/sh
+# streambeats-quick — open the streambeats player in a Ghostty quick terminal.
+#
+#   streambeats-quick [top|bottom|left|right]   # default: right
+#
+# Starts a Ghostty instance configured with the matching side preset
+# (assets/ghostty/streambeats-<side>.conf) and runs the streambeats player in
+# it. Press the toggle keybind (ctrl+alt+s by default, see the preset) to slide
+# the panel in and out.
+#
+# See docs/ghostty.md and odd/tasks/streambeats.md (T7 / S3, S7, S8).
+
+set -eu
+
+usage() {
+	cat <<'EOF'
+Usage: streambeats-quick [top|bottom|left|right]
+
+Open the streambeats player in a Ghostty quick terminal anchored to a screen
+edge (default: right). The quick terminal is an independent Ghostty window,
+separate from any herdr session.
+
+Options:
+  -h, --help   Show this help and exit.
+
+Examples:
+  streambeats-quick            # right edge strip
+  streambeats-quick bottom     # bottom strip
+EOF
+}
+
+die() {
+	printf 'streambeats-quick: error: %s\n' "$*" >&2
+	exit 1
+}
+
+# Resolve this script's directory without external tools (no `dirname`), so the
+# launcher also works with a minimal PATH.
+case $0 in
+*/*) script_dir=${0%/*} ;;
+*) script_dir=. ;;
+esac
+script_dir=$(CDPATH='' cd -- "$script_dir" && pwd -P) ||
+	die "cannot resolve script directory for $0"
+repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd -P) ||
+	die "cannot resolve repository root from $script_dir"
+
+if [ "$#" -gt 1 ]; then
+	printf 'streambeats-quick: error: expected at most one argument\n\n' >&2
+	usage >&2
+	exit 2
+fi
+
+side=right
+if [ "$#" -eq 1 ]; then
+	case $1 in
+	top | bottom | left | right) side=$1 ;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*)
+		printf 'streambeats-quick: error: unknown side "%s"\n\n' "$1" >&2
+		usage >&2
+		exit 2
+		;;
+	esac
+fi
+
+preset=$repo_root/assets/ghostty/streambeats-$side.conf
+[ -f "$preset" ] || die "missing preset file: $preset"
+
+ghostty_bin=$(command -v ghostty 2>/dev/null || true)
+if [ -z "$ghostty_bin" ]; then
+	die "ghostty not found on PATH. Install Ghostty (https://ghostty.org/docs/install) or add its binary to PATH, then re-run $0."
+fi
+
+# Prefer the repo-built binary; fall back to a `streambeats` already on PATH.
+if [ -x "$repo_root/bin/streambeats" ]; then
+	player_bin=$repo_root/bin/streambeats
+elif player_bin=$(command -v streambeats 2>/dev/null); then
+	:
+else
+	die "streambeats binary not found. Build it with 'go build -o bin/streambeats ./cmd/streambeats' or install it on PATH."
+fi
+
+printf 'streambeats-quick: side=%s preset=%s player=%s\n' "$side" "$preset" "$player_bin" >&2
+
+exec "$ghostty_bin" \
+	--config "$preset" \
+	--config-default-files=false \
+	-e "$player_bin"
