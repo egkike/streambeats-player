@@ -97,6 +97,7 @@ printf '%s\n' \
 	'  terminal once your binary supports that action.' >&2
 
 exec "$ghostty_bin" \
+	--gtk-single-instance=false \
 	"--config=$preset" \
 	--config-default-files=false \
 	-e "$player_bin"
