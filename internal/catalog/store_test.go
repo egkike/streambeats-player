@@ -99,16 +99,20 @@ func ptr[T any](v T) *T { return &v }
 type httpStub map[string]string
 
 func (h httpStub) RoundTrip(req *http.Request) (*http.Response, error) {
-	if body, ok := h[req.URL.Path]; ok {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(body)),
-			Header:     make(http.Header),
-		}, nil
+	if resp, ok := h.RoundTripResult(req); ok {
+		return resp, nil
 	}
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
 		Body:       io.NopCloser(strings.NewReader("")),
 		Header:     make(http.Header),
 	}, nil
+}
+
+// RoundTripResult exposes the lookup for other stubs to compose.
+func (h httpStub) RoundTripResult(req *http.Request) (*http.Response, bool) {
+	if body, ok := h[req.URL.Path]; ok {
+		return newResponse(http.StatusOK, body), true
+	}
+	return nil, false
 }
