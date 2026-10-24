@@ -42,7 +42,7 @@ var keys = struct {
 // narrow terminals.
 func helpLines() []string {
 	navigation := []key.Binding{keys.Up, keys.Down, keys.Enter, keys.Back, keys.Library}
-	playback := []key.Binding{keys.Pause, keys.Stop, keys.VolumeUp, keys.VolumeDown, keys.Quit}
+	playback := []key.Binding{keys.Pause, keys.Stop, keys.QueueNext, keys.QueuePrev, keys.VolumeUp, keys.VolumeDown, keys.Quit}
 	return []string{formatHelp(navigation), formatHelp(playback)}
 }
 

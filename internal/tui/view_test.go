@@ -160,7 +160,7 @@ func TestTruncate(t *testing.T) {
 
 func TestHelpTextListsEveryAction(t *testing.T) {
 	help := helpText()
-	for _, want := range []string{"j/down", "k/up", "enter", "esc", "l", "space", "s", "+", "-", "q"} {
+	for _, want := range []string{"j/down", "k/up", "enter", "esc", "l", "space", "s", "+", "-", "next song", "prev song", "q"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help text %q is missing %q", help, want)
 		}
