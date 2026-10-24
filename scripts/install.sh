@@ -380,6 +380,6 @@ main() {
 	say "uninstall:   rm -rf \"$PREFIX/share/streambeats\" \"$PREFIX/bin/streambeats\" \"$PREFIX/bin/streambeats-quick\""
 }
 
-if [ "${BASH_SOURCE[0]:-}" = "$0" ]; then
+if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
 	main "$@"
 fi
