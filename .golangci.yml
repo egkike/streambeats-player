@@ -1,5 +1,12 @@
 version: "2"
 
+issues:
+  exclude-rules:
+    # test helpers close/IDs print freely; lint rigor stays on production code
+    - path: _test\.go
+      linters:
+        - errcheck
+
 linters:
   enable:
     # seguridad y deuda de errores
@@ -12,6 +19,13 @@ linters:
     - noctx           # HTTP requests con context.Context
 
   settings:
+    errcheck:
+      # CLI prints and deferred closes are acceptable-without-check by design
+      # here; real resources get an explicit `_ =` in code.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintln
+        - fmt.Fprintf
     gocritic:
       disabled-checks:
         # Subjetivos / ruidosos para un proyecto chico. El AGENTS.md ya

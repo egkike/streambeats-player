@@ -30,7 +30,7 @@ func (c *Client) get(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return "", fmt.Errorf("get %s: not found (404)", path)
 	}

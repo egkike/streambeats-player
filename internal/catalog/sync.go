@@ -76,7 +76,7 @@ func downloadTo(client *http.Client, url, dest string) error {
 	if err != nil {
 		return fmt.Errorf("fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("fetch: status %d", resp.StatusCode)
 	}
@@ -87,11 +87,10 @@ func downloadTo(client *http.Client, url, dest string) error {
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("download %s: %w", url, err)
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
+	_ = f.Close()
 	return os.Rename(tmp, dest)
 }
 
