@@ -286,6 +286,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey maps one keystroke to a pure state change plus optional command.
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
+	case key.Matches(msg, keys.QueueNext):
+		return m.queueNext()
+	case key.Matches(msg, keys.QueuePrev):
+		return m.queuePrev()
 	case key.Matches(msg, keys.Quit):
 		m.quitting = true
 		return m, tea.Quit
@@ -476,6 +480,72 @@ func (m Model) selectedTrack() (catalog.Track, bool) {
 		return catalog.Track{}, false
 	}
 	return album.Tracks[clampCursor(m.trackCursor, len(album.Tracks))], true
+}
+
+// queueNext is the manual '>' skip: shares the auto-advance engine (and its
+// in-flight guard) so a slow resolve does not stack jumps.
+func (m Model) queueNext() (tea.Model, tea.Cmd) {
+	if m.player == nil {
+		m.status = friendlyError("playback unavailable", errNoPlayer)
+		return m, nil
+	}
+	if !m.playing {
+		m.status = "nothing is playing — press enter on a track"
+		return m, nil
+	}
+	if m.advancing {
+		m.status = "next track is already loading…"
+		return m, nil
+	}
+	return m.autoAdvance()
+}
+
+// queuePrev is the manual '<' skip: plays the previous item of the queue,
+// restarting the first one when at the top.
+func (m Model) queuePrev() (tea.Model, tea.Cmd) {
+	if m.player == nil {
+		m.status = friendlyError("playback unavailable", errNoPlayer)
+		return m, nil
+	}
+	if !m.playing {
+		m.status = "nothing is playing — press enter on a track"
+		return m, nil
+	}
+	if m.advancing {
+		m.status = "next track is already loading…"
+		return m, nil
+	}
+	restart := func() tea.Model {
+		m.status = ""
+		return m
+	}
+	if m.mode == ModeLibrary {
+		if m.playingLib <= 0 {
+			// top of the queue: replay the current item
+			if m.playingLib < 0 {
+				m.status = "no previous track in the queue"
+				return m, nil
+			}
+			return restart(), loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
+		}
+		m.playingLib--
+		m.playingAlbum, m.playingTrack = -1, -1
+		m.status = ""
+		m.advancing = true
+		m.progressMisses = 0
+		return m, loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
+	}
+	if m.playingAlbum < 0 || m.playingTrack <= 0 {
+		m.status = "no previous track in the queue"
+		return m, nil
+	}
+	album := m.albums[m.playingAlbum]
+	m.playingTrack--
+	m.playingLib = -1
+	m.status = ""
+	m.advancing = true
+	m.progressMisses = 0
+	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
 }
 
 // autoAdvance plays the successor of the source that just finished. It is

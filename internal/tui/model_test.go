@@ -916,3 +916,60 @@ func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
 		t.Fatalf("resolver fallback was not invoked: %v", resolver.calls)
 	}
 }
+
+// --- manual queue skip keys (L21) -------------------------------------------
+
+func TestNextKeyAdvancesQueue(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
+	if !m.advancing {
+		t.Fatal("manual next should mark the advance in flight")
+	}
+	if m.playingTrack != 1 {
+		t.Fatalf("playingTrack = %d, want 1 after '>'", m.playingTrack)
+	}
+}
+
+func TestNextKeyInFlightShowsStatus(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
+	if cmd != nil {
+		t.Fatal("a second '>' while the advance loads must not queue a jump")
+	}
+}
+
+func TestNextKeyOnLastTrackEndsPlaylist(t *testing.T) {
+	m := playingCatalogModel(t, 1)
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
+	if m.playing {
+		t.Fatal("playing = true, want false at the end of the queue")
+	}
+	if !strings.Contains(m.status, "playlist ended") {
+		t.Fatalf("status = %q, want playlist ended", m.status)
+	}
+}
+
+func TestPrevKeyPlaysPreviousTrack(t *testing.T) {
+	m := playingCatalogModel(t, 1)
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	if m.playingTrack != 0 {
+		t.Fatalf("playingTrack = %d, want 0 after '<' from track 1", m.playingTrack)
+	}
+	msg := runCmd(t, cmd)
+	m, _ = update(t, m, msg)
+	fake, _ := m.player.(*fakePlayer)
+	if len(fake.titles) < 2 || fake.titles[len(fake.titles)-1] != "First Song" {
+		t.Fatalf("titles = %v, want the previous track loaded", fake.titles)
+	}
+}
+func TestPrevKeyAtAlbumStartShowsNote(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	if m.playingTrack != 0 {
+		t.Fatalf("playingTrack = %d, want no change at the album start", m.playingTrack)
+	}
+	if !strings.Contains(m.status, "no previous track") {
+		t.Fatalf("status = %q, want the no-previous note", m.status)
+	}
+}
