@@ -364,11 +364,14 @@ func humanizeSlug(slug string) string {
 }
 
 // friendlyError prefixes an error with a human hint about the audio backend.
+// Player-side errors already carry an "mpv error:" prefix; strip it here so
+// the status line never shows the words back to back ("mpv error: mpv error:").
 func friendlyError(prefix string, err error) string {
 	if err == nil {
 		return prefix
 	}
-	return prefix + ": " + err.Error() + " (is mpv installed and running?)"
+	msg := strings.TrimPrefix(err.Error(), "mpv error: ")
+	return prefix + ": " + msg + " (is mpv installed and running?)"
 }
 
 // joinStatus appends a note to a possibly empty status line.

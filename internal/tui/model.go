@@ -97,6 +97,13 @@ type Model struct {
 	volume     int
 	position   float64
 	duration   float64
+	// Bookkeeping for end-of-track auto-advance: which album/track/library
+	// item is currently playing (-1 when none). The basis is the played
+	// source itself, not the browsed list, so navigation while playing
+	// cannot derail the queue.
+	playingAlbum int
+	playingTrack int
+	playingLib   int
 	// progressMisses counts consecutive poll failures; mpv reports transient
 	// "property unavailable" right after a load, so status needs debouncing.
 	progressMisses int
@@ -110,14 +117,17 @@ type Model struct {
 // NewModel builds a model from already-loaded data. No I/O happens here.
 func NewModel(opts Options) Model {
 	m := Model{
-		player:      opts.Player,
-		resolve:     opts.Resolver,
-		library:     append([]string(nil), opts.LibraryFiles...),
-		libraryRoot: opts.LibraryRoot,
-		volume:      defaultVolume,
-		width:       opts.Width,
-		height:      opts.Height,
-		status:      opts.PlayerNote,
+		player:       opts.Player,
+		resolve:      opts.Resolver,
+		library:      append([]string(nil), opts.LibraryFiles...),
+		libraryRoot:  opts.LibraryRoot,
+		volume:       defaultVolume,
+		playingAlbum: -1,
+		playingTrack: -1,
+		playingLib:   -1,
+		width:        opts.Width,
+		height:       opts.Height,
+		status:       opts.PlayerNote,
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
@@ -196,6 +206,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		if msg.err != nil {
 			m.progressMisses++
+			// A played source that stops answering time-pos has finished:
+			// the natural response is the next item in the queue, not an
+			// error banner.
+			if m.progressMisses >= progressErrorThreshold && m.playing && !m.paused {
+				return m.autoAdvance()
+			}
 			if m.progressMisses >= progressErrorThreshold {
 				m.status = friendlyError("mpv error", msg.err)
 			}
@@ -294,7 +310,10 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 			m.status = "local library is empty — run `streambeats sync`"
 			return m, nil
 		}
-		path := m.library[clampCursor(m.libraryCursor, len(m.library))]
+		idx := clampCursor(m.libraryCursor, len(m.library))
+		m.playingLib = idx
+		m.playingAlbum, m.playingTrack = -1, -1
+		path := m.library[idx]
 		return m, loadFileCmd(m.player, path, libraryEntryTitle(path))
 	}
 
@@ -331,6 +350,9 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		m.status = "stream resolver unavailable"
 		return m, nil
 	}
+	m.playingAlbum = m.albumCursor
+	m.playingTrack = clampCursor(m.trackCursor, len(album.Tracks))
+	m.playingLib = -1
 	return m, resolveAndPlayCmd(m.player, m.resolve, album, track)
 }
 
@@ -402,6 +424,43 @@ func (m Model) selectedTrack() (catalog.Track, bool) {
 		return catalog.Track{}, false
 	}
 	return album.Tracks[clampCursor(m.trackCursor, len(album.Tracks))], true
+}
+
+// autoAdvance plays the successor of the source that just finished. It is
+// the pure state change + command pair for end-of-track detection; the
+// caller must have confirmed the track really ended (poll errors exhausted
+// a live playback, not a transient hiccup).
+func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
+	clear := func() tea.Model {
+		m.playing, m.paused = false, false
+		m.progressMisses = 0
+		m.status = "playlist ended"
+		return m
+	}
+	if m.mode == ModeLibrary {
+		if m.playingLib < 0 || m.playingLib+1 >= len(m.library) {
+			return clear(), nil
+		}
+		m.playingLib++
+		m.playingAlbum, m.playingTrack = -1, -1
+		next := m.library[m.playingLib]
+		m.status = ""
+		return m, loadFileCmd(m.player, next, libraryEntryTitle(next))
+	}
+	if m.player == nil || m.resolve == nil || m.playingAlbum < 0 || m.playingAlbum >= len(m.albums) {
+		return clear(), nil
+	}
+	album := m.albums[m.playingAlbum]
+	if m.playingTrack+1 >= len(album.Tracks) {
+		return clear(), nil
+	}
+	m.playingTrack++
+	m.playingLib = -1
+	m.status = ""
+	// Reset misses so post-loadfile transient unavailability cannot
+	// immediately re-trigger another advance.
+	m.progressMisses = 0
+	return m, resolveAndPlayCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack])
 }
 
 // --- commands (side effects) -------------------------------------------

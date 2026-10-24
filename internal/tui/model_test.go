@@ -604,3 +604,100 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 		}
 	}
 }
+
+// --- end-of-track auto-advance (L13) ---------------------------------------
+
+// playingCatalogModel activates track trackIdx of album one so the model's
+// playing* bookkeeping is set through the real key flow.
+func playingCatalogModel(t *testing.T, trackIdx int) Model {
+	t.Helper()
+	m := testModel(Options{
+		Player:   &fakePlayer{},
+		Resolver: &fakeResolver{url: "https://stream.example/1"},
+	})
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // albums -> tracks
+	for i := 0; i < trackIdx; i++ {
+		m, _ = press(t, m, 'j')
+	}
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	msg := runCmd(t, cmd)
+	loaded, ok := msg.(loadedMsg)
+	if !ok || loaded.err != nil {
+		t.Fatalf("first play returned %T (%v)", msg, loaded.err)
+	}
+	// feed the loadedMsg back so the model enters its playing state
+	m, _ = update(t, m, msg)
+	return m
+}
+
+func TestTrackEndAdvancesToNextTrack(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	var player *fakePlayer
+	// recover the fake to observe what the auto-advance plays
+	player = m.player.(*fakePlayer)
+
+	// a finished track surfaces as persistent "property unavailable" polls
+	var cmd tea.Cmd
+	for i := 0; i <= progressErrorThreshold*2 && cmd == nil; i++ {
+		m, cmd = update(t, m, progressMsg{
+			err: errors.New("mpv error: property unavailable"),
+		})
+	}
+	if cmd == nil {
+		t.Fatal("end of track should return a next-track command")
+	}
+	if strings.Contains(m.status, "mpv error") {
+		t.Fatalf("status = %q, want no scary error during auto-advance", m.status)
+	}
+	runCmd(t, cmd) // resolve+load next track through the fakes
+	if got := strings.Join(player.titles, ","); got != "First Song,Second Song" {
+		t.Fatalf("titles = %q, want auto-advance to the next track", got)
+	}
+}
+
+func TestTrackEndOfAlbumSetsPlaylistEnded(t *testing.T) {
+	m := playingCatalogModel(t, 1)
+	// the model's bookkeeping should now pin the second track
+	m, _ = update(t, m, loadedMsg{title: "Second Song"})
+	var cmd tea.Cmd
+	for i := 0; i <= progressErrorThreshold; i++ {
+		m, cmd = update(t, m, progressMsg{
+			err: errors.New("mpv error: property unavailable"),
+		})
+	}
+	if cmd != nil {
+		t.Fatalf("last track should not advance, got command %v", cmd)
+	}
+	if m.playing {
+		t.Fatal("playing = true, want false after the playlist ends")
+	}
+	if !strings.Contains(m.status, "playlist ended") {
+		t.Fatalf("status = %q, want the playlist-ended note", m.status)
+	}
+}
+
+func TestLibraryEndAdvancesAndEnds(t *testing.T) {
+	m := testModel(Options{
+		Player:       &fakePlayer{},
+		LibraryFiles: []string{"/lib/a1.mp3", "/lib/a2.mp3"},
+	})
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	runCmd(t, cmd)
+	m, _ = update(t, m, loadedMsg{title: "a1"})
+	var nextCmd tea.Cmd
+	for i := 0; i <= progressErrorThreshold*2 && nextCmd == nil; i++ {
+		m, nextCmd = update(t, m, progressMsg{
+			err: errors.New("mpv error: property unavailable"),
+		})
+	}
+	if nextCmd == nil {
+		t.Fatal("library playlist should advance to the next file")
+	}
+	msg := runCmd(t, nextCmd)
+	if l, ok := msg.(loadedMsg); !ok || l.title != "Lib / A2" {
+		t.Fatalf("library next = %v, want the second file", msg)
+	}
+	player := m.player.(*fakePlayer)
+	_ = player
+}
