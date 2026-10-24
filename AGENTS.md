@@ -58,6 +58,27 @@ built for a live coding workflow (Ghostty + herdr + gentle-shell, KDE Plasma Way
 - The launcher auto-rebuilds `bin/streambeats` when sources are newer — binaries are git-ignored; never commmit one.
 - `odd/tasks/*.md` log entries (`L<nn>`) accompany any behavior change; specs (`S<n>`) quote user requirements verbatim.
 
+## Git Governance (issue-first, owner merge)
+The public repo runs a strict review gate; me/agents NEVER merge, the owner does.
+
+**Change lanes:**
+
+| Type | Examples | Path to main |
+|------|----------|--------------|
+| Documentation / tracking | `docs/**`, `README.md`, `AGENTS.md`, `odd/**` | branch → owner review → `git merge --ff-only` + push (no PR) |
+| Code | `*.go`, `go.mod`, `go.sum`, `scripts/`, `assets/`, `.github/`, `.goreleaser.yaml` | issue-first PR, owner merges |
+
+**Issue-first flow (code changes) — the only accepted path to `main`:**
+1. Orchestrator opens a **GitHub issue** describing the invariant, evidence and negative controls.
+2. **Owner** grants `status:approved` on that issue (labels only go on when THEY authorize).
+3. Orchestrator creates the feature branch, implements (work-unit commits ≤ ~400 authored lines), pushes, and opens the PR body-linked with `Closes #N` + exactly one `type:*` label. CI + `pr-gate` must be green.
+4. **Only the owner merges** (squash, conventional title). After merging, the owner notifies the orchestrator.
+5. Orchestrator syncs (pull + local reconciliation), verifies the merge commit's CI is green, and only then cuts a release tag when the PR is release-bound — never releasing until the merge-commit CI is green (post-merge CI sequencing).
+
+**The `pr-gate` check is a review signal, not a hard lock:** branch protection is owner-managed; the owner may still merge over a red gate deliberately (e.g. hotfix during outage) — prefer documenting that on the PR.
+
+`size:exception` marks a PR exceeding the ~400-line advisory heuristic (review workload guard): it blocks nothing, it only makes the oversize visible to the owner during planning.
+
 ## Security & Robustness
 - No secrets anywhere; the catalog cache never stores stream tokens; sockets are local unix domain sockets.
 - Everything from the network is untrusted: parse with strict JSON/regex, never concatenate; failures surface as
