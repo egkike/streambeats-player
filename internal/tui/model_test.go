@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -814,6 +815,7 @@ func TestEOFEventAdvancesImmediately(t *testing.T) {
 	}
 	// with a two-track album the second eof is the true end of the queue
 	m, _ = update(t, m, loadedMsg{title: "Second Song"})
+	m = expireFence(m)
 	m, cmd2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
 	if cmd2 != nil {
 		t.Fatal("eof on the last track must not start anything")
@@ -825,6 +827,12 @@ func TestEOFEventAdvancesImmediately(t *testing.T) {
 
 // TestEOFEventsRearmAcrossTracks exercises the event listener re-arm on a
 // longer queue: two consecutive eof -> five tracks -> two advances.
+// expireFence dispels the anti-storm fence for deterministic tests.
+func expireFence(m Model) Model {
+	m.lastAutoAdvance = time.Time{}
+	return m
+}
+
 func TestEOFEventsRearmAcrossTracks(t *testing.T) {
 	catalog3 := &catalog.Catalog{Albums: []catalog.AlbumEntry{{
 		Slug:   "long-album",
@@ -850,6 +858,7 @@ func TestEOFEventsRearmAcrossTracks(t *testing.T) {
 	}
 	m, _ = update(t, m, runCmd(t, cmd2))
 	m, _ = update(t, m, loadedMsg{title: "Two"})
+	m = expireFence(m)
 	m, cmd3 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
 	if cmd3 == nil {
 		t.Fatal("second eof should advance to Three (listener re-armed)")

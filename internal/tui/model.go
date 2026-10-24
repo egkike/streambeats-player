@@ -113,6 +113,10 @@ type Model struct {
 	// error wave in that window is swallowed instead of racing a second
 	// autoAdvance and falsely reporting the playlist as ended.
 	advancing bool
+	// lastAutoAdvance timestamps the previous auto-advance; the fence at
+	// the top of autoAdvance keeps delayed EOF/error storms from
+	// machine-gunning the playlist.
+	lastAutoAdvance time.Time
 	// prefetch caches a freshly resolved stream URL for the NEXT track,
 	// filled right after a load succeeds so the eventual skip needs no
 	// wait; prefetchSlug names the track it belongs to.
@@ -210,6 +214,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.playing = false
 			m.paused = false
+			m.advancing = false // a failed advance must not freeze the queue
 			m.status = friendlyError("playback failed", msg.err)
 			return m, nil
 		}
@@ -554,11 +559,22 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
 }
 
+const autoCompleteMinInterval = 2 * time.Second
+
 // autoAdvance plays the successor of the source that just finished. It is
 // the pure state change + command pair for end-of-track detection; the
 // caller must have confirmed the track really ended (poll errors exhausted
 // a live playback, not a transient hiccup).
+// A minimum interval between two auto-advances fences the queue against any
+// delayed error/event storm: if a wave arrives ahead of schedule, the ship
+// waits (the stale wave is swallowed) instead of machine-gunning through the
+// track list.
 func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
+	if !m.lastAutoAdvance.IsZero() && time.Since(m.lastAutoAdvance) < autoCompleteMinInterval {
+		m.progressMisses = 0
+		return m, nil
+	}
+	m.lastAutoAdvance = time.Now()
 	clear := func() tea.Model {
 		m.playing, m.paused = false, false
 		m.advancing = false
