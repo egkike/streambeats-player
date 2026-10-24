@@ -38,7 +38,7 @@ func (s *Store) Load() (*Catalog, error) {
 
 // Save atomically writes the catalog cache (write .tmp then rename).
 func (s *Store) Save(cat *Catalog) error {
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.Path), 0o750); err != nil {
 		return fmt.Errorf("mkdir cache dir: %w", err)
 	}
 	raw, err := json.MarshalIndent(cat, "", "  ")
@@ -46,7 +46,7 @@ func (s *Store) Save(cat *Catalog) error {
 		return fmt.Errorf("encode catalog: %w", err)
 	}
 	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
 		return fmt.Errorf("write cache: %w", err)
 	}
 	if err := os.Rename(tmp, s.Path); err != nil {

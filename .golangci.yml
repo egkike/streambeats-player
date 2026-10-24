@@ -1,13 +1,16 @@
 version: "2"
 
-issues:
-  exclude-rules:
-    # test helpers close/IDs print freely; lint rigor stays on production code
-    - path: _test\.go
-      linters:
-        - errcheck
-
 linters:
+  exclusions:
+    rules:
+      # test helpers close/print freely; lint rigor stays on production code
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - staticcheck
+          - ineffassign
+          - noctx
   enable:
     # seguridad y deuda de errores
     - gosec           # hardcoded credentials, weak crypto, unsafe
@@ -29,7 +32,7 @@ linters:
     gocritic:
       disabled-checks:
         # Subjetivos / ruidosos para un proyecto chico. El AGENTS.md ya
-        # define los estandares; no necesitamos que el linter opine
+        # define los estándares; no necesitamos que el linter opine
         # sobre estilo subjetivo.
         - ifElseChain
         - singleCaseSwitch

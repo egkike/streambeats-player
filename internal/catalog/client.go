@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +27,11 @@ func (c *Client) get(path string) (string, error) {
 	if c.BaseURL != nil {
 		base = *c.BaseURL
 	}
-	resp, err := c.HTTP.Get(base + path)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", base+path, nil)
+	if err != nil {
+		return "", fmt.Errorf("build request %s: %w", path, err)
+	}
+	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("get %s: %w", path, err)
 	}
