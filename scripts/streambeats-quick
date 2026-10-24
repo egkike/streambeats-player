@@ -78,8 +78,17 @@ if [ -z "$ghostty_bin" ]; then
 fi
 
 # Prefer the repo-built binary; fall back to a `streambeats` already on PATH.
-if [ -x "$repo_root/bin/streambeats" ]; then
-	player_bin=$repo_root/bin/streambeats
+# A stale binary would silently run last week's player, so if `go` is on PATH
+# and any .go file is newer than the binary (or the binary is missing),
+# rebuild it first.
+player_bin=$repo_root/bin/streambeats
+if command -v go >/dev/null 2>&1 && { [ ! -x "$player_bin" ] || [ -n "$(find "$repo_root" -name '*.go' -newer "$player_bin" -print -quit 2>/dev/null)" ]; }; then
+	printf 'streambeats-quick: rebuilding the player (sources newer than bin)\n' >&2
+	(cd "$repo_root" && go build -o bin/streambeats ./cmd/streambeats) ||
+		die "rebuild failed; fix the build error or run it yourself: go build -o bin/streambeats ./cmd/streambeats"
+fi
+if [ -x "$player_bin" ]; then
+	:
 elif player_bin=$(command -v streambeats 2>/dev/null); then
 	:
 else
