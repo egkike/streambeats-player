@@ -218,6 +218,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.position, m.duration = 0, 0
 		m.progressMisses = 0
 		m.status = ""
+		// The browse cursor follows playback so the ♪/▸ markers stay in sync
+		// after auto-advances and skips (user report L31).
+		if m.mode == ModeLibrary {
+			if m.playingLib >= 0 && m.playingLib < len(m.library) {
+				m.libraryCursor = m.playingLib
+			}
+		} else if m.playingAlbum >= 0 && m.playingAlbum < len(m.albums) {
+			m.albumCursor = m.playingAlbum
+			m.trackCursor = m.playingTrack
+			m.inTracks = true
+		}
 		// Guarantee the ticker after every load (advances re-arm it too),
 		// and prefetch the next track's fresh stream URL for instant skips.
 		nextCmds := []tea.Cmd{tickCmd()}
@@ -264,6 +275,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.progressMisses = 0
+		// A real progress reading proves the source is live: transient
+		// property banners (mpv not reporting duration while buffering)
+		// clear right here.
+		m.status = ""
 		m.position, m.duration = msg.pos, msg.dur
 		return m, nil
 	case volumeMsg:

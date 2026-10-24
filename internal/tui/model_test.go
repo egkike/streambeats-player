@@ -912,6 +912,36 @@ func TestIdleActiveLastTrackEndsQueue(t *testing.T) {
 	}
 }
 
+// --- cursor follows playback + status clears on real progress ---------
+
+// After an advance (auto or manual), the BROWSE cursor must follow the
+// playing item, so the ♪/▸ markers do not drift apart (user report L31).
+func TestLoadedMsgSyncsBrowseCursorToPlayingItem(t *testing.T) {
+	m := playingAlbumTrack(t, 0, 0)
+	// simulate an advance playing track 1 while the browse UI still cursored 0
+	m.playingAlbum, m.playingTrack = 0, 1
+	m, _ = update(t, m, loadedMsg{title: "Second Song"})
+	if m.playingTrack != m.trackCursor || !m.inTracks {
+		t.Fatalf("cursor not synced: trackCursor=%d playingTrack=%d inTracks=%v",
+			m.trackCursor, m.playingTrack, m.inTracks)
+	}
+	if m.albumCursor != 0 {
+		t.Fatalf("albumCursor = %d, want the playing album", m.albumCursor)
+	}
+}
+
+// A transient property error (mpv does not report duration/time-pos during
+// the first moments of a stream) must CLAR the status banner on the next
+// real progress reading, not stay for the whole track (user report L31).
+func TestProgressSuccessClearsErrorStatus(t *testing.T) {
+	m := playingAlbumTrack(t, 0, 0)
+	m.status = "mpv error: property unavailable"
+	m, _ = update(t, m, progressMsg{pos: 2, dur: 125})
+	if m.status != "" {
+		t.Fatalf("status = %q, want cleared on real progress", m.status)
+	}
+}
+
 // --- cross-album queue navigation (S10) -------------------------------------
 
 // TestPrevCrossesToPreviousAlbum: '<' at the first track of an album must
