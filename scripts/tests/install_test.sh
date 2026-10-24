@@ -221,11 +221,47 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Scenario 4: argument hygiene
+# Scenario 4: hostile prefixes cannot inject commands into wrappers
+# (regression for the reviewer-found R1-001; uses the STUB launcher, so no
+# real process except sh is spawned)
+# ---------------------------------------------------------------------------
+STAGE="$Fx/stage_hostile"
+PREFIX="$Fx/night\$(printf INJECTED)'-wire"
+mkdir -p "$STAGE/api/releases/tags"
+stage_fake_release "$STAGE/artifacts" 1
+cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
+say "scenario 4: hostile prefix injection refusal"
+run_installer "$PREFIX" 2>"$Fx/err_hostile"
+rcH=$?
+if [ "$rcH" = "0" ]; then
+	pass "installer tolerated a hostile prefix literally"
+else
+	fail "installer exited $rcH on a hostile prefix; stderr: $(cat "$Fx/err_hostile")"
+fi
+WRC="$PREFIX/bin/streambeats-quick"
+assert_file "$WRC" "wrapper exists under the literal hostile prefix"
+if grep -qE '\"\$\(' "$WRC"; then
+	fail "wrapper embeds the prefix in double quotes: $WRC"
+else
+	pass "wrapper keeps the prefix in single quotes (no $ or backtick live)"
+fi
+WOUT=$("$WRC" left 2>&1)
+rcW=$?
+if [ "$rcW" = "0" ] && printf '%s' "$WOUT" | grep -q "quick-panel left"; then
+	pass "wrapper runs through the hostile path (/bin/sh executed it as data)"
+	if printf '%s' "$WOUT" | grep -q "INJECTED"; then
+		fail "command substitution leaked into execution"
+	fi
+else
+	fail "wrapper did not run on the hostile prefix (rc=$rcW, got: $WOUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario 5: argument hygiene
 # ---------------------------------------------------------------------------
 STAGE="$Fx/stage4"
 mkdir -p "$STAGE"
-say "scenario 4: argument hygiene"
+say "scenario 5: argument hygiene"
 if "$SCRIPT_UNDER_TEST" --bogus >/dev/null 2>&1; then
 	fail "--bogus accepted"
 else

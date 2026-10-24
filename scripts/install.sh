@@ -248,24 +248,34 @@ install_bundle() {
 	write_wrappers "$prefix" "$share"
 }
 
-# escape_sh: neutralize quotes/backslashes before embedding in a wrapper.
-escape_sh() {
-	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+# escape_sh_single: make a path safe inside SINGLE quotes. Single-quoted
+# strings in sh expand NOTHING (no $cmd-substitution, no backticks), so only
+# the single quote itself needs escaping (' -> '\'' closes, escapes, reopens).
+# Double-quoted embeds are unusable here: they keep $ and ` live, which would
+# let a crafted --prefix name execute commands every time the wrapper runs.
+escape_sh_single() {
+	printf '%s' "$1" | sed "s/'/'\\\\''/g"
 }
 
 write_wrappers() {
+	# Wrapper skeletons live in single-quoted heredocs; the share path is the
+	# ONLY interpolated value and goes through escape_sh_single, so no
+	# $substitution or backtick inside a hostile --prefix name survives.
 	local prefix="$1" share="$2" esc
-	esc=$(escape_sh "$share")
+	esc=$(escape_sh_single "$share")
 	local w dest
 	for w in streambeats streambeats-quick; do
 		dest="$(new_tmp)"
 		{
 			printf '#!/bin/sh\n'
-			if [ "$w" = "streambeats" ]; then
-				printf 'exec "%s/bin/streambeats" "$@"\n' "$esc"
-			else
-				printf 'exec "%s/scripts/streambeats-quick" "$@"\n' "$esc"
-			fi
+			case "$w" in
+			streambeats)
+				printf "exec '%s/bin/streambeats' \"\$@\"\n" "$esc"
+				;;
+			*)
+				printf "exec '%s/scripts/streambeats-quick' \"\$@\"\n" "$esc"
+				;;
+			esac
 		} >"$dest"
 		mv "$dest" "$prefix/bin/$w" || die "cannot install wrapper $prefix/bin/$w"
 		chmod 0755 "$prefix/bin/$w"
