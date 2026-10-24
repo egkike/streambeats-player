@@ -4,6 +4,7 @@ package catalog
 // per-album layout and scan what is already on disk (incremental sync).
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,7 +48,7 @@ func (c *Client) SyncAlbum(root string, index int, albumSlug string) (SyncResult
 		return result, fmt.Errorf("sync %s: %w", albumSlug, err)
 	}
 	albumDir := filepath.Join(root, fmt.Sprintf("%02d - %s", index, albumSlug))
-	if err := os.MkdirAll(albumDir, 0o755); err != nil {
+	if err := os.MkdirAll(albumDir, 0o750); err != nil {
 		return result, fmt.Errorf("sync %s: create dir: %w", albumSlug, err)
 	}
 	for i, t := range tracks {
@@ -72,26 +73,28 @@ func (c *Client) SyncAlbum(root string, index int, albumSlug string) (SyncResult
 
 // downloadTo streams a URL into dest without buffering the whole file.
 func downloadTo(client *http.Client, url, dest string) error {
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("fetch: status %d", resp.StatusCode)
 	}
 	tmp := dest + ".part"
-	f, err := os.Create(tmp)
+	f, err := os.Create(tmp) // #nosec G304 — tmp is `dest + ".part"`, built from the caller-verified dest
 	if err != nil {
 		return fmt.Errorf("create %s: %w", tmp, err)
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("download %s: %w", url, err)
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
+	_ = f.Close()
 	return os.Rename(tmp, dest)
 }
 

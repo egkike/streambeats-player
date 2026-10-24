@@ -7,6 +7,7 @@ package player
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -37,7 +38,8 @@ type Client struct {
 
 // Dial connects to a running mpv instance's IPC socket.
 func Dial(addr string, timeout time.Duration) (*Client, error) {
-	conn, err := net.DialTimeout("unix", addr, timeout)
+	dialer := &net.Dialer{Timeout: timeout}
+	conn, err := dialer.DialContext(context.Background(), "unix", addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial mpv ipc %s: %w", addr, err)
 	}

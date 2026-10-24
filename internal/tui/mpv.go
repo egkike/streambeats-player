@@ -6,6 +6,7 @@ package tui
 // No unit test starts a process; only the pure argument/path helpers are tested.
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -53,7 +54,10 @@ func SpawnMPV(socketPath string) (*exec.Cmd, *player.Client, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("mpv not found in PATH: %w", err)
 	}
-	cmd := exec.Command(bin, mpvArgs(socketPath)...)
+
+	// Spawn the pinned mpv path that LookPath resolved; args come strictly
+	// from our own options (no user input), so inline #nosec exempts G204.
+	cmd := exec.CommandContext(context.Background(), bin, mpvArgs(socketPath)...) // #nosec G204 — pinned binary, internal args
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
