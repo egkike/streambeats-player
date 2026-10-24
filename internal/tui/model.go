@@ -117,11 +117,13 @@ type Model struct {
 	// the top of autoAdvance keeps delayed EOF/error storms from
 	// machine-gunning the playlist.
 	lastAutoAdvance time.Time
-	// suppressEOF swallows end-file/eof events after a user-initiated skip
-	// (or after a load whose true progress is not yet confirmed): the old
-	// source can still deliver a raced eof, which would otherwise trigger
-	// the forward auto-advance uninvited. Cleared on real progress.
-	suppressEOF bool
+	// suppressUntil swallows end-file/eof events for a short window after
+	// a user-initiated skip: the replaced source can still deliver a raced
+	// eof, which would otherwise trigger the forward auto-advance uninvited.
+	// A time window (not a bool) is immune to the old source's stale
+	// progress polls clearing it early; natural track ends are minutes away,
+	// so the 3 s window can never swallow a real one.
+	suppressUntil time.Time
 	// prefetch caches a freshly resolved stream URL for the NEXT track,
 	// filled right after a load succeeds so the eventual skip needs no
 	// wait; prefetchSlug names the track it belongs to.
@@ -248,7 +250,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Re-arm the event listener regardless of outcome.
 		rearm := []tea.Cmd{waitEventsCmd(m.player)}
 		if msg.event.Name == "end-file" && msg.event.Reason == "eof" &&
-			m.playing && !m.paused && !m.advancing && !m.suppressEOF {
+			m.playing && !m.paused && !m.advancing && !m.suppressed() {
 			mNext, cmd := m.autoAdvance()
 			if cmd != nil {
 				rearm = []tea.Cmd{cmd, waitEventsCmd(m.player)}
@@ -281,7 +283,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.progressMisses = 0
-		m.suppressEOF = false // real progress proves a live source
 		m.position, m.duration = msg.pos, msg.dur
 		return m, nil
 	case volumeMsg:
@@ -514,7 +515,7 @@ func (m Model) queueNext() (tea.Model, tea.Cmd) {
 		m.status = "next track is already loading…"
 		return m, nil
 	}
-	m.suppressEOF = true
+	m.suppressUntil = time.Now().Add(suppressEOFWindow)
 	return m.autoAdvance()
 }
 
@@ -550,7 +551,7 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 		m.playingAlbum, m.playingTrack = -1, -1
 		m.status = ""
 		m.advancing = true
-		m.suppressEOF = true
+		m.suppressUntil = time.Now().Add(suppressEOFWindow)
 		m.progressMisses = 0
 		return m, loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
 	}
@@ -563,12 +564,20 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 	m.playingLib = -1
 	m.status = ""
 	m.advancing = true
-	m.suppressEOF = true
+	m.suppressUntil = time.Now().Add(suppressEOFWindow)
 	m.progressMisses = 0
 	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
 }
 
-const autoCompleteMinInterval = 2 * time.Second
+const (
+	// autoCompleteMinInterval fences back-to-back auto-advances against
+	// delayed EOF/error storms.
+	autoCompleteMinInterval = 2 * time.Second
+	// suppressEOFWindow covers the race window in which a replaced source
+	// may still deliver its late eof event; natural track ends are minutes
+	// away, so this window can never bite a real end-file.
+	suppressEOFWindow = 3 * time.Second
+)
 
 // autoAdvance plays the successor of the source that just finished. It is
 // the pure state change + command pair for end-of-track detection; the
@@ -648,6 +657,9 @@ func pollCmd(p Player) tea.Cmd {
 		return progressMsg{pos: pos, dur: dur}
 	}
 }
+
+// suppressed reports whether the post-skip EOF transient window is open.
+func (m Model) suppressed() bool { return time.Now().Before(m.suppressUntil) }
 
 // quitMsg marks the graceful playback teardown completion on quit.
 type quitMsg struct{}

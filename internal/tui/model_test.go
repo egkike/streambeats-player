@@ -12,7 +12,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"fmt"
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
 )
@@ -638,12 +637,17 @@ func TestEOFSwallowedUntilFreshProgressAfterUserSkip(t *testing.T) {
 	if strings.Contains(m.status, "playlist ended") {
 		t.Fatalf("status = %q, want no auto-advance side effects", m.status)
 	}
-	// once the fresh track produces real progress, eof is honored again
-	m, _ = update(t, m, progressMsg{pos: 1, dur: 125})
-	fmt.Println("DBG pre-eof2: fenceZero=", m.lastAutoAdvance.IsZero(), " suppress=", m.suppressEOF, " playing=", m.playing, " advancing=", m.advancing, " track=", m.playingTrack, " mode=", m.mode)
+	// stale progress polls of the OLD source must not clear the window
+	m, _ = update(t, m, progressMsg{pos: 90, dur: 125})
+	m, eofNow := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if eofNow != nil {
+		t.Fatal("stale progress polls must not open the eof window")
+	}
+	// once the window expires, a natural eof advances again
+	m.suppressUntil = time.Now().Add(-time.Second)
 	m, eof2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
 	if eof2 == nil {
-		t.Fatal("eof AFTER real progress should advance the queue again")
+		t.Fatal("eof AFTER the window expires should advance the queue")
 	}
 	m, _ = update(t, m, runCmd(t, eof2))
 	fake, _ := m.player.(*fakePlayer)
