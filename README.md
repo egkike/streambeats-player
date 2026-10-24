@@ -7,12 +7,41 @@ The catalog streams directly from Bandcamp's mp3-128 endpoints (StreamBeats
 releases are free), with an optional local library built from the same
 streams. No third-party unlockers, accounts or subscriptions involved.
 
+## Install (one line)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/egkike/streambeats-player/main/scripts/install.sh | bash
+```
+
+User-level install, no sudo: the full floating-panel experience lands in
+`~/.local/bin` + `~/.local/share/streambeats`. The archive is downloaded and
+SHA-256 verified against the release's `checksums.txt` before anything is
+written. Details, pinned versions and the installed layout: docs/install.md.
+
+```sh
+streambeats               # TUI player, runs in any terminal
+streambeats-quick right   # floating quick-terminal panel (Ghostty)
+```
+
+Uninstall:
+
+```sh
+rm -rf ~/.local/share/streambeats ~/.local/bin/streambeats ~/.local/bin/streambeats-quick
+```
+
 ## Requirements
 
-- Go 1.27+
-- mpv (playback backend, JSON IPC)
-- Ghostty 1.2+ (quick terminal; on Linux the quick terminal surfaces on
-  Wayland with wlr-layer-shell — see docs/ghostty.md)
+- **Linux** — the runtime contract builds on Unix domain sockets (mpv IPC)
+  and POSIX tooling; installing on Windows is refused, macOS is untested.
+- **mpv ≥ 0.41** — playback backend over JSON IPC. Without mpv the TUI still
+  browses the catalog and says so in a friendly status line; it never crashes.
+- **Network access to bandcamp.com** — stream URLs are tokenized and expire;
+  a fresh one is resolved right before every play, never cached.
+- **Ghostty 1.2+** — required only for the floating quick-terminal panel
+  (`streambeats-quick` + presets under `assets/ghostty/`); the `streambeats`
+  TUI itself runs in any terminal. See docs/ghostty.md.
+- **Go 1.27+** — only for building from a source checkout (below); the user
+  install never runs the compiler.
 
 ## Build
 
@@ -53,6 +82,8 @@ Presets live in `assets/ghostty/streambeats-<side>.conf` (default side:
   loadfile replace, event-aware).
 - `internal/tui` — Bubbletea UI, pure-update model, friendly degraded mode
   without mpv.
+- `scripts/install.sh` — curl-based user installer, SHA-256 verified
+  (tests in `scripts/tests/install_test.sh`; detail in docs/install.md).
 - `docs/ghostty.md` — quick terminal integration details.
 
 ## Run detached (survives the invoking terminal)
