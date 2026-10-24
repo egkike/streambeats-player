@@ -24,6 +24,10 @@ Everything, user-level, under one `--prefix` (default `~/.local`):
 | `$PREFIX/share/streambeats/README.md`, `LICENSE` | shipped docs of that release |
 | `$PREFIX/bin/streambeats` | wrapper → shared binary |
 | `$PREFIX/bin/streambeats-quick` | wrapper → shared launcher |
+| `$PREFIX/bin/streambeats-panel` | wrapper → panel spawn (systemd detached, per-side lock) |
+| `$PREFIX/share/applications/streambeats-panel.desktop` | generated KRunner/menu entry (4 side actions, absolute Exec/Icon) |
+| `$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg` | launcher icon |
+| `$PREFIX/share/streambeats/assets/kwin/window-rules.md` | KWin floating rules + keybind steps |
 
 The shared tree mirrors the repository layout (`bin/` + `scripts/` +
 `assets/`) precisely so `streambeats-quick` keeps resolving its tree via

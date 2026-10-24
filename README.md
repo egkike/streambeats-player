@@ -68,11 +68,20 @@ stream URL right before playing (Bandcamp tokens expire).
 ## Floating quick terminal
 
 ```sh
-scripts/streambeats-quick [top|bottom|left|right]
+scripts/streambeats-quick [top|bottom|left|right]   # from a source checkout
+streambeats-panel  [top|bottom|left|right]          # installed (detached)
 ```
 
 Presets live in `assets/ghostty/streambeats-<side>.conf` (default side:
 `right`, narrow 22% strip). Toggle with `ctrl+alt+s`.
+
+The installed companion `streambeats-panel` spawns the same panel detached
+from any terminal (systemd user unit per side, single-instance guard) so a
+`.desktop` entry or a KDE global keybind runs it with one action — KRunner
+ships side actions via the generated desktop entry. Keybind + KWin
+floating window-rules steps: docs/kde-panel-integration.md
+(plain `scripts/streambeats-quick` stays tied to the calling shell; use the
+README "Run detached" recipe for that path).
 
 ## Architecture
 

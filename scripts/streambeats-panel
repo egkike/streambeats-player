@@ -1,0 +1,116 @@
+#!/bin/sh
+# streambeats-panel — spawn the floating StreamBeats side panel as a detached
+# systemd user unit, with a per-side single-instance guard.
+#
+#	streambeats-panel [top|bottom|left|right]   # default: right
+#
+# Why: a .desktop entry (and the KDE global keybind documented in
+# assets/kwin/window-rules.md) runs this OUTSIDE any terminal, so the panel
+# must parent to the user manager, not to the invoking shell. Same launcher
+# as the manual detached run (README "Run detached"), just owned by the
+# desktop integration. Each side gets its own unit
+# (streambeats-panel-<side>.service), so right-click side actions in KRunner
+# never collide with a running panel on another side.
+#
+# Harmless-by-design (S3 of odd/tasks/kde-panel-integration.md):
+# - unit already active → no duplicate spawn; best-effort focus via kdotool
+#   when present, otherwise a desktop notification, otherwise a plain message.
+# - systemd absent/unreachable → setsid background launch instead of dying
+#   (macOS and exotic sessions keep working, minus detached-stop).
+
+set -u
+
+USAGE="usage: streambeats-panel [top|bottom|left|right]"
+SIDE="right"
+if [ "$#" -gt 1 ]; then
+	printf '%s\n' "$USAGE" >&2
+	exit 2
+fi
+if [ "$#" -eq 1 ]; then
+	SIDE="$1"
+fi
+case "$SIDE" in
+top | bottom | left | right) ;;
+*)
+	printf 'streambeats-panel: invalid side: %s\n%s\n' "$SIDE" "$USAGE" >&2
+	exit 2
+	;;
+esac
+
+# Path contract: this script lives in `<root>/scripts/`, where ROOT is either
+# the install prefix's share/streambeats tree or a repo checkout. The
+# launcher and player resolve via scripts/.. exactly like the manual launch.
+# Walk the symlink chain because the .desktop Exec calls the wrapper.
+script_path="$0"
+while [ -L "$script_path" ]; do
+	link="$(readlink "$script_path")"
+	case "$link" in
+	/*) script_path="$link" ;;
+	*) script_path="$(dirname "$script_path")/$link" ;;
+	esac
+done
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$script_path")" && pwd -P) || {
+	printf 'streambeats-panel: cannot resolve script directory\n' >&2
+	exit 1
+}
+root=$(CDPATH='' cd -- "$script_dir/.." && pwd -P) || {
+	printf 'streambeats-panel: cannot resolve install root\n' >&2
+	exit 1
+}
+launcher="$root/scripts/streambeats-quick"
+if [ ! -x "$launcher" ]; then
+	printf 'streambeats-panel: launcher missing at %s — reinstall via install.sh\n' "$launcher" >&2
+	exit 1
+fi
+
+notify() {
+	# Best-effort user feedback; never fatal.
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -a "streambeats panel" "$*"
+	else
+		printf 'streambeats-panel: %s\n' "$*" >&2
+	fi
+}
+
+try_focus() {
+	# kdotool (KDE window-control CLI) is optional: raise the running panel.
+	if command -v kdotool >/dev/null 2>&1; then
+		kdotool search --name "streambeats player" windowactivate 2>/dev/null
+	fi
+}
+
+systemd_ok() {
+	command -v systemd-run >/dev/null 2>&1 &&
+		command -v systemctl >/dev/null 2>&1 &&
+		systemctl --user show-environment >/dev/null 2>&1
+}
+
+# Single-instance guard per side: the fixed unit name is the lock. is-active
+# returns 0 only while the unit is running; any failure (inactive, failed,
+# no systemd user session) proceeds to spawn or the fallback path.
+UNIT="streambeats-panel-${SIDE}.service"
+if systemd_ok && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
+	try_focus
+	notify "streambeats-panel $SIDE already running"
+	exit 0
+fi
+
+if systemd_ok; then
+	# --collect clears finished units so the guard never sees stale state
+	# after the window is closed; logs stay inspectable until then.
+	systemd-run --user --collect --unit="$UNIT" \
+		"$launcher" "$SIDE" || {
+		notify "streambeats-panel: systemd launch failed — journalctl --user -u $UNIT"
+		exit 1
+	}
+	exit 0
+fi
+
+# No systemd user session: degraded but alive — detach from the controlling
+# terminal with setsid when available.
+if command -v setsid >/dev/null 2>&1; then
+	setsid "$launcher" "$SIDE" >/dev/null 2>&1 &
+else
+	"$launcher" "$SIDE" >/dev/null 2>&1 &
+fi
+notify "systemd user session unavailable — panel spawned detached in background"
