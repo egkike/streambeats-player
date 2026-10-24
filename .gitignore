@@ -2,3 +2,7 @@
 /streambeats
 *.cache/
 .DS_Store
+.replay-todo
+.agents/
+skills-lock.json
+shaders/
