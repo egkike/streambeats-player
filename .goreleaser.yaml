@@ -8,6 +8,9 @@
 # Local dry-run, no GITHUB_TOKEN and no network required:
 #   goreleaser check
 #   goreleaser release --snapshot --clean --skip=publish
+#
+# Instalable (scripts/install.sh): every release must carry the archive
+# files listed below so a single checksum-verified download suffices.
 
 version: 2
 
@@ -33,9 +36,16 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    # Ship the full floating-panel experience: scripts/streambeats-quick +
+    # assets/ghostty/streambeats-<side>.conf extract PRESERVING their relative
+    # paths next to the script, while the binary itself is moved into bin/
+    # by scripts/install.sh (scripts/streambeats-quick resolves its tree via
+    # scripts/.. → the install prefix). See scripts/install.sh.
     files:
       - README.md
       - LICENSE
+      - scripts/streambeats-quick
+      - assets/ghostty/streambeats-*.conf
 
 checksum:
   name_template: checksums.txt
