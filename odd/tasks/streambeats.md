@@ -23,6 +23,8 @@ catalog while the user works in (Ghostty + herdr + gentle-shell).
 - T5 (S5): Streaming de Bandcamp: regenerar la URL de stream mp3-128 fresca (re-fetch de la página del álbum) al reproducir; cache opcional de audio. Cambiado por L4: descartado yt-dlp (Bandcamp da stream directo). Commit 398af4b ✅ (cache de audio en T4).
 - T6 (S1,S4): Bubbletea TUI: browse catálogo/álbumes, now playing, controles, playlists, atajos de teclado. Commit 50bbda9 ✅ (TUI + CLI refresh/sync + spawn mpv; 32 tests, tui 73,7% cover).
 - T7 (S3,S7,S8): Ghostty integration: ... Commits cdb85fd + fixes 78cf697, 20d8786, e2ee52a ✅ (historia del dialog "unknown field" cerrada: ver L9).
+- S9 (L13): al terminar de escuchar un track, el player debe auto-avanzar al siguiente del mismo álbum (o del archivo siguiente en modo local); fin de cola ⇒ status 'playlist ended' y sin banner de error; el prefijo 'mpv error:' nunca se duplica en el status.
+- T10 (S9): auto-advance end-of-track + dedup prefijo. Commit 5711bcd ✅ (48+3 tests del tui, RED→GREEN; runtime EOF verificado con mpv vivo).
 - T8 (S1..S8): End-to-end verify + README/docs. Commit.
 
 ## Log
