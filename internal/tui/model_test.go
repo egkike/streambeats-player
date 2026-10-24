@@ -549,31 +549,16 @@ func TestTickPollsProgressWhilePlaying(t *testing.T) {
 	}
 }
 
-func TestProgressErrorBecomesBufferingNote(t *testing.T) {
+func TestPollErrorsStaySilentAcrossTransitions(t *testing.T) {
 	m := testModel(Options{Player: &fakePlayer{}})
 
-	// One-off property errors are normal right after loadfile: no status yet.
-	m, _ = update(t, m, progressMsg{err: errors.New("broken pipe")})
-	if m.status != "" {
-		t.Fatalf("status after a single poll error = %q, want empty", m.status)
-	}
-	m, _ = update(t, m, progressMsg{err: errors.New("broken pipe")})
-	if m.status != "" {
-		t.Fatalf("status after two poll errors = %q, want empty", m.status)
-	}
-
-	m, _ = update(t, m, progressMsg{err: errors.New("broken pipe")})
-	// never a scary banner: skips are idle-active driven, errors are noise
-	if !strings.Contains(m.status, "buffering") {
-		t.Fatalf("status = %q, want the neutral buffering note after %d misses", m.status, progressErrorThreshold)
-	}
-	if strings.Contains(m.status, "mpv error") {
-		t.Fatalf("status = %q, poll errors must not look like failures", m.status)
-	}
-	// and the next real reading makes it vanish
-	m, _ = update(t, m, progressMsg{pos: 1, dur: 60})
-	if m.status != "" {
-		t.Fatalf("status = %q, want cleared on real progress", m.status)
+	// Track-end/loadfile gaps produce property misses; the transition must
+	// be SILENT (user report L33): no banner at all, no buffering notes.
+	for i := 0; i <= progressErrorThreshold*3; i++ {
+		m, _ = update(t, m, progressMsg{err: errors.New("broken pipe")})
+		if m.status != "" {
+			t.Fatalf("status after %d poll errors = %q, want empty", i+1, m.status)
+		}
 	}
 }
 

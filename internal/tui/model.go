@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -268,15 +267,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		if msg.err != nil {
 			m.progressMisses++
-			// Poll errors NEVER advance the queue: transient buffering and the
-			// loadfile transition can also look like "no time-pos". The single
-			// authoritative trigger is idle-active (see eventMsg), per docs.
-			// They are noise here, at worse a neutral buffering note (cleared
-			// by the next real reading) — never a scary banner.
-			if m.progressMisses >= progressErrorThreshold &&
-				strings.Index(m.status, "buffering") == -1 {
-				m.status = "buffering…"
-			}
+			// Poll errors NEVER advance the queue and NEVER form a banner:
+			// transient buffering/loadfile gaps are pure noise (the user
+			// asked for a silent transition). The queue moving trigger is
+			// idle-active per docs; the misses counter remains only as
+			// potential diagnostics fuel.
 			return m, nil
 		}
 		m.progressMisses = 0
