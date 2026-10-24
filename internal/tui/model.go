@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"streambeats/internal/catalog"
@@ -269,8 +271,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Poll errors NEVER advance the queue: transient buffering and the
 			// loadfile transition can also look like "no time-pos". The single
 			// authoritative trigger is idle-active (see eventMsg), per docs.
-			if m.progressMisses >= progressErrorThreshold {
-				m.status = friendlyError("mpv error", msg.err)
+			// They are noise here, at worse a neutral buffering note (cleared
+			// by the next real reading) — never a scary banner.
+			if m.progressMisses >= progressErrorThreshold &&
+				strings.Index(m.status, "buffering") == -1 {
+				m.status = "buffering…"
 			}
 			return m, nil
 		}

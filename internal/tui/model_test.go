@@ -549,7 +549,7 @@ func TestTickPollsProgressWhilePlaying(t *testing.T) {
 	}
 }
 
-func TestProgressErrorBecomesStatus(t *testing.T) {
+func TestProgressErrorBecomesBufferingNote(t *testing.T) {
 	m := testModel(Options{Player: &fakePlayer{}})
 
 	// One-off property errors are normal right after loadfile: no status yet.
@@ -563,8 +563,17 @@ func TestProgressErrorBecomesStatus(t *testing.T) {
 	}
 
 	m, _ = update(t, m, progressMsg{err: errors.New("broken pipe")})
-	if !strings.Contains(m.status, "broken pipe") {
-		t.Fatalf("status = %q, want the progress error after %d misses", m.status, progressErrorThreshold)
+	// never a scary banner: skips are idle-active driven, errors are noise
+	if !strings.Contains(m.status, "buffering") {
+		t.Fatalf("status = %q, want the neutral buffering note after %d misses", m.status, progressErrorThreshold)
+	}
+	if strings.Contains(m.status, "mpv error") {
+		t.Fatalf("status = %q, poll errors must not look like failures", m.status)
+	}
+	// and the next real reading makes it vanish
+	m, _ = update(t, m, progressMsg{pos: 1, dur: 60})
+	if m.status != "" {
+		t.Fatalf("status = %q, want cleared on real progress", m.status)
 	}
 }
 
