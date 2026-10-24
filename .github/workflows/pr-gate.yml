@@ -33,7 +33,7 @@ jobs:
 
           fail() { echo "::error::$*" >&2; exit 1; }
 
-          body="$(gh pr view "$NUMBER" --json body -q '.body // ""')"
+          body="$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q '.body // ""')"
           [ -n "$body" ] || fail "PR body is empty: link an approved issue with 'Closes #N'."
 
           # 1) at least one closing keyword with an issue number
@@ -53,7 +53,7 @@ jobs:
           done
 
           # 3) exactly one type:* label
-          types="$(gh pr view "$NUMBER" --json labels -q '[.labels[].name | select(startswith("type:"))] | join("\n")')"
+          types="$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json labels -q '[.labels[].name | select(startswith("type:"))] | join("\n")')"
           count="$(printf '%s' "$types" | grep -c '^type:' || true)"
           [ "$count" -eq 1 ] || \
             fail "PR must carry EXACTLY ONE 'type:*' label (found $count: $(printf '%s' "$types" | tr '\n' ' '))"
