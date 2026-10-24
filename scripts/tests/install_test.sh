@@ -257,11 +257,50 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Scenario 5: argument hygiene
+# Scenario 6: PIPE MODE — bash receives the script on stdin (the README
+# one-liner). Regression for the silent main-guard bug the owner found:
+# BASH_SOURCE[0] is unset under `bash -s < script`, so the guard MUST use
+# the $0 fallback. Asserts real installation + visible progress output.
+# ---------------------------------------------------------------------------
+STAGE="$Fx/pipe_mode"
+PREFIX="$Fx/pipe_prefix"
+mkdir -p "$STAGE/api/releases/tags"
+stage_fake_release "$STAGE/artifacts" 1
+cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
+say "scenario 6: pipe mode (bash -s < script) reaches main"
+STREAMBEATS_API_URL="file://$STAGE/api" \
+	STREAMBEATS_RAW_URL="file://$STAGE/rawpipe" \
+	STREAMBEATS_INSTALL_PREFIX="$PREFIX" \
+	bash -s -- --version v1.1.0 <"$SCRIPT_UNDER_TEST" >"$Fx/pipe_out" 2>"$Fx/pipe_err"
+rcP=$?
+if [ "$rcP" = "0" ]; then
+	pass "pipe mode exits 0"
+else
+	fail "pipe mode exited $rcP; stderr: $(cat "$Fx/pipe_err")"
+fi
+if grep -q "resolving release version" "$Fx/pipe_out"; then
+	pass "installer emitted progress output in pipe mode"
+else
+	fail "NO output in pipe mode — main() never ran (the silent guard bug)"
+fi
+ART_DIR="$PREFIX/share/streambeats"
+if [ -f "$ART_DIR/bin/streambeats" ]; then
+	pass "pipe mode installed the bundle"
+else
+	fail "pipe mode installed NOTHING (artifacts: $(ls "$STAGE"))"
+fi
+if [ -f "$PREFIX/bin/streambeats-quick" ]; then
+	pass "pipe mode installed the launcher wrapper"
+else
+	fail "pipe mode missing $PREFIX/bin/streambeats-quick"
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario 7: argument hygiene
 # ---------------------------------------------------------------------------
 STAGE="$Fx/stage4"
 mkdir -p "$STAGE"
-say "scenario 5: argument hygiene"
+say "scenario 7: argument hygiene"
 if "$SCRIPT_UNDER_TEST" --bogus >/dev/null 2>&1; then
 	fail "--bogus accepted"
 else
