@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- streambeats-panel icon: floating side-panel music player. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="#1b1526" stroke="#8f7cff" stroke-width="4"/>
+  <path d="M36 44V18l12-4v8l-8 2.7V44a6 6 0 1 1-4-5.3z" fill="#8f7cff"/>
+  <circle cx="26" cy="46" r="5.5" fill="#c7bdff"/>
+  <rect x="26" y="22" width="4" height="24" rx="2" fill="#c7bdff"/>
+</svg>

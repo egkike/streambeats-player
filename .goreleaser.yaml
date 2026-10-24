@@ -45,7 +45,12 @@ archives:
       - README.md
       - LICENSE
       - scripts/streambeats-quick
+      - scripts/streambeats-panel
       - assets/ghostty/streambeats-*.conf
+      # KDE integration assets (consumer of scripts/install.sh).
+      - assets/desktop/streambeats-panel.desktop.in
+      - assets/icons/streambeats-panel.svg
+      - assets/kwin/window-rules.md
 
 checksum:
   name_template: checksums.txt

@@ -1,0 +1,70 @@
+# streambeats panel — KDE window rules + global keybind
+
+Optional but complete integration with KDE Plasma, so the panel opens with a
+global shortcut and behaves like a pinned floating sheet. All steps are
+user-level; nothing touches system files nor other ghosts.
+
+The preset `title = streambeats-panel` (added in every
+`assets/ghostty/streambeats-<side>.conf`) is what the rules and spawns below
+match.
+
+## 1. Global keybind (2 minutes, fully supported path)
+
+KDE Plasma 6: **System Settings → Keyboard → Shortcuts → Add New → Command or
+Script…** and bind it to your shortcut (e.g. `Meta+S`):
+
+```sh
+$HOME/.local/bin/streambeats-panel right
+```
+
+- It spawns the panel **detached** (systemd user unit
+  `streambeats-panel-<side>.service`), so closing terminals never kills it.
+- Pressing the keybind again does NOT duplicate the panel: the per-side
+  single-instance guard only notifies (`already running → streambeats-panel +
+  streaming-careful hint`) instead.
+- Want a different side on the same shortcut? Change the trailing argument to
+  `top|bottom|left|right`. Different sides are separate units on purpose, so
+  you can keep two at once.
+
+Keyboard-only alternative: the same `streambeats-panel` appears in KRunner
+and the Application Launcher via the installed
+`streambeats-panel.desktop` (right-click it for the four side actions).
+
+## 2. Window rules (floating/keep-above/no-taskbar feel)
+
+System Settings → **Window Management → Window Rules → Add New…**
+
+Match (use the second tab too if you prefer specificity):
+
+- Window class (application) → `streambeats-panel` (or leave blank and match
+  the title instead — see below)
+- Window title → `streambeats-panel`
+
+Force in the first rule:
+
+| Property | Check |
+|---|---|
+| Keep above | Force → Yes |
+| Skip taskbar | Force → Yes |
+| Skip pager | Force → Yes |
+
+Optional floating-chrome rules (apply to the same rule or a second one):
+
+| Property | Suggested |
+|---|---|
+| Titlebar color scheme | whatever you use elsewhere |
+| No titlebar and frame | No — keep it draggable, per the product promise |
+| Size | check "yes" and set your panel size (e.g. 608×720 px) |
+| Position | check "yes" (e.g. Right/Center) |
+
+Save. Applies to every future panel spawn; a live-until-change window can be
+re-titled or re-spawned to pick it up.
+
+## 3. Scripted rule insertion — deliberately NOT automated
+
+We do not ship a `kwriteconfig`/`kwinrulesrc` snippet: group numbering and
+rule keys are Plasma-version-specific implementation details that cannot be
+asserted honestly without live per-release validation (repo standard: no
+guess-patching). Use the supported System Settings UI in step 2. If you
+script it yourself, back up `~/.config/kwinrulesrc` first and verify one
+spawn behaves afterwards.
