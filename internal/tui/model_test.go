@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"fmt"
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
 )
@@ -618,6 +619,36 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("library view is missing %q:\n%s", want, out)
 		}
+	}
+}
+
+// Pressing '<' loads the previous track; an EOF event drawn from the
+// replaced/replaced-raced old source (or any stale wave) must NOT trigger
+// the forward auto-advance until the new track shows real progress.
+func TestEOFSwallowedUntilFreshProgressAfterUserSkip(t *testing.T) {
+	m := playingCatalogModel(t, 1)
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	msg := runCmd(t, cmd)
+	m, _ = update(t, m, msg) // loadedMsg: previous track lands
+	// stale/late EOF wave right after the user skip: must be swallowed
+	m, eof := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if eof != nil {
+		t.Fatal("eof wave after a manual skip must not re-advance forward")
+	}
+	if strings.Contains(m.status, "playlist ended") {
+		t.Fatalf("status = %q, want no auto-advance side effects", m.status)
+	}
+	// once the fresh track produces real progress, eof is honored again
+	m, _ = update(t, m, progressMsg{pos: 1, dur: 125})
+	fmt.Println("DBG pre-eof2: fenceZero=", m.lastAutoAdvance.IsZero(), " suppress=", m.suppressEOF, " playing=", m.playing, " advancing=", m.advancing, " track=", m.playingTrack, " mode=", m.mode)
+	m, eof2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if eof2 == nil {
+		t.Fatal("eof AFTER real progress should advance the queue again")
+	}
+	m, _ = update(t, m, runCmd(t, eof2))
+	fake, _ := m.player.(*fakePlayer)
+	if len(fake.titles) < 3 || fake.titles[2] != "Second Song" {
+		t.Fatalf("titles = %v, want the queue context replayed", fake.titles)
 	}
 }
 

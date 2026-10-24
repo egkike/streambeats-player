@@ -117,6 +117,11 @@ type Model struct {
 	// the top of autoAdvance keeps delayed EOF/error storms from
 	// machine-gunning the playlist.
 	lastAutoAdvance time.Time
+	// suppressEOF swallows end-file/eof events after a user-initiated skip
+	// (or after a load whose true progress is not yet confirmed): the old
+	// source can still deliver a raced eof, which would otherwise trigger
+	// the forward auto-advance uninvited. Cleared on real progress.
+	suppressEOF bool
 	// prefetch caches a freshly resolved stream URL for the NEXT track,
 	// filled right after a load succeeds so the eventual skip needs no
 	// wait; prefetchSlug names the track it belongs to.
@@ -243,7 +248,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Re-arm the event listener regardless of outcome.
 		rearm := []tea.Cmd{waitEventsCmd(m.player)}
 		if msg.event.Name == "end-file" && msg.event.Reason == "eof" &&
-			m.playing && !m.paused && !m.advancing {
+			m.playing && !m.paused && !m.advancing && !m.suppressEOF {
 			mNext, cmd := m.autoAdvance()
 			if cmd != nil {
 				rearm = []tea.Cmd{cmd, waitEventsCmd(m.player)}
@@ -276,6 +281,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.progressMisses = 0
+		m.suppressEOF = false // real progress proves a live source
 		m.position, m.duration = msg.pos, msg.dur
 		return m, nil
 	case volumeMsg:
@@ -508,6 +514,7 @@ func (m Model) queueNext() (tea.Model, tea.Cmd) {
 		m.status = "next track is already loading…"
 		return m, nil
 	}
+	m.suppressEOF = true
 	return m.autoAdvance()
 }
 
@@ -543,6 +550,7 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 		m.playingAlbum, m.playingTrack = -1, -1
 		m.status = ""
 		m.advancing = true
+		m.suppressEOF = true
 		m.progressMisses = 0
 		return m, loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
 	}
@@ -555,6 +563,7 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 	m.playingLib = -1
 	m.status = ""
 	m.advancing = true
+	m.suppressEOF = true
 	m.progressMisses = 0
 	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
 }
