@@ -641,6 +641,30 @@ func TestQuitPlayerCmdStopsAndQuitsMpv(t *testing.T) {
 
 // playingCatalogModel activates track trackIdx of album one so the model's
 // playing* bookkeeping is set through the real key flow.
+// playingAlbumTrack drives the real key flow to play trackIdx of albumIdx.
+func playingAlbumTrack(t *testing.T, albumIdx, trackIdx int) Model {
+	t.Helper()
+	m := testModel(Options{
+		Player:   &fakePlayer{},
+		Resolver: &fakeResolver{url: "https://stream.example/1"},
+	})
+	for i := 0; i < albumIdx; i++ {
+		m, _ = press(t, m, 'j')
+	}
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // albums -> tracks
+	for i := 0; i < trackIdx; i++ {
+		m, _ = press(t, m, 'j')
+	}
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	msg := runCmd(t, cmd)
+	loaded, ok := msg.(loadedMsg)
+	if !ok || loaded.err != nil {
+		t.Fatalf("first play returned %T (%v)", msg, loaded.err)
+	}
+	m, _ = update(t, m, msg) // loadedMsg -> playing state
+	return m
+}
+
 func playingCatalogModel(t *testing.T, trackIdx int) Model {
 	t.Helper()
 	m := testModel(Options{
@@ -830,6 +854,47 @@ func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
 	}
 }
 
+// --- cross-album queue navigation (S10) -------------------------------------
+
+// TestPrevCrossesToPreviousAlbum: '<' at the first track of an album must
+// load the LAST track of the previous album, not stop the queue.
+func TestPrevCrossesToPreviousAlbum(t *testing.T) {
+	m := playingAlbumTrack(t, 1, 0)
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	if cmd == nil {
+		t.Fatal("crossing albums backward should return a load command")
+	}
+	if m.playingAlbum != 0 || m.playingTrack != 1 {
+		t.Fatalf("bookkeeping = album %d/%d, want 0/1", m.playingAlbum, m.playingTrack)
+	}
+	m, _ = update(t, m, runCmd(t, cmd))
+	fake, _ := m.player.(*fakePlayer)
+	if len(fake.titles) < 2 || fake.titles[len(fake.titles)-1] != "Second Song" {
+		t.Fatalf("titles = %v, want the previous album's last track", fake.titles)
+	}
+}
+
+func TestPrevAfterVeryStartKeepsQueueStopped(t *testing.T) {
+	m := playingAlbumTrack(t, 0, 0)
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	if cmd != nil {
+		t.Fatal("there is nothing before the very first track")
+	}
+}
+
+// TestsNextCrossesToNextAlbumMatchesNaturalFlow: at an album's end, '>' and
+// the natural EOF both continue with the NEXT album's first track.
+func TestNextCrossesToNextAlbum(t *testing.T) {
+	m := playingAlbumTrack(t, 0, 1)
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
+	if cmd == nil {
+		t.Fatal("crossing albums forward should return a load command")
+	}
+	if m.playingAlbum != 1 || m.playingTrack != 0 {
+		t.Fatalf("bookkeeping = album %d/%d, want 1/0", m.playingAlbum, m.playingTrack)
+	}
+}
+
 // --- manual queue skip keys (L21) -------------------------------------------
 
 func TestNextKeyAdvancesQueue(t *testing.T) {
@@ -846,7 +911,9 @@ func TestNextKeyAdvancesQueue(t *testing.T) {
 }
 
 func TestNextKeyOnLastTrackEndsPlaylist(t *testing.T) {
-	m := playingCatalogModel(t, 1)
+	// the LAST track of the LAST album: '>' must stop the queue (S10 changed
+	// the old album-boundary behavior: '>' and EOF now flow into the next album)
+	m := playingAlbumTrack(t, 1, 0)
 	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
 	if m.playing {
 		t.Fatal("playing = true, want false at the end of the queue")
@@ -872,8 +939,8 @@ func TestPrevKeyPlaysPreviousTrack(t *testing.T) {
 func TestPrevKeyAtAlbumStartShowsNote(t *testing.T) {
 	m := playingCatalogModel(t, 0)
 	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
-	if m.playingTrack != 0 {
-		t.Fatalf("playingTrack = %d, want no change at the album start", m.playingTrack)
+	if m.playingTrack != 0 || m.playingAlbum != 0 {
+		t.Fatalf("bookkeeping = album %d/%d, want unchanged at the very start", m.playingAlbum, m.playingTrack)
 	}
 	if !strings.Contains(m.status, "no previous track") {
 		t.Fatalf("status = %q, want the no-previous note", m.status)

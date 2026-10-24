@@ -502,15 +502,28 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 		m.progressMisses = 0
 		return m, loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
 	}
-	if m.playingAlbum < 0 || m.playingTrack <= 0 {
+	if m.playingAlbum < 0 || m.playingAlbum >= len(m.albums) {
 		m.status = "no previous track in the queue"
 		return m, nil
 	}
-	album := m.albums[m.playingAlbum]
-	m.playingTrack--
+	// precompute the cross-album target first: failure paths MUST leave the
+	// bookkeeping untouched (the L29 regression: -1/-1 on a failed lookup)
+	targetAlbum := m.playingAlbum
+	targetTrack := m.playingTrack - 1
+	for targetTrack < 0 {
+		targetAlbum--
+		if targetAlbum < 0 {
+			m.status = "no previous track in the queue"
+			return m, nil
+		}
+		targetTrack = len(m.albums[targetAlbum].Tracks) - 1
+	}
+	m.playingAlbum = targetAlbum
+	m.playingTrack = targetTrack
 	m.playingLib = -1
 	m.status = ""
 	m.progressMisses = 0
+	album := m.albums[m.playingAlbum]
 	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
 }
 
@@ -543,9 +556,24 @@ func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
 	}
 	album := m.albums[m.playingAlbum]
 	if m.playingTrack+1 >= len(album.Tracks) {
-		return clear(), nil
+		// cross forward: next non-empty album's first track; keep the
+		// playlist-ended stop once the catalog is exhausted
+		next := -1
+		for a := m.playingAlbum + 1; a < len(m.albums); a++ {
+			if len(m.albums[a].Tracks) > 0 {
+				next = a
+				break
+			}
+		}
+		if next == -1 {
+			return clear(), nil
+		}
+		m.playingAlbum = next
+		m.playingTrack = 0
+		album = m.albums[next]
+	} else {
+		m.playingTrack++
 	}
-	m.playingTrack++
 	m.playingLib = -1
 	m.status = ""
 	track := album.Tracks[m.playingTrack]
