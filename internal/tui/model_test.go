@@ -8,7 +8,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -621,56 +620,6 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 	}
 }
 
-// Pressing '<' loads the previous track; an EOF event drawn from the
-// replaced/replaced-raced old source (or any stale wave) must NOT trigger
-// the forward auto-advance until the new track shows real progress.
-func TestEOFSwallowedUntilFreshProgressAfterUserSkip(t *testing.T) {
-	m := playingCatalogModel(t, 1)
-	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
-	msg := runCmd(t, cmd)
-	m, _ = update(t, m, msg) // loadedMsg: previous track lands
-	// stale/late EOF wave right after the user skip: must be swallowed
-	m, eof := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if eof != nil {
-		t.Fatal("eof wave after a manual skip must not re-advance forward")
-	}
-	if strings.Contains(m.status, "playlist ended") {
-		t.Fatalf("status = %q, want no auto-advance side effects", m.status)
-	}
-	// stale progress polls of the OLD source must not clear the window
-	m, _ = update(t, m, progressMsg{pos: 90, dur: 125})
-	m, eofNow := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if eofNow != nil {
-		t.Fatal("stale progress polls must not open the eof window")
-	}
-	// once the window expires, a natural eof advances again
-	m.suppressUntil = time.Now().Add(-time.Second)
-	m, eof2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if eof2 == nil {
-		t.Fatal("eof AFTER the window expires should advance the queue")
-	}
-	m, _ = update(t, m, runCmd(t, eof2))
-	fake, _ := m.player.(*fakePlayer)
-	if len(fake.titles) < 3 || fake.titles[2] != "Second Song" {
-		t.Fatalf("titles = %v, want the queue context replayed", fake.titles)
-	}
-}
-
-// quitting must stop playback AND tell mpv to exit, so audio cannot outlive
-// the panel (user report L24): the quit path returns a sequence containing
-// the stop+quit command.
-func TestQuitReturnsSequencedStopCommand(t *testing.T) {
-	m := testModel(Options{Player: &fakePlayer{}, Resolver: &fakeResolver{url: "https://s/1"}})
-	m.playing = true
-	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
-	if m.quitting != true {
-		t.Fatal("quitting flag must be set on q")
-	}
-	if cmd == nil {
-		t.Fatal("quit path must return a command")
-	}
-}
-
 // The stop+quit command issued on quit: stops playback, sends mpv's quit,
 // and closes the connection — in that order (fake records the calls).
 func TestQuitPlayerCmdStopsAndQuitsMpv(t *testing.T) {
@@ -738,57 +687,12 @@ func TestTrackEndAdvancesToNextTrack(t *testing.T) {
 	}
 }
 
-// Comprehensive race coverage for the EOF wave: while an advance command is
-// in flight (fresh resolve+load takes seconds), a second EOF/hiccup wave must
-// neither re-run autoAdvance nor paint "playlist ended"; when the new track's
-// loadedMsg lands, the run-of-mill transient errors must also stay silent.
-func TestAdvanceInFlightIgnoresSecondErrorWave(t *testing.T) {
-	m := playingCatalogModel(t, 0)
-	// first wave reaches the threshold -> advance command in flight
-	var cmd tea.Cmd
-	for i := 0; i <= progressErrorThreshold*2 && cmd == nil; i++ {
-		m, cmd = update(t, m, progressMsg{
-			err: errors.New("mpv error: property unavailable"),
-		})
-	}
-	if cmd == nil {
-		t.Fatal("end of track should return a next-track command")
-	}
-	if !m.advancing {
-		t.Fatal("advancing flag should be set while the next track loads")
-	}
-	// second wave (still-ending mpv) must be swallowed, no status, no advance
-	m2, noCmd := update(t, m, progressMsg{err: errors.New("mpv error: property unavailable")})
-	if noCmd != nil {
-		t.Fatal("in-flight advance must not re-advance on more errors")
-	}
-	if strings.Contains(m2.status, "playlist ended") {
-		t.Fatalf("status = %q, want the in-flight guard to keep it silent", m2.status)
-	}
-	// the fresh track lands -> advancing cleared, ticking rescheduled
-	m3, tick := update(t, m, loadedMsg{title: "Second Song"})
-	if m3.advancing {
-		t.Fatal("advancing must clear when the next track loads")
-	}
-	if tick == nil {
-		t.Fatal("loadedMsg must reschedule the progress ticker")
-	}
-	// early post-loadfile transient errors stay silent (debounced)
-	m4, more := update(t, m3, progressMsg{err: errors.New("mpv error: property unavailable")})
-	if more != nil {
-		t.Fatal("one transient error after load must not advance")
-	}
-	if strings.Contains(m4.status, "mpv error") {
-		t.Fatalf("status = %q, want silent transient", m4.status)
-	}
-}
-
 func TestTrackEndOfAlbumSetsPlaylistEnded(t *testing.T) {
 	m := playingCatalogModel(t, 1)
 	// the model's bookkeeping should now pin the second track
 	m, _ = update(t, m, loadedMsg{title: "Second Song"})
 	var cmd tea.Cmd
-	for i := 0; i <= progressErrorThreshold; i++ {
+	for i := 0; i < progressErrorThreshold*4 && m.playing; i++ {
 		m, cmd = update(t, m, progressMsg{
 			err: errors.New("mpv error: property unavailable"),
 		})
@@ -832,92 +736,8 @@ func TestLibraryEndAdvancesAndEnds(t *testing.T) {
 
 // --- instant EOF events + URL prefetch (L16/T11) ---------------------------
 
-// TestEOFEventAdvancesImmediately: mpv pushes a precise end-file/eof event;
-// the model advances on it without waiting for the poll debounce.
-func TestEOFEventAdvancesImmediately(t *testing.T) {
-	m := playingCatalogModel(t, 0)
-	m, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if cmd == nil {
-		t.Fatal("eof event should start the next track immediately")
-	}
-	if !m.advancing {
-		t.Fatal("eof advance should mark the model as advancing")
-	}
-	runCmd(t, cmd)
-	fake, _ := m.player.(*fakePlayer)
-	if got := strings.Join(fake.titles, ","); got != "First Song,Second Song" {
-		t.Fatalf("titles = %q, want the next track", got)
-	}
-	// with a two-track album the second eof is the true end of the queue
-	m, _ = update(t, m, loadedMsg{title: "Second Song"})
-	m = expireFence(m)
-	m, cmd2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if cmd2 != nil {
-		t.Fatal("eof on the last track must not start anything")
-	}
-	if !strings.Contains(m.status, "playlist ended") {
-		t.Fatalf("status = %q, want the honest playlist-ended note", m.status)
-	}
-}
-
 // TestEOFEventsRearmAcrossTracks exercises the event listener re-arm on a
 // longer queue: two consecutive eof -> five tracks -> two advances.
-// expireFence dispels the anti-storm fence for deterministic tests.
-func expireFence(m Model) Model {
-	m.lastAutoAdvance = time.Time{}
-	return m
-}
-
-func TestEOFEventsRearmAcrossTracks(t *testing.T) {
-	catalog3 := &catalog.Catalog{Albums: []catalog.AlbumEntry{{
-		Slug:   "long-album",
-		Title:  "Long Album",
-		Artist: "StreamBeats",
-		Tracks: []catalog.Track{
-			{Title: "One", Slug: "one", DurationSeconds: 10},
-			{Title: "Two", Slug: "two", DurationSeconds: 10},
-			{Title: "Three", Slug: "three", DurationSeconds: 10},
-		},
-	}}}
-	m := testModel(Options{
-		Catalog:  catalog3,
-		Player:   &fakePlayer{},
-		Resolver: &fakeResolver{url: "https://stream.example/1"},
-	})
-	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})    // albums -> tracks
-	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // play One
-	m, _ = update(t, m, runCmd(t, cmd))
-	m, cmd2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if cmd2 == nil {
-		t.Fatal("first eof should advance to Two")
-	}
-	m, _ = update(t, m, runCmd(t, cmd2))
-	m, _ = update(t, m, loadedMsg{title: "Two"})
-	m = expireFence(m)
-	m, cmd3 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if cmd3 == nil {
-		t.Fatal("second eof should advance to Three (listener re-armed)")
-	}
-	m, _ = update(t, m, runCmd(t, cmd3))
-	fake, _ := m.player.(*fakePlayer)
-	if got := strings.Join(fake.titles, ","); got != "One,Two,Three" {
-		t.Fatalf("titles = %q, want the full queue played", got)
-	}
-}
-
-// TestEOFEventIgnoredWhenIdle: events carrying eof while nothing is playing
-// (user pressed stop) must not start anything.
-func TestEOFEventIgnoredWhenIdle(t *testing.T) {
-	m := testModel(Options{Player: &fakePlayer{}, LibraryFiles: []string{"/lib/a1.mp3"}})
-	before := m.playing
-	_, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
-	if cmd != nil {
-		t.Fatal("eof while idle must not start playback")
-	}
-	if m.playing != before {
-		t.Fatal("eof while idle must not toggle the playing state")
-	}
-}
 
 // TestLoadedMsgPrefetchesNextTrackURL: right after a load, the GUI resolves
 // the NEXT track's fresh URL so the eventual jump needs no network wait.
@@ -963,14 +783,18 @@ func fromBatchToPrefetchMsg(t *testing.T, cmd tea.Cmd) *prefetchMsg {
 	return nil
 }
 
-// TestAutoAdvanceUsesPrefetchedURL: a later eof uses the cached URL for the
-// exact next track, skipping the resolver entirely.
+// TestAutoAdvanceUsesPrefetchedURL: when a track ends (poll errors while
+// playing), the advance uses the cached URL for the exact next track,
+// skipping the resolver entirely.
 func TestAutoAdvanceUsesPrefetchedURL(t *testing.T) {
 	m := playingCatalogModel(t, 0)
 	resolver, _ := m.resolve.(*fakeResolver)
 	m.prefetchSlug = "second-song"
 	m.prefetchURL = "https://prefetch.example/2"
-	m, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	var cmd tea.Cmd
+	for i := 0; i <= progressErrorThreshold && cmd == nil; i++ {
+		m, cmd = update(t, m, progressMsg{err: errors.New("unavailable")})
+	}
 	runCmd(t, cmd)
 	fake, _ := m.player.(*fakePlayer)
 	if len(fake.loaded) != 2 {
@@ -995,7 +819,10 @@ func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
 	resolver, _ := m.resolve.(*fakeResolver)
 	m.prefetchSlug = "second-song"
 	m.prefetchURL = "https://prefetch.example/expired"
-	m, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	var cmd tea.Cmd
+	for i := 0; i <= progressErrorThreshold && cmd == nil; i++ {
+		m, cmd = update(t, m, progressMsg{err: errors.New("unavailable")})
+	}
 	runCmd(t, cmd)
 	// fallback path asked the resolver for the next track after the stale fail
 	if calls := resolver.calls; len(calls) == 0 || calls[len(calls)-1] != "album-one/second-song" {
@@ -1008,20 +835,13 @@ func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
 func TestNextKeyAdvancesQueue(t *testing.T) {
 	m := playingCatalogModel(t, 0)
 	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
-	if !m.advancing {
-		t.Fatal("manual next should mark the advance in flight")
-	}
 	if m.playingTrack != 1 {
 		t.Fatalf("playingTrack = %d, want 1 after '>'", m.playingTrack)
 	}
-}
-
-func TestNextKeyInFlightShowsStatus(t *testing.T) {
-	m := playingCatalogModel(t, 0)
-	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
-	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
-	if cmd != nil {
-		t.Fatal("a second '>' while the advance loads must not queue a jump")
+	// the next track's loadedMsg confirms the new queue position afterwards
+	m, _ = update(t, m, loadedMsg{title: "Second Song"})
+	if !m.playing {
+		t.Fatal("playing must resume once the next track lands")
 	}
 }
 

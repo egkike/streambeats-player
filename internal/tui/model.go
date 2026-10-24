@@ -15,7 +15,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"streambeats/internal/catalog"
-	"streambeats/internal/player"
 )
 
 // Player is the playback surface the TUI drives. *player.Client implements it.
@@ -29,9 +28,6 @@ type Player interface {
 	GetProperty(prop string) (float64, error)
 	Close() error
 	Quit() error
-
-	// Events streams mpv lifecycle signals (end-file reason=eof ...).
-	Events() <-chan player.Event
 }
 
 // Resolver turns a catalog track into a fresh, playable stream URL.
@@ -109,21 +105,7 @@ type Model struct {
 	playingAlbum int
 	playingTrack int
 	playingLib   int
-	// advancing guards the resolve+load window right after EOF: a second
-	// error wave in that window is swallowed instead of racing a second
-	// autoAdvance and falsely reporting the playlist as ended.
-	advancing bool
-	// lastAutoAdvance timestamps the previous auto-advance; the fence at
-	// the top of autoAdvance keeps delayed EOF/error storms from
-	// machine-gunning the playlist.
-	lastAutoAdvance time.Time
-	// suppressUntil swallows end-file/eof events for a short window after
-	// a user-initiated skip: the replaced source can still deliver a raced
-	// eof, which would otherwise trigger the forward auto-advance uninvited.
-	// A time window (not a bool) is immune to the old source's stale
-	// progress polls clearing it early; natural track ends are minutes away,
-	// so the 3 s window can never swallow a real one.
-	suppressUntil time.Time
+
 	// prefetch caches a freshly resolved stream URL for the NEXT track,
 	// filled right after a load succeeds so the eventual skip needs no
 	// wait; prefetchSlug names the track it belongs to.
@@ -190,9 +172,6 @@ type (
 		volume int
 		err    error
 	}
-	eventMsg struct {
-		event player.Event
-	}
 	prefetchMsg struct {
 		slug string
 		url  string
@@ -221,7 +200,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.playing = false
 			m.paused = false
-			m.advancing = false // a failed advance must not freeze the queue
 			m.status = friendlyError("playback failed", msg.err)
 			return m, nil
 		}
@@ -230,13 +208,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.paused = false
 		m.position, m.duration = 0, 0
 		m.progressMisses = 0
-		m.advancing = false
 		m.status = ""
-		// Self-heal the ticker: auto-advance does not reschedule the poll
-		// loop, so land the next tick here even for immediate plays. Also
-		// prefetch the next track's fresh stream URL, and keep the mpv
-		// event listener armed so the next eof is instant.
-		nextCmds := []tea.Cmd{tickCmd(), waitEventsCmd(m.player)}
+		// Guarantee the ticker after every load (advances re-arm it too),
+		// and prefetch the next track's fresh stream URL for instant skips.
+		nextCmds := []tea.Cmd{tickCmd()}
 		if pm, ok := m.prefetchNextCmd(); ok {
 			nextCmds = append(nextCmds, pm)
 		}
@@ -246,18 +221,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = friendlyError("mpv error", msg.err)
 		}
 		return m, nil
-	case eventMsg:
-		// Re-arm the event listener regardless of outcome.
-		rearm := []tea.Cmd{waitEventsCmd(m.player)}
-		if msg.event.Name == "end-file" && msg.event.Reason == "eof" &&
-			m.playing && !m.paused && !m.advancing && !m.suppressed() {
-			mNext, cmd := m.autoAdvance()
-			if cmd != nil {
-				rearm = []tea.Cmd{cmd, waitEventsCmd(m.player)}
-			}
-			return mNext, tea.Batch(rearm...)
-		}
-		return m, tea.Batch(rearm...)
 	case prefetchMsg:
 		if msg.err == nil {
 			m.prefetchSlug, m.prefetchURL = msg.slug, msg.url
@@ -265,11 +228,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case progressMsg:
 		if msg.err != nil {
-			// While a resolve+load advance is in flight, later error waves
-			// belong to the old (already ended) source: ignore them.
-			if m.advancing {
-				return m, nil
-			}
 			m.progressMisses++
 			// A played source that stops answering time-pos has finished:
 			// the natural response is the next item in the queue, not an
@@ -511,11 +469,6 @@ func (m Model) queueNext() (tea.Model, tea.Cmd) {
 		m.status = "nothing is playing — press enter on a track"
 		return m, nil
 	}
-	if m.advancing {
-		m.status = "next track is already loading…"
-		return m, nil
-	}
-	m.suppressUntil = time.Now().Add(suppressEOFWindow)
 	return m.autoAdvance()
 }
 
@@ -528,10 +481,6 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 	}
 	if !m.playing {
 		m.status = "nothing is playing — press enter on a track"
-		return m, nil
-	}
-	if m.advancing {
-		m.status = "next track is already loading…"
 		return m, nil
 	}
 	restart := func() tea.Model {
@@ -550,8 +499,6 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 		m.playingLib--
 		m.playingAlbum, m.playingTrack = -1, -1
 		m.status = ""
-		m.advancing = true
-		m.suppressUntil = time.Now().Add(suppressEOFWindow)
 		m.progressMisses = 0
 		return m, loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
 	}
@@ -563,21 +510,9 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 	m.playingTrack--
 	m.playingLib = -1
 	m.status = ""
-	m.advancing = true
-	m.suppressUntil = time.Now().Add(suppressEOFWindow)
 	m.progressMisses = 0
 	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
 }
-
-const (
-	// autoCompleteMinInterval fences back-to-back auto-advances against
-	// delayed EOF/error storms.
-	autoCompleteMinInterval = 2 * time.Second
-	// suppressEOFWindow covers the race window in which a replaced source
-	// may still deliver its late eof event; natural track ends are minutes
-	// away, so this window can never bite a real end-file.
-	suppressEOFWindow = 3 * time.Second
-)
 
 // autoAdvance plays the successor of the source that just finished. It is
 // the pure state change + command pair for end-of-track detection; the
@@ -588,15 +523,8 @@ const (
 // waits (the stale wave is swallowed) instead of machine-gunning through the
 // track list.
 func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
-	if !m.lastAutoAdvance.IsZero() && time.Since(m.lastAutoAdvance) < autoCompleteMinInterval {
-		m.progressMisses = 0
-		return m, nil
-	}
-	m.lastAutoAdvance = time.Now()
 	clear := func() tea.Model {
 		m.playing, m.paused = false, false
-		m.advancing = false
-		m.progressMisses = 0
 		m.status = "playlist ended"
 		return m
 	}
@@ -620,11 +548,6 @@ func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
 	m.playingTrack++
 	m.playingLib = -1
 	m.status = ""
-	// Reset misses so post-loadfile transient unavailability cannot
-	// immediately re-trigger another advance, and lock out further
-	// advances until the new source lands (loadedMsg clears the flag).
-	m.advancing = true
-	m.progressMisses = 0
 	track := album.Tracks[m.playingTrack]
 	// A valid prefetch for the exact next track cuts the whole resolve
 	// roundtrip out of the jump; fall back to a fresh resolve on any
@@ -658,9 +581,6 @@ func pollCmd(p Player) tea.Cmd {
 	}
 }
 
-// suppressed reports whether the post-skip EOF transient window is open.
-func (m Model) suppressed() bool { return time.Now().Before(m.suppressUntil) }
-
 // quitMsg marks the graceful playback teardown completion on quit.
 type quitMsg struct{}
 
@@ -673,22 +593,6 @@ func quitPlayerCmd(p Player) tea.Cmd {
 		_ = p.Quit()
 		_ = p.Close()
 		return quitMsg{}
-	}
-}
-
-// waitEventsCmd parks a goroutine on the mpv event channel (nil-safe: a
-// backing nil channel would block forever, so bail out early).
-func waitEventsCmd(p Player) tea.Cmd {
-	if p == nil {
-		return nil
-	}
-	ch := p.Events()
-	if ch == nil {
-		return nil
-	}
-	return func() tea.Msg {
-		ev := <-ch
-		return eventMsg{event: ev}
 	}
 }
 
