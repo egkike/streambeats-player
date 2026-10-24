@@ -11,6 +11,7 @@ TryExec=@PREFIX@/bin/streambeats-panel
 Icon=@PREFIX@/share/icons/hicolor/scalable/apps/streambeats-panel.svg
 Terminal=false
 NoDisplay=false
+Actions=top;bottom;left;right;
 Categories=AudioVideo;Audio;Music;
 Keywords=music;player;streambeats;ghostty;panel;
 StartupWMClass=streambeats-panel

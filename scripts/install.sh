@@ -149,27 +149,35 @@ fetch_json() {
 	cat "$out"
 }
 
-# resolve_asset: find the browser_download_url of the tar.gz for our
-# os/arch inside a release JSON. Matching on the trailing os_arch.tar.gz
-# keeps us independent of goreleaser name-template tweaks.
+# resolve_container: locate the release asset object line. From now on,
+# the GitHub releases JSON comment above applies to both functions.
+release_asset_line() { # <json> <name-suffix-regex>
+	# Flatten ANY layout to one line (pretty or minified), then break BEFORE
+	# every asset object so name + url keys always share exactly one line —
+	# the field anchor never depends on the API's formatting. awk gsub keeps
+	# the backslash-n escape portable (GNU/BSD awk).
+	printf '%s\n' "$1" | tr '\n' ' ' |
+		awk '{ gsub(/,[[:space:]]*\{/, "\n{"); print }' |
+		grep "$2" | head -n 1
+}
+
+url_from_asset_line() { # <asset-object-line>
+	printf '%s\n' "$1" |
+		sed -n 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
 resolve_asset() {
-	local json="$1" os="$2" arch="$3"
-	local url
-	url=$(printf '%s\n' "$json" |
-		grep "browser_download_url.*_${os}_${arch}\.tar\.gz" |
-		head -n 1 |
-		awk -F'"' '{ print $4 }')
+	local json="$1" os="$2" arch="$3" entry url
+	entry=$(release_asset_line "$json" "_${os}_${arch}\.tar\.gz") || return 1
+	url=$(url_from_asset_line "$entry") || return 1
 	[ -n "$url" ] || return 1
 	printf '%s' "$url"
 }
 
 resolve_checksums() {
-	local json="$1"
-	local url
-	url=$(printf '%s\n' "$json" |
-		grep '"browser_download_url".*checksums\.txt' |
-		head -n 1 |
-		awk -F'"' '{ print $4 }')
+	local json="$1" entry url
+	entry=$(release_asset_line "$json" '"browser_download_url".*checksums\.txt') || return 1
+	url=$(url_from_asset_line "$entry") || return 1
 	[ -n "$url" ] || return 1
 	printf '%s' "$url"
 }
