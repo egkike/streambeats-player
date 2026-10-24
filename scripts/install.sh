@@ -241,11 +241,97 @@ install_bundle() {
 		done
 	fi
 
+	# Desktop integration extras (optional by design): panel spawn script,
+	# icon, KWin rules doc; from this tag forward they ride inside the
+	# checksum-verified archive, older tags fall back to raw content.
+	local have_panel=1
+	consume_optional_asset "scripts/streambeats-panel" \
+		"$share/scripts/streambeats-panel" 0755 || have_panel=0
+	local icons_dir="$prefix/share/icons/hicolor/scalable/apps"
+	mkdir -p "$icons_dir" "$share/assets/kwin" ||
+		die "cannot create the desktop integration directories"
+	if [ "$have_panel" = 1 ]; then
+		consume_optional_asset "assets/icons/streambeats-panel.svg" \
+			"$icons_dir/streambeats-panel.svg" 0644 || have_panel=0
+	fi
+	consume_optional_asset "assets/kwin/window-rules.md" \
+		"$share/assets/kwin/window-rules.md" 0644 || true
+	if [ "$have_panel" = 1 ]; then
+		local desktop_src="$EXTRACT_TMP/assets/desktop/streambeats-panel.desktop.in"
+		if [ ! -f "$desktop_src" ]; then
+			desktop_src="$(new_tmp)"
+			consume_optional_asset "assets/desktop/streambeats-panel.desktop.in" \
+				"$desktop_src" 0644 || have_panel=0
+		fi
+		if [ -f "$desktop_src" ]; then
+			generate_desktop_file "$prefix" "$desktop_src"
+		else
+			warn "streambeats-panel.desktop generation skipped (template unavailable)"
+		fi
+	else
+		warn "desktop integration (streambeats-panel) skipped: assets missing"
+	fi
+
 	# Run from the repo copy's docs; cheap and keeps the installed tree whole.
 	[ -f "$EXTRACT_TMP/README.md" ] && cp "$EXTRACT_TMP/README.md" "$share/README.md"
 	[ -f "$EXTRACT_TMP/LICENSE" ] && cp "$EXTRACT_TMP/LICENSE" "$share/LICENSE"
 
 	write_wrappers "$prefix" "$share"
+}
+
+# fetch_raw_asset: pull one support file from the repository content at the
+# same release tag. Raw bytes are NOT checksum covered — warned at call site.
+fetch_raw_asset() { # <rel-path> <dest>
+	local rel="$1" dest="$2" tmpfile
+	tmpfile=$(new_tmp)
+	# curl directly, NOT fetch(): a missing raw file must degrade gracefully
+	# (the caller skips with a warn) instead of killing the whole install.
+	if ! "$CURL_BIN" -fsSL --connect-timeout 10 \
+		"$RAW_URL/${VERSION_PINNED}/$rel" -o "$tmpfile"; then
+		rm -f "$tmpfile"
+		return 1
+	fi
+	mv "$tmpfile" "$dest"
+}
+
+# consume_optional_asset: take a support file from the extracted archive when
+# the tag ships it, else pull it from raw content at the same tag. Missing on
+# BOTH sides is carried by the caller: desktop integration degrades with a
+# warning, but the player itself never depends on these files.
+consume_optional_asset() { # <rel-path> <dest> <mode>
+	local rel="$1" dest="$2" mode="$3"
+	if [ -f "$EXTRACT_TMP/$rel" ]; then
+		mv "$EXTRACT_TMP/$rel" "$dest" || return 1
+	elif fetch_raw_asset "$rel" "$dest"; then
+		warn "fetched $rel from raw content at $VERSION_PINNED (NOT checksum covered)"
+	else
+		warn "release archive lacks $rel and raw fallback failed — skipping it"
+		return 1
+	fi
+	chmod "$mode" "$dest"
+}
+
+# escape_sed_repl: make a string safe as a sed REPLACEMENT (backslash, ampersand
+# and pipe are special there; pipe doubles as our delimiter).
+escape_sed_repl() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/[&|]/\\&/g'
+}
+
+# generate_desktop_file: render the shipped template with the ABSOLUTE install
+# prefix (@PREFIX@) so the .desktop Exec/Icon never depend on PATH.
+generate_desktop_file() { # <prefix> <template-path>
+	local prefix="$1" tpl="$2" esc dest
+	esc=$(escape_sed_repl "$prefix")
+	dest="$(new_tmp)"
+	sed "s|@PREFIX@|$esc|g" "$tpl" >"$dest" ||
+		die "cannot render streambeats-panel.desktop from the template"
+	mkdir -p "$prefix/share/applications" ||
+		die "cannot create $prefix/share/applications"
+	mv "$dest" "$prefix/share/applications/streambeats-panel.desktop"
+	chmod 0644 "$prefix/share/applications/streambeats-panel.desktop"
+	if command -v update-desktop-database >/dev/null 2>&1; then
+		update-desktop-database "$prefix/share/applications" >/dev/null 2>&1 || true
+	fi
 }
 
 # escape_sh_single: make a path safe inside SINGLE quotes. Single-quoted
@@ -264,7 +350,7 @@ write_wrappers() {
 	local prefix="$1" share="$2" esc
 	esc=$(escape_sh_single "$share")
 	local w dest
-	for w in streambeats streambeats-quick; do
+	for w in streambeats streambeats-quick streambeats-panel; do
 		dest="$(new_tmp)"
 		{
 			printf '#!/bin/sh\n'
@@ -272,8 +358,11 @@ write_wrappers() {
 			streambeats)
 				printf "exec '%s/bin/streambeats' \"\$@\"\n" "$esc"
 				;;
-			*)
+			streambeats-quick)
 				printf "exec '%s/scripts/streambeats-quick' \"\$@\"\n" "$esc"
+				;;
+			*)
+				printf "exec '%s/scripts/streambeats-panel' \"\$@\"\n" "$esc"
 				;;
 			esac
 		} >"$dest"
@@ -377,7 +466,7 @@ main() {
 	environment_advisories "$PREFIX"
 
 	say "done — try:  $PREFIX/bin/streambeats-quick right"
-	say "uninstall:   rm -rf \"$PREFIX/share/streambeats\" \"$PREFIX/bin/streambeats\" \"$PREFIX/bin/streambeats-quick\""
+	say "uninstall:   rm -rf \"$PREFIX/share/streambeats\" \"$PREFIX/bin/streambeats\" \"$PREFIX/bin/streambeats-quick\" \"$PREFIX/bin/streambeats-panel\" \"$PREFIX/share/applications/streambeats-panel.desktop\" \"$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg\""
 }
 
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
