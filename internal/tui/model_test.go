@@ -655,6 +655,51 @@ func TestTrackEndAdvancesToNextTrack(t *testing.T) {
 	}
 }
 
+// Comprehensive race coverage for the EOF wave: while an advance command is
+// in flight (fresh resolve+load takes seconds), a second EOF/hiccup wave must
+// neither re-run autoAdvance nor paint "playlist ended"; when the new track's
+// loadedMsg lands, the run-of-mill transient errors must also stay silent.
+func TestAdvanceInFlightIgnoresSecondErrorWave(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	// first wave reaches the threshold -> advance command in flight
+	var cmd tea.Cmd
+	for i := 0; i <= progressErrorThreshold*2 && cmd == nil; i++ {
+		m, cmd = update(t, m, progressMsg{
+			err: errors.New("mpv error: property unavailable"),
+		})
+	}
+	if cmd == nil {
+		t.Fatal("end of track should return a next-track command")
+	}
+	if !m.advancing {
+		t.Fatal("advancing flag should be set while the next track loads")
+	}
+	// second wave (still-ending mpv) must be swallowed, no status, no advance
+	m2, noCmd := update(t, m, progressMsg{err: errors.New("mpv error: property unavailable")})
+	if noCmd != nil {
+		t.Fatal("in-flight advance must not re-advance on more errors")
+	}
+	if strings.Contains(m2.status, "playlist ended") {
+		t.Fatalf("status = %q, want the in-flight guard to keep it silent", m2.status)
+	}
+	// the fresh track lands -> advancing cleared, ticking rescheduled
+	m3, tick := update(t, m, loadedMsg{title: "Second Song"})
+	if m3.advancing {
+		t.Fatal("advancing must clear when the next track loads")
+	}
+	if tick == nil {
+		t.Fatal("loadedMsg must reschedule the progress ticker")
+	}
+	// early post-loadfile transient errors stay silent (debounced)
+	m4, more := update(t, m3, progressMsg{err: errors.New("mpv error: property unavailable")})
+	if more != nil {
+		t.Fatal("one transient error after load must not advance")
+	}
+	if strings.Contains(m4.status, "mpv error") {
+		t.Fatalf("status = %q, want silent transient", m4.status)
+	}
+}
+
 func TestTrackEndOfAlbumSetsPlaylistEnded(t *testing.T) {
 	m := playingCatalogModel(t, 1)
 	// the model's bookkeeping should now pin the second track

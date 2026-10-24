@@ -104,6 +104,10 @@ type Model struct {
 	playingAlbum int
 	playingTrack int
 	playingLib   int
+	// advancing guards the resolve+load window right after EOF: a second
+	// error wave in that window is swallowed instead of racing a second
+	// autoAdvance and falsely reporting the playlist as ended.
+	advancing bool
 	// progressMisses counts consecutive poll failures; mpv reports transient
 	// "property unavailable" right after a load, so status needs debouncing.
 	progressMisses int
@@ -196,8 +200,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.paused = false
 		m.position, m.duration = 0, 0
 		m.progressMisses = 0
+		m.advancing = false
 		m.status = ""
-		return m, nil
+		// Self-heal the ticker: auto-advance does not reschedule the poll
+		// loop, so land the next tick here even for immediate plays.
+		return m, tickCmd()
 	case actionMsg:
 		if msg.err != nil {
 			m.status = friendlyError("mpv error", msg.err)
@@ -205,6 +212,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case progressMsg:
 		if msg.err != nil {
+			// While a resolve+load advance is in flight, later error waves
+			// belong to the old (already ended) source: ignore them.
+			if m.advancing {
+				return m, nil
+			}
 			m.progressMisses++
 			// A played source that stops answering time-pos has finished:
 			// the natural response is the next item in the queue, not an
@@ -433,6 +445,7 @@ func (m Model) selectedTrack() (catalog.Track, bool) {
 func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
 	clear := func() tea.Model {
 		m.playing, m.paused = false, false
+		m.advancing = false
 		m.progressMisses = 0
 		m.status = "playlist ended"
 		return m
@@ -458,7 +471,9 @@ func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
 	m.playingLib = -1
 	m.status = ""
 	// Reset misses so post-loadfile transient unavailability cannot
-	// immediately re-trigger another advance.
+	// immediately re-trigger another advance, and lock out further
+	// advances until the new source lands (loadedMsg clears the flag).
+	m.advancing = true
 	m.progressMisses = 0
 	return m, resolveAndPlayCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack])
 }

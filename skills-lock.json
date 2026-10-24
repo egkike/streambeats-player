@@ -1,6 +1,16 @@
 {
   "version": 1,
   "skills": {
+    "accessibility": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "2174f783a038a7ca4869c4c18e14726ec13b9c6b705d59253f647d0ca37cb78d"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "a4e6516a601f72ffd8bcd0d64609e8ba724d2ce92569a059a6890a5caadf072b"
+    },
     "golang-patterns": {
       "source": "affaan-m/everything-claude-code",
       "sourceType": "autoskills-registry",
@@ -10,6 +20,11 @@
       "source": "affaan-m/everything-claude-code",
       "sourceType": "autoskills-registry",
       "computedHash": "bcfc98afc06746716e7419f3d7ba22a18a6eda68acfff70592b95231860ae333"
+    },
+    "seo": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "7495da57766c99f787a729d4a21234ecb5d29d90f304a0d9a5996dcdc1eec048"
     }
   }
 }
