@@ -28,6 +28,7 @@ type Player interface {
 	SetVolume(percent int) error
 	GetProperty(prop string) (float64, error)
 	Close() error
+	Quit() error
 
 	// Events streams mpv lifecycle signals (end-file reason=eof ...).
 	Events() <-chan player.Event
@@ -292,7 +293,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.queuePrev()
 	case key.Matches(msg, keys.Quit):
 		m.quitting = true
-		return m, tea.Quit
+		if m.player == nil {
+			return m, tea.Quit
+		}
+		// Stop playback and let mpv exit BEFORE the program tears down, so
+		// audio never outlives the panel.
+		return m, tea.Sequence(quitPlayerCmd(m.player), tea.Quit)
 	case key.Matches(msg, keys.Up):
 		m.moveCursor(-1)
 	case key.Matches(msg, keys.Down):
@@ -615,6 +621,21 @@ func pollCmd(p Player) tea.Cmd {
 			return progressMsg{err: err}
 		}
 		return progressMsg{pos: pos, dur: dur}
+	}
+}
+
+// quitMsg marks the graceful playback teardown completion on quit.
+type quitMsg struct{}
+
+// quitPlayerCmd stops the source, asks mpv to exit, and releases the socket.
+// Errors are swallowed: quitting must always succeed, audible ghosts must
+// never survive the panel.
+func quitPlayerCmd(p Player) tea.Cmd {
+	return func() tea.Msg {
+		_ = p.Stop()
+		_ = p.Quit()
+		_ = p.Close()
+		return quitMsg{}
 	}
 }
 

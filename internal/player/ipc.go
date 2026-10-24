@@ -178,5 +178,9 @@ func (c *Client) Seek(seconds float64) error {
 	return c.Request("seek", seconds, "relative")
 }
 
+// Quit tells mpv to exit entirely: playback stops and the mpv process ends,
+// so audio cannot outlive the player panel after a quit.
+func (c *Client) Quit() error { return c.Request("quit") }
+
 // Close releases the socket.
 func (c *Client) Close() error { return c.conn.Close() }

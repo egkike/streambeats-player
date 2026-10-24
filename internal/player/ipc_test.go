@@ -6,6 +6,7 @@ package player
 
 import (
 	"bufio"
+	"strings"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -163,6 +164,18 @@ func TestDialClosedPathErrors(t *testing.T) {
 	dead := filepath.Join(t.TempDir(), "dead.sock")
 	if _, err := Dial(dead, 500*time.Millisecond); err == nil {
 		t.Fatal("Dial on closed path should error")
+	}
+}
+
+func TestClientQuitSendsQuitCommand(t *testing.T) {
+	srv := newFakeMpvServer(t)
+	c := dial(t, srv.addr)
+	defer c.Close()
+	if err := c.Quit(); err != nil {
+		t.Fatalf("Quit: %v", err)
+	}
+	if !strings.Contains(strings.Join(srv.sent, " "), "\"quit\"") {
+		t.Fatalf("no quit command sent; got %v", srv.sent)
 	}
 }
 

@@ -24,10 +24,11 @@ type fakePlayer struct {
 	pauseCalls int
 	stopCalls  int
 
-	loadErr error
-	props   map[string]float64
-	propErr error
-	eventCh chan player.Event
+	loadErr   error
+	props     map[string]float64
+	propErr   error
+	eventCh   chan player.Event
+	quitCalls *int
 }
 
 func (f *fakePlayer) LoadFile(path, title string) error {
@@ -62,6 +63,15 @@ func (f *fakePlayer) Close() error { return nil }
 
 // Events returns the fake's event channel (test-controlled).
 func (f *fakePlayer) Events() <-chan player.Event { return f.eventCh }
+
+// Quit records mpv termination like the real client.
+func (f *fakePlayer) Quit() error {
+	f.stopCalls++ // treat as a further stop-family signal
+	if f.quitCalls != nil {
+		*f.quitCalls++
+	}
+	return nil
+}
 
 // fakeResolver returns a canned stream URL instead of scraping Bandcamp.
 type fakeResolver struct {
@@ -607,6 +617,38 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("library view is missing %q:\n%s", want, out)
 		}
+	}
+}
+
+// quitting must stop playback AND tell mpv to exit, so audio cannot outlive
+// the panel (user report L24): the quit path returns a sequence containing
+// the stop+quit command.
+func TestQuitReturnsSequencedStopCommand(t *testing.T) {
+	m := testModel(Options{Player: &fakePlayer{}, Resolver: &fakeResolver{url: "https://s/1"}})
+	m.playing = true
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if m.quitting != true {
+		t.Fatal("quitting flag must be set on q")
+	}
+	if cmd == nil {
+		t.Fatal("quit path must return a command")
+	}
+}
+
+// The stop+quit command issued on quit: stops playback, sends mpv's quit,
+// and closes the connection — in that order (fake records the calls).
+func TestQuitPlayerCmdStopsAndQuitsMpv(t *testing.T) {
+	var quits int
+	fake := &fakePlayer{quitCalls: &quits}
+	m := runCmd(t, quitPlayerCmd(fake))
+	if _, ok := m.(quitMsg); !ok {
+		t.Fatalf("quitPlayerCmd returned %T, want quitMsg", m)
+	}
+	if fake.stopCalls == 0 {
+		t.Fatal("stop was not called on quit")
+	}
+	if quits == 0 {
+		t.Fatal("mpv quit was not sent on quit")
 	}
 }
 
