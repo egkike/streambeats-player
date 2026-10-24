@@ -69,15 +69,23 @@ The public repo runs a strict review gate; me/agents NEVER merge, the owner does
 | Code | `*.go`, `go.mod`, `go.sum`, `scripts/`, `assets/`, `.github/`, `.goreleaser.yaml` | issue-first PR, owner merges |
 
 **Issue-first flow (code changes) — the only accepted path to `main`:**
-1. Orchestrator opens a **GitHub issue** describing the invariant, evidence and negative controls.
-2. **Owner** grants `status:approved` on that issue (labels only go on when THEY authorize).
-3. Orchestrator creates the feature branch, implements (work-unit commits ≤ ~400 authored lines), pushes, and opens the PR body-linked with `Closes #N` + exactly one `type:*` label. CI + `pr-gate` must be green.
-4. **Only the owner merges** (squash, conventional title). After merging, the owner notifies the orchestrator.
-5. Orchestrator syncs (pull + local reconciliation), verifies the merge commit's CI is green, and only then cuts a release tag when the PR is release-bound — never releasing until the merge-commit CI is green (post-merge CI sequencing).
+
+Full ordered pipeline (each number is a hard ordering; no step is skipped, only stepped):
+
+| # | Step | Actor | Invariants |
+|---|------|-------|------------|
+| 0 | **Issue + `status:approved`** (scope BEFORE code) | agent opens, owner approves | issue names the invariant, evidence and negative controls; without this no branch work starts |
+| 1 | Branch + ODD feature doc + work-unit commits (≤ ~400 authored lines each) with the local pipeline (RED→GREEN, gofmt/vet/test) | agent | tests run BEFORE the native review — reviewers never see a broken candidate |
+| 2 | **RDD native review** on the committed candidate (committed-only is why step 1's commits exist) | agent runs + owner authorizes model runs (lenses/group/refuter/validator forecasts) | corrections stay bounded inside the review; a burned acknowledgment produces the receipt the PR references |
+| 3 | Push + **PR** (`Closes #N` + exactly one `type:*`) with CI + `pr-gate` green | agent | the gate proves step 0 actually happened |
+| 4 | **Owner merges** (squash default, conventional title) and NOTIFIES the agent | owner | the only merge authority; receipts and the issue stay review-only evidence |
+| 5 | **Sync**: pull, merge-commit CI green BEFORE any new push to `main`, docs/log follow-up (fits the docs lane), then a release tag ONLY if the PR is release-bound AND the merge-commit CI ran green | agent | merge-commit CI is the evidence for that exact SHA — a cancelled run proves nothing (concurrency cancel-in-progress) |
+
+Two deliberate exceptions, still owner-owned:
+- **Docs/tracking lane** (`docs/**`, `README.md`, `AGENTS.md`, `odd/**`): reviewer-visible ff-only straight to `main` — no issue, no PR, but the run's own `ci` must be green before further `main` pushes.
+- **`size:exception`**: declares a PR that exceeds the ~400-line advisory heuristic (review workload guard); it blocks nothing, it only makes the oversize visible to the owner during planning.
 
 **The `pr-gate` check is a review signal, not a hard lock:** branch protection is owner-managed; the owner may still merge over a red gate deliberately (e.g. hotfix during outage) — prefer documenting that on the PR.
-
-`size:exception` marks a PR exceeding the ~400-line advisory heuristic (review workload guard): it blocks nothing, it only makes the oversize visible to the owner during planning.
 
 ## Security & Robustness
 - No secrets anywhere; the catalog cache never stores stream tokens; sockets are local unix domain sockets.
