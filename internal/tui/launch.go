@@ -39,6 +39,9 @@ func Launch(cat *catalog.Catalog) error {
 		}
 	}
 	if client != nil {
+		// Doc-based registration (DOCS/man/ipc.rst): observe idle-active so
+		// property-change events surface the authoritative track end.
+		_ = client.ObserveIdleActive()
 		defer func() { _ = client.Close() }()
 	}
 	if proc != nil {

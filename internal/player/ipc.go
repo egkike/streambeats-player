@@ -62,7 +62,15 @@ func (c *Client) readLoop() {
 		}
 		// An event pushes without a request_id and lands on Events().
 		if payload.Event != "" {
-			c.forwardEvent(Event{Name: payload.Event, Reason: payload.Reason})
+			ev := Event{Name: payload.Event, Reason: payload.Reason}
+			if payload.Event == "property-change" {
+				ev.Property = payload.Property
+				var b bool
+				if json.Unmarshal(payload.Data, &b) == nil {
+					ev.Bool = &b
+				}
+			}
+			c.forwardEvent(ev)
 			continue
 		}
 		var resp response
@@ -181,6 +189,17 @@ func (c *Client) Seek(seconds float64) error {
 // Quit tells mpv to exit entirely: playback stops and the mpv process ends,
 // so audio cannot outlive the player panel after a quit.
 func (c *Client) Quit() error { return c.Request("quit") }
+
+// ObserveIdleActive registers an observer for the idle-active property
+// (docs/ipc.rst: observe_property <id> <property>). idle-active is the
+// authoritative track-end telemetry: true ONLY when no file is loaded, so
+// buffering/underruns cannot flip it. Value changes arrive as property-change
+// events on Events().
+func (c *Client) ObserveIdleActive() error {
+	return c.Request("observe_property", idleActiveObserveID, "idle-active")
+}
+
+const idleActiveObserveID = 777
 
 // Close releases the socket.
 func (c *Client) Close() error { return c.conn.Close() }

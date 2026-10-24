@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"streambeats/internal/catalog"
+	"streambeats/internal/player"
 )
 
 // Player is the playback surface the TUI drives. *player.Client implements it.
@@ -28,6 +29,11 @@ type Player interface {
 	GetProperty(prop string) (float64, error)
 	Close() error
 	Quit() error
+
+	// Events streams mpv lifecycle signals; ObserveIdleActive subscribes to
+	// the idle-active property per DOCS/man/ipc.rst.
+	Events() <-chan player.Event
+	ObserveIdleActive() error
 }
 
 // Resolver turns a catalog track into a fresh, playable stream URL.
@@ -150,7 +156,7 @@ func (m Model) Init() tea.Cmd {
 	if m.player == nil {
 		return nil
 	}
-	return tickCmd()
+	return tea.Batch(tickCmd(), waitEventsCmd(m.player))
 }
 
 // Cronological messages produced by side-effect commands.
@@ -167,6 +173,9 @@ type (
 		pos float64
 		dur float64
 		err error
+	}
+	eventMsg struct {
+		event player.Event
 	}
 	volumeMsg struct {
 		volume int
@@ -221,6 +230,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = friendlyError("mpv error", msg.err)
 		}
 		return m, nil
+	case eventMsg:
+		// Re-arm the listener regardless of outcome.
+		rearm := []tea.Cmd{waitEventsCmd(m.player)}
+		// The single queue-advance trigger (per DOCS/man/ipc.rst:
+		// observe_property + idle-active). Neither buffering underruns nor
+		// the loadfile transition can flip idle-active, so this never fires
+		// for a mere slow source — only for a truly finished one.
+		if msg.event.Name == "property-change" && msg.event.Property == "idle-active" &&
+			msg.event.Bool != nil && *msg.event.Bool &&
+			m.playing && !m.paused {
+			mNext, cmd := m.autoAdvance()
+			if cmd != nil {
+				rearm = []tea.Cmd{cmd, waitEventsCmd(m.player)}
+			}
+			return mNext, tea.Batch(rearm...)
+		}
+		return m, tea.Batch(rearm...)
 	case prefetchMsg:
 		if msg.err == nil {
 			m.prefetchSlug, m.prefetchURL = msg.slug, msg.url
@@ -229,12 +255,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		if msg.err != nil {
 			m.progressMisses++
-			// A played source that stops answering time-pos has finished:
-			// the natural response is the next item in the queue, not an
-			// error banner.
-			if m.progressMisses >= progressErrorThreshold && m.playing && !m.paused {
-				return m.autoAdvance()
-			}
+			// Poll errors NEVER advance the queue: transient buffering and the
+			// loadfile transition can also look like "no time-pos". The single
+			// authoritative trigger is idle-active (see eventMsg), per docs.
 			if m.progressMisses >= progressErrorThreshold {
 				m.status = friendlyError("mpv error", msg.err)
 			}
@@ -606,6 +629,22 @@ func pollCmd(p Player) tea.Cmd {
 			return progressMsg{err: err}
 		}
 		return progressMsg{pos: pos, dur: dur}
+	}
+}
+
+// waitEventsCmd parks a goroutine on the mpv event channel (nil-safe:
+// a backing nil channel would block forever, so bail out early).
+func waitEventsCmd(p Player) tea.Cmd {
+	if p == nil {
+		return nil
+	}
+	ch := p.Events()
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ev := <-ch
+		return eventMsg{event: ev}
 	}
 }
 

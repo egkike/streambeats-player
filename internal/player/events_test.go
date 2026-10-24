@@ -131,3 +131,50 @@ func TestEventsChannelIsLazyButStable(t *testing.T) {
 		t.Fatal("Events() must return the same channel across calls")
 	}
 }
+
+func TestPropertyChangeForwardsNameAndBool(t *testing.T) {
+	srv := newEventsServer(t, []string{
+		`{"event":"property-change","id":777,"name":"idle-active","data":true}`,
+		`{"event":"property-change","id":777,"name":"idle-active","data":false}`,
+	})
+	c, err := Dial(srv.listener.Addr().(*net.UnixAddr).Name, 2*time.Second)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer c.Close()
+
+	evs := []Event{}
+	deadline := time.After(4 * time.Second)
+	for len(evs) < 2 {
+		select {
+		case ev := <-c.Events():
+			evs = append(evs, ev)
+		case <-deadline:
+			t.Fatalf("got %d events, want 2", len(evs))
+		}
+	}
+	one := evs[0]
+	if one.Name != "property-change" || one.Property != "idle-active" || one.Bool == nil || !*one.Bool {
+		t.Fatalf("events[0] = %+v, want idle-active=true", one)
+	}
+	two := evs[1]
+	if two.Bool == nil || *two.Bool {
+		t.Fatalf("events[1] = %+v, want idle-active=false", two)
+	}
+}
+
+func TestObserveIdleActiveSendsObserveProperty(t *testing.T) {
+	srv := newEventsServer(t, []string{})
+	c, err := Dial(srv.listener.Addr().(*net.UnixAddr).Name, 2*time.Second)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer c.Close()
+	defer time.Sleep(150 * time.Millisecond)
+	if err := c.ObserveIdleActive(); err != nil {
+		t.Fatalf("ObserveIdleActive: %v", err)
+	}
+	// observe counts as a correlated request: the echoed response confirms it
+	// (the server echoes request_id 1; ObserveIdleActive succeeded without
+	// error -> request reached the wire). Deeper pin lives in ipc tests.
+}

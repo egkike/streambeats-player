@@ -6,11 +6,11 @@ package player
 
 import (
 	"bufio"
-	"strings"
 	"encoding/json"
 	"fmt"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )

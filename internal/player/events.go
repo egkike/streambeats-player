@@ -9,8 +9,10 @@ import "encoding/json"
 
 // Event is one lifecycle signal pushed by mpv.
 type Event struct {
-	Name   string // e.g. "end-file", "audio-reconfig"
-	Reason string // e.g. "eof" for natural end of track on end-file events
+	Name     string // e.g. "end-file", "property-change"
+	Reason   string // e.g. "eof" for natural end of track on end-file events
+	Property string // property-change: which property changed
+	Bool     *bool  // property-change: parsed bool data (idle-active ...)
 }
 
 // eventPayload mirrors the "event *or* response" envelope on the wire.
@@ -18,7 +20,8 @@ type eventPayload struct {
 	Event     string          `json:"event"`
 	Reason    string          `json:"reason"`
 	RequestID int             `json:"request_id"`
-	Data      json.RawMessage `json:"data"`
+	Property  string          `json:"name"` // property-change: property name
+	Data      json.RawMessage `json:"data"` // property-change: value
 }
 
 // eventsBufferSize holds a burst of lifecycle signals; a slow consumer drops

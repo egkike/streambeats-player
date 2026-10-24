@@ -64,6 +64,9 @@ func (f *fakePlayer) Close() error { return nil }
 // Events returns the fake's event channel (test-controlled).
 func (f *fakePlayer) Events() <-chan player.Event { return f.eventCh }
 
+// ObserveIdleActive records the observe request (no wire in the fake).
+func (f *fakePlayer) ObserveIdleActive() error { return nil }
+
 // Quit records mpv termination like the real client.
 func (f *fakePlayer) Quit() error {
 	f.stopCalls++ // treat as a further stop-family signal
@@ -642,6 +645,18 @@ func TestQuitPlayerCmdStopsAndQuitsMpv(t *testing.T) {
 // playingCatalogModel activates track trackIdx of album one so the model's
 // playing* bookkeeping is set through the real key flow.
 // playingAlbumTrack drives the real key flow to play trackIdx of albumIdx.
+// eofIdle builds the documented signal: property-change idle-active=true.
+func eofIdle() eventMsg {
+	return eventMsg{event: player.Event{
+		Name:     "property-change",
+		Property: "idle-active",
+		Bool:     boolPtr(true),
+	}}
+}
+
+// machineGun pushes a full storm of poll errors with no cmd expected.
+func boolPtr(v bool) *bool { return &v }
+
 func playingAlbumTrack(t *testing.T, albumIdx, trackIdx int) Model {
 	t.Helper()
 	m := testModel(Options{
@@ -692,13 +707,8 @@ func TestTrackEndAdvancesToNextTrack(t *testing.T) {
 	// recover the fake to observe what the auto-advance plays
 	player = m.player.(*fakePlayer)
 
-	// a finished track surfaces as persistent "property unavailable" polls
-	var cmd tea.Cmd
-	for i := 0; i <= progressErrorThreshold*2 && cmd == nil; i++ {
-		m, cmd = update(t, m, progressMsg{
-			err: errors.New("mpv error: property unavailable"),
-		})
-	}
+	// a finished track surfaces as the documented idle-active telemetry
+	m, cmd := update(t, m, eofIdle())
 	if cmd == nil {
 		t.Fatal("end of track should return a next-track command")
 	}
@@ -711,16 +721,11 @@ func TestTrackEndAdvancesToNextTrack(t *testing.T) {
 	}
 }
 
+// TestTrackEndOfAlbumSetsPlaylistEnded: with S10 only the last track of the
+// LAST album ends the catalog queue; intermediate album ends cross forward.
 func TestTrackEndOfAlbumSetsPlaylistEnded(t *testing.T) {
-	m := playingCatalogModel(t, 1)
-	// the model's bookkeeping should now pin the second track
-	m, _ = update(t, m, loadedMsg{title: "Second Song"})
-	var cmd tea.Cmd
-	for i := 0; i < progressErrorThreshold*4 && m.playing; i++ {
-		m, cmd = update(t, m, progressMsg{
-			err: errors.New("mpv error: property unavailable"),
-		})
-	}
+	m := playingAlbumTrack(t, 1, 0)
+	m, cmd := update(t, m, eofIdle())
 	if cmd != nil {
 		t.Fatalf("last track should not advance, got command %v", cmd)
 	}
@@ -741,12 +746,7 @@ func TestLibraryEndAdvancesAndEnds(t *testing.T) {
 	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	runCmd(t, cmd)
 	m, _ = update(t, m, loadedMsg{title: "a1"})
-	var nextCmd tea.Cmd
-	for i := 0; i <= progressErrorThreshold*2 && nextCmd == nil; i++ {
-		m, nextCmd = update(t, m, progressMsg{
-			err: errors.New("mpv error: property unavailable"),
-		})
-	}
+	m, nextCmd := update(t, m, eofIdle())
 	if nextCmd == nil {
 		t.Fatal("library playlist should advance to the next file")
 	}
@@ -815,10 +815,7 @@ func TestAutoAdvanceUsesPrefetchedURL(t *testing.T) {
 	resolver, _ := m.resolve.(*fakeResolver)
 	m.prefetchSlug = "second-song"
 	m.prefetchURL = "https://prefetch.example/2"
-	var cmd tea.Cmd
-	for i := 0; i <= progressErrorThreshold && cmd == nil; i++ {
-		m, cmd = update(t, m, progressMsg{err: errors.New("unavailable")})
-	}
+	m, cmd := update(t, m, eofIdle())
 	runCmd(t, cmd)
 	fake, _ := m.player.(*fakePlayer)
 	if len(fake.loaded) != 2 {
@@ -843,14 +840,75 @@ func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
 	resolver, _ := m.resolve.(*fakeResolver)
 	m.prefetchSlug = "second-song"
 	m.prefetchURL = "https://prefetch.example/expired"
-	var cmd tea.Cmd
-	for i := 0; i <= progressErrorThreshold && cmd == nil; i++ {
-		m, cmd = update(t, m, progressMsg{err: errors.New("unavailable")})
-	}
+	m, cmd := update(t, m, eofIdle())
 	runCmd(t, cmd)
 	// fallback path asked the resolver for the next track after the stale fail
 	if calls := resolver.calls; len(calls) == 0 || calls[len(calls)-1] != "album-one/second-song" {
 		t.Fatalf("resolver fallback was not invoked: %v", resolver.calls)
+	}
+}
+
+// --- the doc contract: idle-active drives everything (L29) -------------------
+
+// Regression for the machine-gun (user report: enter alone jumped the whole
+// playlist): poll errors must never, ever advance the queue.
+func TestPollErrorsNeverAdvanceQueue(t *testing.T) {
+	m := playingAlbumTrack(t, 0, 0)
+	m, cmd := update(t, m, eofIdle())
+	if cmd == nil {
+		t.Fatal("idle-active while playing should advance")
+	}
+	if !m.playing {
+		t.Fatal("idle event should hand over to the next track via the command")
+	}
+	// the next track lands
+	m, _ = update(t, m, loadedMsg{title: "Second Song"})
+	// NOW the storm: 30 consecutive poll errors produce zero commands
+	for i := 0; i < progressErrorThreshold*10; i++ {
+		m, cmd = update(t, m, progressMsg{err: errors.New("transient")})
+		if cmd != nil {
+			t.Fatalf("poll error storm produced a command at i=%d: %v", i, cmd)
+		}
+	}
+}
+
+// --TestEOFEventAdvances style: idle-active is the queue engine trigger
+func TestIdleActiveAdvancesQueueFromEvent(t *testing.T) {
+	m := playingAlbumTrack(t, 0, 0)
+	m, cmd := update(t, m, eofIdle())
+	if cmd == nil {
+		t.Fatal("idle-active=true should advance the queue")
+	}
+	if m.playingTrack != 1 {
+		t.Fatalf("playingTrack = %d, want 1", m.playingTrack)
+	}
+	m, _ = update(t, m, runCmd(t, cmd))
+	fake, _ := m.player.(*fakePlayer)
+	if len(fake.titles) < 2 || fake.titles[1] != "Second Song" {
+		t.Fatalf("titles = %v, want the second track loaded", fake.titles)
+	}
+}
+
+func TestIdleActiveOnlyWhenPlaying(t *testing.T) {
+	m := testModel(Options{Player: &fakePlayer{}})
+	_, cmd := update(t, m, eofIdle())
+	if cmd != nil {
+		t.Fatal("idle-active while nothing was intentionally playing is ignored")
+	}
+}
+
+// last track of the last album -> playlist ended on idle-active
+func TestIdleActiveLastTrackEndsQueue(t *testing.T) {
+	m := playingAlbumTrack(t, 1, 0)
+	m, cmd := update(t, m, eofIdle())
+	if cmd != nil {
+		t.Fatal("the catalog's last track must not produce a load command")
+	}
+	if m.playing {
+		t.Fatal("playing = true, want false at the end of the catalog")
+	}
+	if !strings.Contains(m.status, "playlist ended") {
+		t.Fatalf("status = %q, want playlist ended", m.status)
 	}
 }
 
