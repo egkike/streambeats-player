@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"streambeats/internal/catalog"
+	"streambeats/internal/player"
 )
 
 // fakePlayer records playback calls instead of talking to mpv.
@@ -26,6 +27,7 @@ type fakePlayer struct {
 	loadErr error
 	props   map[string]float64
 	propErr error
+	eventCh chan player.Event
 }
 
 func (f *fakePlayer) LoadFile(path, title string) error {
@@ -57,6 +59,9 @@ func (f *fakePlayer) GetProperty(prop string) (float64, error) {
 }
 
 func (f *fakePlayer) Close() error { return nil }
+
+// Events returns the fake's event channel (test-controlled).
+func (f *fakePlayer) Events() <-chan player.Event { return f.eventCh }
 
 // fakeResolver returns a canned stream URL instead of scraping Bandcamp.
 type fakeResolver struct {
@@ -745,4 +750,169 @@ func TestLibraryEndAdvancesAndEnds(t *testing.T) {
 	}
 	player := m.player.(*fakePlayer)
 	_ = player
+}
+
+// --- instant EOF events + URL prefetch (L16/T11) ---------------------------
+
+// TestEOFEventAdvancesImmediately: mpv pushes a precise end-file/eof event;
+// the model advances on it without waiting for the poll debounce.
+func TestEOFEventAdvancesImmediately(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	m, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if cmd == nil {
+		t.Fatal("eof event should start the next track immediately")
+	}
+	if !m.advancing {
+		t.Fatal("eof advance should mark the model as advancing")
+	}
+	runCmd(t, cmd)
+	fake, _ := m.player.(*fakePlayer)
+	if got := strings.Join(fake.titles, ","); got != "First Song,Second Song" {
+		t.Fatalf("titles = %q, want the next track", got)
+	}
+	// with a two-track album the second eof is the true end of the queue
+	m, _ = update(t, m, loadedMsg{title: "Second Song"})
+	m, cmd2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if cmd2 != nil {
+		t.Fatal("eof on the last track must not start anything")
+	}
+	if !strings.Contains(m.status, "playlist ended") {
+		t.Fatalf("status = %q, want the honest playlist-ended note", m.status)
+	}
+}
+
+// TestEOFEventsRearmAcrossTracks exercises the event listener re-arm on a
+// longer queue: two consecutive eof -> five tracks -> two advances.
+func TestEOFEventsRearmAcrossTracks(t *testing.T) {
+	catalog3 := &catalog.Catalog{Albums: []catalog.AlbumEntry{{
+		Slug:   "long-album",
+		Title:  "Long Album",
+		Artist: "StreamBeats",
+		Tracks: []catalog.Track{
+			{Title: "One", Slug: "one", DurationSeconds: 10},
+			{Title: "Two", Slug: "two", DurationSeconds: 10},
+			{Title: "Three", Slug: "three", DurationSeconds: 10},
+		},
+	}}}
+	m := testModel(Options{
+		Catalog:  catalog3,
+		Player:   &fakePlayer{},
+		Resolver: &fakeResolver{url: "https://stream.example/1"},
+	})
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})    // albums -> tracks
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // play One
+	m, _ = update(t, m, runCmd(t, cmd))
+	m, cmd2 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if cmd2 == nil {
+		t.Fatal("first eof should advance to Two")
+	}
+	m, _ = update(t, m, runCmd(t, cmd2))
+	m, _ = update(t, m, loadedMsg{title: "Two"})
+	m, cmd3 := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if cmd3 == nil {
+		t.Fatal("second eof should advance to Three (listener re-armed)")
+	}
+	m, _ = update(t, m, runCmd(t, cmd3))
+	fake, _ := m.player.(*fakePlayer)
+	if got := strings.Join(fake.titles, ","); got != "One,Two,Three" {
+		t.Fatalf("titles = %q, want the full queue played", got)
+	}
+}
+
+// TestEOFEventIgnoredWhenIdle: events carrying eof while nothing is playing
+// (user pressed stop) must not start anything.
+func TestEOFEventIgnoredWhenIdle(t *testing.T) {
+	m := testModel(Options{Player: &fakePlayer{}, LibraryFiles: []string{"/lib/a1.mp3"}})
+	before := m.playing
+	_, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	if cmd != nil {
+		t.Fatal("eof while idle must not start playback")
+	}
+	if m.playing != before {
+		t.Fatal("eof while idle must not toggle the playing state")
+	}
+}
+
+// TestLoadedMsgPrefetchesNextTrackURL: right after a load, the GUI resolves
+// the NEXT track's fresh URL so the eventual jump needs no network wait.
+func TestLoadedMsgPrefetchesNextTrackURL(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	resolver, _ := m.resolve.(*fakeResolver)
+	m, cmd := update(t, m, loadedMsg{title: "First Song"})
+	if cmd == nil {
+		t.Fatal("loadedMsg should schedule tick/events/prefetch batch")
+	}
+	// drain the batch: one of the cmds is the prefetch resolve
+	prefetched := fromBatchToPrefetchMsg(t, cmd)
+	if prefetched == nil {
+		t.Fatal("no prefetch command inside the loadedMsg batch")
+	}
+	calls := resolver.calls
+	if len(calls) != 2 {
+		t.Fatalf("resolver calls = %v, want initial play + prefetch of second-song", calls)
+	}
+	if last := calls[len(calls)-1]; last != "album-one/second-song" {
+		t.Fatalf("prefetched track = %q, want the next track", last)
+	}
+	if prefetched.slug != "second-song" || prefetched.err != nil {
+		t.Fatalf("prefetch msg = %+v, want slug second-song without error", prefetched)
+	}
+}
+
+func fromBatchToPrefetchMsg(t *testing.T, cmd tea.Cmd) *prefetchMsg {
+	t.Helper()
+	msg := runCmd(t, cmd)
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return nil // not a batch: no prefetch in this build
+	}
+	for _, c := range batch {
+		if c == nil {
+			continue
+		}
+		if pm, ok := c().(prefetchMsg); ok {
+			return &pm
+		}
+	}
+	return nil
+}
+
+// TestAutoAdvanceUsesPrefetchedURL: a later eof uses the cached URL for the
+// exact next track, skipping the resolver entirely.
+func TestAutoAdvanceUsesPrefetchedURL(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	resolver, _ := m.resolve.(*fakeResolver)
+	m.prefetchSlug = "second-song"
+	m.prefetchURL = "https://prefetch.example/2"
+	m, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	runCmd(t, cmd)
+	fake, _ := m.player.(*fakePlayer)
+	if len(fake.loaded) != 2 {
+		t.Fatalf("loaded = %v, want two entries", fake.loaded)
+	}
+	if fake.loaded[1] != "https://prefetch.example/2" {
+		t.Fatalf("advanced load = %q, want the prefetched URL", fake.loaded[1])
+	}
+	for _, call := range resolver.calls {
+		if call == "album-one/second-song" {
+			t.Fatalf("resolver was re-asked for %q despite a valid prefetch", call)
+		}
+	}
+}
+
+// TestPrefetchStaleFallsBackToFreshResolve: if the cached URL expires
+// (loadfile fails), the advance re-resolves and tries once more.
+func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
+	m := playingCatalogModel(t, 0)
+	fake, _ := m.player.(*fakePlayer)
+	fake.loadErr = errors.New("stale token")
+	resolver, _ := m.resolve.(*fakeResolver)
+	m.prefetchSlug = "second-song"
+	m.prefetchURL = "https://prefetch.example/expired"
+	m, cmd := update(t, m, eventMsg{event: player.Event{Name: "end-file", Reason: "eof"}})
+	runCmd(t, cmd)
+	// fallback path asked the resolver for the next track after the stale fail
+	if calls := resolver.calls; len(calls) == 0 || calls[len(calls)-1] != "album-one/second-song" {
+		t.Fatalf("resolver fallback was not invoked: %v", resolver.calls)
+	}
 }

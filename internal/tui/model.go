@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"streambeats/internal/catalog"
+	"streambeats/internal/player"
 )
 
 // Player is the playback surface the TUI drives. *player.Client implements it.
@@ -27,6 +28,9 @@ type Player interface {
 	SetVolume(percent int) error
 	GetProperty(prop string) (float64, error)
 	Close() error
+
+	// Events streams mpv lifecycle signals (end-file reason=eof ...).
+	Events() <-chan player.Event
 }
 
 // Resolver turns a catalog track into a fresh, playable stream URL.
@@ -108,6 +112,11 @@ type Model struct {
 	// error wave in that window is swallowed instead of racing a second
 	// autoAdvance and falsely reporting the playlist as ended.
 	advancing bool
+	// prefetch caches a freshly resolved stream URL for the NEXT track,
+	// filled right after a load succeeds so the eventual skip needs no
+	// wait; prefetchSlug names the track it belongs to.
+	prefetchSlug string
+	prefetchURL  string
 	// progressMisses counts consecutive poll failures; mpv reports transient
 	// "property unavailable" right after a load, so status needs debouncing.
 	progressMisses int
@@ -169,6 +178,14 @@ type (
 		volume int
 		err    error
 	}
+	eventMsg struct {
+		event player.Event
+	}
+	prefetchMsg struct {
+		slug string
+		url  string
+		err  error
+	}
 )
 
 // Update implements tea.Model. It never performs I/O itself.
@@ -203,11 +220,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.advancing = false
 		m.status = ""
 		// Self-heal the ticker: auto-advance does not reschedule the poll
-		// loop, so land the next tick here even for immediate plays.
-		return m, tickCmd()
+		// loop, so land the next tick here even for immediate plays. Also
+		// prefetch the next track's fresh stream URL, and keep the mpv
+		// event listener armed so the next eof is instant.
+		nextCmds := []tea.Cmd{tickCmd(), waitEventsCmd(m.player)}
+		if pm, ok := m.prefetchNextCmd(); ok {
+			nextCmds = append(nextCmds, pm)
+		}
+		return m, tea.Batch(nextCmds...)
 	case actionMsg:
 		if msg.err != nil {
 			m.status = friendlyError("mpv error", msg.err)
+		}
+		return m, nil
+	case eventMsg:
+		// Re-arm the event listener regardless of outcome.
+		rearm := []tea.Cmd{waitEventsCmd(m.player)}
+		if msg.event.Name == "end-file" && msg.event.Reason == "eof" &&
+			m.playing && !m.paused && !m.advancing {
+			mNext, cmd := m.autoAdvance()
+			if cmd != nil {
+				rearm = []tea.Cmd{cmd, waitEventsCmd(m.player)}
+			}
+			return mNext, tea.Batch(rearm...)
+		}
+		return m, tea.Batch(rearm...)
+	case prefetchMsg:
+		if msg.err == nil {
+			m.prefetchSlug, m.prefetchURL = msg.slug, msg.url
 		}
 		return m, nil
 	case progressMsg:
@@ -475,7 +515,15 @@ func (m Model) autoAdvance() (tea.Model, tea.Cmd) {
 	// advances until the new source lands (loadedMsg clears the flag).
 	m.advancing = true
 	m.progressMisses = 0
-	return m, resolveAndPlayCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack])
+	track := album.Tracks[m.playingTrack]
+	// A valid prefetch for the exact next track cuts the whole resolve
+	// roundtrip out of the jump; fall back to a fresh resolve on any
+	// stale-token failure.
+	prefetch := ""
+	if m.prefetchSlug == track.Slug {
+		prefetch = m.prefetchURL
+	}
+	return m, advanceCatalogCmd(m.player, m.resolve, album, track, prefetch)
 }
 
 // --- commands (side effects) -------------------------------------------
@@ -497,6 +545,66 @@ func pollCmd(p Player) tea.Cmd {
 			return progressMsg{err: err}
 		}
 		return progressMsg{pos: pos, dur: dur}
+	}
+}
+
+// waitEventsCmd parks a goroutine on the mpv event channel (nil-safe: a
+// backing nil channel would block forever, so bail out early).
+func waitEventsCmd(p Player) tea.Cmd {
+	if p == nil {
+		return nil
+	}
+	ch := p.Events()
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ev := <-ch
+		return eventMsg{event: ev}
+	}
+}
+
+// prefetchNextCmd resolves the URL of the successor of the currently playing
+// catalog track, so the eventual end-of-track jump needs no wait.
+func (m Model) prefetchNextCmd() (tea.Cmd, bool) {
+	if m.player == nil || m.resolve == nil || m.mode != ModeCatalog ||
+		m.playingAlbum < 0 || m.playingAlbum >= len(m.albums) {
+		return nil, false
+	}
+	album := m.albums[m.playingAlbum]
+	next := m.playingTrack + 1
+	if next >= len(album.Tracks) {
+		return nil, false
+	}
+	track := album.Tracks[next]
+	cmd := func() tea.Msg {
+		url, err := m.resolve.ResolveStream(album.Slug, track.Slug)
+		if err != nil {
+			return prefetchMsg{err: err}
+		}
+		return prefetchMsg{slug: track.Slug, url: url}
+	}
+	return cmd, true
+}
+
+// advanceCatalogCmd loads track via a prefetched URL when it matches, with
+// a one-shot fresh resolve fallback for expired tokens.
+func advanceCatalogCmd(p Player, r Resolver, album catalog.AlbumEntry, track catalog.Track, prefetched string) tea.Cmd {
+	return func() tea.Msg {
+		title := trackTitle(track)
+		if prefetched != "" {
+			if err := playFile(p, prefetched, title); err == nil {
+				return loadedMsg{title: title}
+			}
+		}
+		url, err := r.ResolveStream(album.Slug, track.Slug)
+		if err != nil {
+			return loadedMsg{err: err}
+		}
+		if err := playFile(p, url, title); err != nil {
+			return loadedMsg{title: title, err: err}
+		}
+		return loadedMsg{title: title}
 	}
 }
 

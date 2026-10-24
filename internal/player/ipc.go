@@ -31,6 +31,8 @@ type Client struct {
 
 	pendingMu sync.Mutex
 	pending   map[int]chan response
+
+	events chan Event
 }
 
 // Dial connects to a running mpv instance's IPC socket.
@@ -39,7 +41,11 @@ func Dial(addr string, timeout time.Duration) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial mpv ipc %s: %w", addr, err)
 	}
-	c := &Client{conn: conn, pending: map[int]chan response{}}
+	c := &Client{
+		conn:    conn,
+		pending: map[int]chan response{},
+		events:  make(chan Event, eventsBufferSize),
+	}
 	go c.readLoop()
 	return c, nil
 }
@@ -50,6 +56,15 @@ func (c *Client) readLoop() {
 	sc := bufio.NewScanner(c.conn)
 	sc.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for sc.Scan() {
+		var payload eventPayload
+		if json.Unmarshal(sc.Bytes(), &payload) != nil {
+			continue
+		}
+		// An event pushes without a request_id and lands on Events().
+		if payload.Event != "" {
+			c.forwardEvent(Event{Name: payload.Event, Reason: payload.Reason})
+			continue
+		}
 		var resp response
 		if json.Unmarshal(sc.Bytes(), &resp) != nil {
 			continue
