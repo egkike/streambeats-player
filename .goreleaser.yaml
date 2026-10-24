@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# Release configuration — streambeats-player.
+#
+# Driven by .github/workflows/release.yml on every annotated `vX.Y.Z` tag.
+# Pure Go (no C toolchain): a single build matrix covers all 5 targets.
+#
+# Local dry-run, no GITHUB_TOKEN and no network required:
+#   goreleaser check
+#   goreleaser release --snapshot --clean --skip=publish
+
+version: 2
+
+project_name: streambeats-player
+
+builds:
+  - id: streambeats
+    main: ./cmd/streambeats
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    env:
+      - CGO_ENABLED=0
+    binary: 'streambeats{{ if eq .Os "windows" }}_{{ .Os }}_{{ .Arch }}{{ end }}'
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt

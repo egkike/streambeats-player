@@ -1,0 +1,21 @@
+version: "2"
+
+linters:
+  enable:
+    # seguridad y deuda de errores
+    - gosec           # hardcoded credentials, weak crypto, unsafe
+    - errorlint       # fmt.Errorf("...: %w", err) idiomático
+
+    # utilitarios
+    - gocritic        # meta-linter con checks de bugs, performance y estilo
+    - bodyclose       # HTTP response body closed (Bandcamp fetch)
+    - noctx           # HTTP requests con context.Context
+
+  settings:
+    gocritic:
+      disabled-checks:
+        # Subjetivos / ruidosos para un proyecto chico. El AGENTS.md ya
+        # define los estandares; no necesitamos que el linter opine
+        # sobre estilo subjetivo.
+        - ifElseChain
+        - singleCaseSwitch
