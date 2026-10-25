@@ -34,8 +34,22 @@ streambeats-quick right   # floating quick-terminal panel (Ghostty)
 Uninstall:
 
 ```sh
-rm -rf ~/.local/share/streambeats ~/.local/bin/streambeats ~/.local/bin/streambeats-quick
+# stop any live panel first
+systemctl --user stop streambeats-panel-{top,bottom,left,right} 2>/dev/null
+systemctl --user reset-failed streambeats-panel-{top,bottom,left,right} 2>/dev/null
+
+# drop the app (all paths user-level, no sudo)
+rm -rf ~/.local/share/streambeats \
+       ~/.local/bin/streambeats ~/.local/bin/streambeats-quick ~/.local/bin/streambeats-panel \
+       ~/.local/share/applications/streambeats-panel.desktop \
+       ~/.local/share/icons/hicolor/scalable/apps/streambeats-panel.svg
+
+# optional: the catalog cache is redownloadable — drop it too
+rm -rf ~/.cache/streambeats
 ```
+
+Your `~/Music/StreamBeats` local library (downloaded albums) is user data:
+nothing above ever touches it.
 
 ## Requirements
 
