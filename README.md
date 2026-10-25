@@ -31,7 +31,15 @@ streambeats               # TUI player, runs in any terminal
 streambeats-quick right   # floating quick-terminal panel (Ghostty)
 ```
 
-Uninstall:
+Uninstall (the bundled CLI removes exactly what the installer landed; the
+panel is stopped first and your local library, `~/Music/StreamBeats`, is
+never touched):
+
+```sh
+streambeats uninstall          # add --cache to also clear the catalog cache
+```
+
+Manual inventory for installs from a pre-CLI version (v1.2.x and older):
 
 ```sh
 # stop any live panel first
