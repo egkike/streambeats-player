@@ -118,7 +118,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return runUninstall(stdout, stderr, uninstallRequest{Prefix: prefix, Cache: cache, Deps: deps})
 	default:
-		return runTUI(stderr)
+		return runTUI(stdout, stderr, newTUIDeps())
 	}
 }
 
@@ -190,20 +190,57 @@ func runSync(stdout, stderr io.Writer) int {
 	return 0
 }
 
-// runTUI loads the cached catalog and launches the Bubbletea player.
-func runTUI(stderr io.Writer) int {
-	store, err := catalog.DefaultStore()
-	if err != nil {
-		return fail(stderr, err)
+// tuiDeps bundles theailleurs environment-dependent collaborators of the TUI path
+// so tests inject temp stores, a stubbed catalog client and a no-op launch
+// (mirror of the uninstallDeps pattern).
+type tuiDeps struct {
+	store   *catalog.Store
+	refresh func() (*catalog.Catalog, error)
+	launch  func(*catalog.Catalog) error
+}
+
+// newTUIDeps wires the real environment collaborators.
+func newTUIDeps() *tuiDeps {
+	client := catalog.NewClient()
+	return &tuiDeps{
+		refresh: client.Refresh,
+		launch:  tui.Launch,
+	}
+}
+
+// runTUI loads the cached catalog and launches the Bubbletea player. On a
+// fresh install (issue #17) the same fallback as runSync applies: the cache
+// is missing → scrape live, save, launch. launch is a function so tests
+// never spawn the terminal fugitive in production either — single clear call.
+func runTUI(stdout, stderr io.Writer, deps *tuiDeps) int {
+	if deps == nil {
+		deps = newTUIDeps()
+	}
+	var store *catalog.Store
+	var err error
+	if deps.store != nil {
+		store = deps.store
+	} else {
+		store, err = catalog.DefaultStore()
+		if err != nil {
+			return fail(stderr, err)
+		}
 	}
 	cat, err := store.Load()
 	if errors.Is(err, os.ErrNotExist) {
-		return fail(stderr, fmt.Errorf("no cached catalog yet; run `streambeats refresh` first"))
+		fmt.Fprintln(stdout, "no cached catalog yet; scraping it now...")
+		cat, err = deps.refresh()
+		if err != nil {
+			return fail(stderr, fmt.Errorf("refresh catalog: %w", err))
+		}
+		if saveErr := store.Save(cat); saveErr != nil {
+			fmt.Fprintf(stderr, "warning: catalog cache not saved: %v\n", saveErr)
+		}
 	}
 	if err != nil {
 		return fail(stderr, fmt.Errorf("load catalog: %w", err))
 	}
-	if err := tui.Launch(cat); err != nil {
+	if err := deps.launch(cat); err != nil {
 		return fail(stderr, fmt.Errorf("run tui: %w", err))
 	}
 	return 0
