@@ -54,7 +54,7 @@ installed prefix.
 
 | Check | Consequence when missing |
 | --- | --- |
-| Linux (amd64/arm64) / macOS (amd64/arm64) | refusal on other OSes: the runtime contract needs Unix sockets |
+| Linux (amd64/arm64) / macOS (amd64/arm64) | refusal on other OSes; Windows: use WSL2 (Ubuntu) for the TUI — the floating panel stays Linux/macOS-only (Ghostty does not support Windows) |
 | `mpv` in PATH | advisory; TUI browses but cannot play |
 | `ghostty` in PATH | advisory; only the floating panel needs it (Linux) |
 | `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |

@@ -65,7 +65,7 @@ The public repo runs a strict review gate; me/agents NEVER merge, the owner does
 
 | Type | Examples | Path to main |
 |------|----------|--------------|
-| Documentation / tracking | `docs/**`, `README.md`, `AGENTS.md`, `odd/**` | branch → owner review → `git merge --ff-only` + push (no PR) |
+| Documentation / tracking | `docs/**`, `README.md`, `AGENTS.md`, `odd/**` | branch → owner review → **PR under the `main-ci-gate` ruleset**, owner merges |
 | Code | `*.go`, `go.mod`, `go.sum`, `scripts/`, `assets/`, `.github/`, `.goreleaser.yaml` | issue-first PR, owner merges |
 
 **Issue-first flow (code changes) — the only accepted path to `main`:**
@@ -82,7 +82,7 @@ Full ordered pipeline (each number is a hard ordering; no step is skipped, only 
 | 5 | **Sync**: pull, merge-commit CI green BEFORE any new push to `main`, docs/log follow-up (fits the docs lane), then a release tag ONLY if the PR is release-bound AND the merge-commit CI ran green | agent | merge-commit CI is the evidence for that exact SHA — a cancelled run proves nothing (concurrency cancel-in-progress) |
 
 Two deliberate exceptions, still owner-owned:
-- **Docs/tracking lane** (`docs/**`, `README.md`, `AGENTS.md`, `odd/**`): reviewer-visible ff-only straight to `main` — no issue, no PR, but the run's own `ci` must be green before further `main` pushes.
+- **Docs/tracking lane** (`docs/**`, `README.md`, `AGENTS.md`, `odd/**`): docs-only changes skip the issue-first requirement when no other code travels with them, but the `main-ci-gate` ruleset routes every `main` write through a PR (a skipped required check is rejected, GH013) — PRs #16 and #19 are the model; the owner merges.
 - **`size:exception`**: declares a PR that exceeds the ~400-line advisory heuristic (review workload guard); it blocks nothing, it only makes the oversize visible to the owner during planning.
 
 **The `pr-gate` check is a review signal, not a hard lock:** branch protection is owner-managed; the owner may still merge over a red gate deliberately (e.g. hotfix during outage) — prefer documenting that on the PR.
