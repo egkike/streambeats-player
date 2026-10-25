@@ -390,6 +390,40 @@ for p in "$SHARED" "$PREFIX/bin/streambeats" "$PREFIX/bin/streambeats-quick" \
 	fi
 done
 
+# Scenario 9: OPTIONAL-DESKTOP-DIRS DEGRADE — the core install must never
+# die because the freedesktop directories cannot be created (issue #21/S7:
+# "desktop integration is optional by design"). Pre-create
+# $PREFIX/share/icons as a FILE so mkdir -p .../icons/hicolor/... fails with
+# ENOTDIR: the installer warns and skips the integration instead of dying.
+STAGE="$Fx/stage9"
+PREFIX="$Fx/prefix9"
+mkdir -p "$STAGE/api/releases/tags"
+stage_fake_release "$STAGE/artifacts" 1
+cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
+mkdir -p "$PREFIX/share"
+: >"$PREFIX/share/icons"
+say "scenario 9: optional desktop dirs degrade (icons path blocked by a file)"
+OUT9=$(run_installer "$PREFIX" 2>"$Fx/err9")
+rc9=$?
+if [ "$rc9" = "0" ]; then
+	pass "installer exited 0 despite blocked desktop dirs"
+else
+	fail "installer died for an OPTIONAL story (rc=$rc9); stderr: $(cat "$Fx/err9")"
+fi
+if grep -q "desktop integration skipped" "$OUT9" "$Fx/err9" 2>/dev/null; then
+	pass "skip is announced (warn, not silent)"
+else
+	fail "no 'desktop integration skipped' notice in output"
+fi
+SHARE9="$PREFIX/share/streambeats"
+assert_file "$SHARE9/bin/streambeats" "core binary installed despite skipped integration"
+assert_file "$SHARE9/manifest.txt" "manifest written for the uninstall CLI"
+if grep -qxF "$SHARE9" "$SHARE9/manifest.txt"; then
+	pass "manifest still lists the share root"
+else
+	fail "manifest lost the share root entry"
+fi
+
 say "----------------------------------------"
 say "scenarios: $((PASS_COUNT + FAIL_COUNT)) assertions — $PASS_COUNT pass, $FAIL_COUNT fail"
 [ "$FAIL_COUNT" -eq 0 ] || exit 1

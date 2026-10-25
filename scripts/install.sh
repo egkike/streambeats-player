@@ -275,28 +275,34 @@ install_bundle() {
 		consume_optional_asset "scripts/streambeats-panel" \
 			"$share/scripts/streambeats-panel" 0755 || have_panel=0
 		local icons_dir="$prefix/share/icons/hicolor/scalable/apps"
-		mkdir -p "$icons_dir" "$share/assets/kwin" ||
-			die "cannot create the desktop integration directories"
-		if [ "$have_panel" = 1 ]; then
-			consume_optional_asset "assets/icons/streambeats-panel.svg" \
-				"$icons_dir/streambeats-panel.svg" 0644 || have_panel=0
-		fi
-		consume_optional_asset "assets/kwin/window-rules.md" \
-			"$share/assets/kwin/window-rules.md" 0644 || true
-		if [ "$have_panel" = 1 ]; then
-			local desktop_src="$EXTRACT_TMP/assets/desktop/streambeats-panel.desktop.in"
-			if [ ! -f "$desktop_src" ]; then
-				desktop_src="$(new_tmp)"
-				consume_optional_asset "assets/desktop/streambeats-panel.desktop.in" \
-					"$desktop_src" 0644 || have_panel=0
+		if mkdir -p "$icons_dir" "$share/assets/kwin" 2>/dev/null; then
+			if [ "$have_panel" = 1 ]; then
+				consume_optional_asset "assets/icons/streambeats-panel.svg" \
+					"$icons_dir/streambeats-panel.svg" 0644 || have_panel=0
 			fi
-			if [ -f "$desktop_src" ]; then
-				generate_desktop_file "$prefix" "$desktop_src"
+			consume_optional_asset "assets/kwin/window-rules.md" \
+				"$share/assets/kwin/window-rules.md" 0644 || true
+			if [ "$have_panel" = 1 ]; then
+				local desktop_src="$EXTRACT_TMP/assets/desktop/streambeats-panel.desktop.in"
+				if [ ! -f "$desktop_src" ]; then
+					desktop_src="$(new_tmp)"
+					consume_optional_asset "assets/desktop/streambeats-panel.desktop.in" \
+						"$desktop_src" 0644 || have_panel=0
+				fi
+				if [ -f "$desktop_src" ]; then
+					generate_desktop_file "$prefix" "$desktop_src"
+				else
+					warn "streambeats-panel.desktop generation skipped (template unavailable)"
+				fi
 			else
-				warn "streambeats-panel.desktop generation skipped (template unavailable)"
+				warn "desktop integration (streambeats-panel) skipped: assets missing"
 			fi
 		else
-			warn "desktop integration (streambeats-panel) skipped: assets missing"
+			# S7 (issue #21): the freedesktop story is optional by design
+			# (gh#7 semantics: the core install never fails for desktop assets).
+			# A blocked path degrades: warn + skip, the bundle and the manifest
+			# below are written regardless.
+			warn "desktop integration skipped: cannot create the freedesktop directories under $prefix/share/icons — core install unaffected"
 		fi
 	fi
 
