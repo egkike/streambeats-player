@@ -86,21 +86,6 @@ func testEnv(t *testing.T) (stdout, stderr *bytes.Buffer, deps *uninstallDeps, s
 	return &bytes.Buffer{}, &bytes.Buffer{}, deps, stopCalls
 }
 
-func paths(t *testing.T, roots ...string) []string {
-	t.Helper()
-	var found []string
-	for _, root := range roots {
-		_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			found = append(found, p)
-			return nil
-		})
-	}
-	return found
-}
-
 func TestUninstallRemovesExactlyManifestPaths(t *testing.T) {
 	stdout, stderr, deps, _ := testEnv(t)
 	installTree(t, []string{

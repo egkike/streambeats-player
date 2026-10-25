@@ -9,6 +9,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -43,7 +44,8 @@ func listPanelUnits() []string {
 	if _, err := exec.LookPath("systemctl"); err != nil {
 		return nil
 	}
-	out, err := exec.Command("systemctl", "--user", "list-units",
+	// #nosec G204 — pinned systemctl binary with only constant arguments.
+	out, err := exec.CommandContext(context.Background(), "systemctl", "--user", "list-units",
 		"--plain", "--no-legend", "streambeats-panel-*").Output()
 	if err != nil {
 		return nil
@@ -59,7 +61,9 @@ func listPanelUnits() []string {
 
 // stopPanelUnit stops one transient panel unit.
 func stopPanelUnit(unit string) error {
-	return exec.Command("systemctl", "--user", "stop", unit).Run()
+	// #nosec G204 — unit names are enumerated by listPanelUnits from systemctl
+	// itself (never user input) and only ever passed to the same stop verb.
+	return exec.CommandContext(context.Background(), "systemctl", "--user", "stop", unit).Run()
 }
 
 // uninstallRequest is one uninstall invocation.
@@ -89,6 +93,9 @@ func knownUninstallTargets(prefix string) []string {
 // prefix are rejected with a warning instead of being executed: a corrupted
 // manifest must never make the uninstaller delete outside the prefix.
 func manifestTargets(stderr io.Writer, prefix, manifestPath string) ([]string, error) {
+	// #nosec G304 — manifestPath is the installer-owned
+	// $PREFIX/share/streambeats/manifest.txt; its lines are validated against
+	// the prefix before any path is ever used (see the prefix-escape check).
 	f, err := os.Open(manifestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
