@@ -62,8 +62,19 @@ is required at install time; the player then only needs `bandcamp.com`.
 
 ## Uninstall
 
-The uninstall covers every path the installer creates (see the table above)
-plus the runtime state from desktop spawns:
+One command removes the app; it stops any live panel service first, then
+deletes the registry the installer records at
+`~/.local/share/streambeats/manifest.txt` — nothing outside it:
+
+```sh
+streambeats uninstall          # add --cache to also clear the catalog cache
+```
+
+Your `~/Music/StreamBeats` local library (downloaded albums) is user data:
+nothing above ever touches it.
+
+Manual inventory for installs from a pre-CLI version (v1.2.x and older)
+— the same paths the installer used to echo:
 
 ```sh
 # stop any live panel first
@@ -79,12 +90,6 @@ rm -rf ~/.local/share/streambeats \
 # optional: the catalog cache is redownloadable — drop it too
 rm -rf ~/.cache/streambeats
 ```
-
-(as scripts/install.sh echoes this very inventory on every successful
-install — with a custom prefix, substitute the equivalent paths there).
-
-Your `~/Music/StreamBeats` local library (downloaded albums) is user data:
-nothing above ever touches it.
 
 ## Testing the installer
 
