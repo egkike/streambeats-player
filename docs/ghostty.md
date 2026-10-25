@@ -214,8 +214,8 @@ presets useful:
    itself).
 
 Caveat: the install/uninstall cycle is CI-validated on a real darwin
-binary; the floating-panel experience itself still awaits live validation
-on a physical Mac.
+binary; floating-panel live validation is accepted as out of scope (the
+owner has no macOS hardware), so CI coverage is the support contract.
 
 ## Troubleshooting
 

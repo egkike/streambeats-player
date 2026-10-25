@@ -70,8 +70,9 @@ installed prefix.
 - PATH hint: `~/.zprofile` (zsh).
 - Note: the streambeats-panel wrapper includes a `setsid`-based detached
   fallback when systemd is absent, so it degrades gracefully without dying.
-- Validated by CI (real-binary install/uninstall e2e on macOS arm64); the
-  floating-panel experience still awaits live validation on a physical Mac.
+- Validated by CI (real-binary install/uninstall e2e on macOS arm64);
+  floating-panel live validation is accepted as out of scope (the owner
+  has no macOS hardware), so CI coverage is the support contract.
 
 Network access to `bandcamp.com` and `api.github.com` / `raw.githubusercontent.com`
 is required at install time; the player then only needs `bandcamp.com`.
