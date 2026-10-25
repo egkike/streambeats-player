@@ -51,9 +51,12 @@ jobs:
               - '.github/workflows/ci.yml'
 
   ci:
+    # Always-running required check: the ruleset (main-ci-gate) needs the
+    # check instance on the very commit being pushed/merged, and a SKIPPED
+    # check does not satisfy it. Every Go step is conditional on the code
+    # filter, and docs-only pushes end in their own satisfying step.
     name: Verify Go code
     needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
@@ -62,6 +65,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Go
+        if: needs.changes.outputs.code == 'true'
         uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -69,30 +73,41 @@ jobs:
           check-latest: true
 
       - name: Print Go version
+        if: needs.changes.outputs.code == 'true'
         run: go version
 
       - name: Format check
+        if: needs.changes.outputs.code == 'true'
         run: |
           go fmt ./...
           test -z "$(git diff --name-only)" || { echo "go fmt modified files:"; git diff --name-only; exit 1; }
 
       - name: Vet
+        if: needs.changes.outputs.code == 'true'
         run: go vet ./...
 
       - name: Lint
+        if: needs.changes.outputs.code == 'true'
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0
           args: ./...
 
       - name: Build
+        if: needs.changes.outputs.code == 'true'
         run: go build -o /dev/null ./...
 
       - name: Test (race enabled)
+        if: needs.changes.outputs.code == 'true'
         run: go test -v -race -count=1 ./...
 
       - name: Dependency vulnerability scan
+        if: needs.changes.outputs.code == 'true'
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: No Go changes — required check satisfied
+        if: needs.changes.outputs.code != 'true'
+        run: echo "docs-only change; Verify Go code satisfied without the Go pipeline"
 
   install-macos:
     name: Install macOS
