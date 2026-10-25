@@ -111,11 +111,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "streambeats: %v\n\n%s", parseErr, usage)
 			return 2
 		}
-		prefix, err := uninstallPrefix()
+		deps := newUninstallDeps()
+		prefix, err := uninstallPrefix(deps)
 		if err != nil {
 			return fail(stderr, err)
 		}
-		return runUninstall(stdout, stderr, uninstallRequest{Prefix: prefix, Cache: cache, Deps: newUninstallDeps()})
+		return runUninstall(stdout, stderr, uninstallRequest{Prefix: prefix, Cache: cache, Deps: deps})
 	default:
 		return runTUI(stderr)
 	}

@@ -26,6 +26,7 @@ type uninstallDeps struct {
 	cacheDir       func() (string, error)
 	listPanelUnits func() []string
 	stopUnit       func(string) error
+	execPath       func() (string, error)
 }
 
 // newUninstallDeps wires the real environment dependencies.
@@ -34,6 +35,7 @@ func newUninstallDeps() *uninstallDeps {
 		cacheDir:       os.UserCacheDir,
 		listPanelUnits: listPanelUnits,
 		stopUnit:       stopPanelUnit,
+		execPath:       os.Executable,
 	}
 }
 
@@ -228,15 +230,40 @@ func parseUninstallArgs(args []string) (command, bool, error) {
 	return cmdUninstall, cache, nil
 }
 
-// uninstallPrefix resolves the install prefix the way scripts/install.sh
-// defaults it: $STREAMBEATS_INSTALL_PREFIX, else $HOME/.local.
-func uninstallPrefix() (string, error) {
+// uninstallPrefix resolves the install prefix, in priority order:
+// $STREAMBEATS_INSTALL_PREFIX, then the prefix of the RUNNING binary (the
+// installed binary lives at $PREFIX/share/streambeats/bin/streambeats, so a
+// custom-prefix install removes itself without extra env — review finding
+// R4-001), then the installer default $HOME/.local.
+func uninstallPrefix(deps *uninstallDeps) (string, error) {
 	if prefix := os.Getenv("STREAMBEATS_INSTALL_PREFIX"); prefix != "" {
 		return prefix, nil
+	}
+	if deps == nil {
+		deps = newUninstallDeps()
+	}
+	if exe, exeErr := deps.execPath(); exeErr == nil {
+		if prefix := prefixFromBinaryPath(exe); prefix != "" {
+			return prefix, nil
+		}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot resolve the install prefix: %w", err)
 	}
 	return filepath.Join(home, ".local"), nil
+}
+
+// prefixFromBinaryPath reverses the installed layout
+// <prefix>/share/streambeats/bin/<name> and only accepts the layout the
+// installer actually builds (a bin/ folder inside a streambeats/ share dir);
+// anything else (dev builds, arbitrary look-alikes) yields "".
+func prefixFromBinaryPath(exe string) string {
+	bin := filepath.Dir(exe)
+	appDir := filepath.Dir(bin)
+	shareDir := filepath.Dir(appDir)
+	if filepath.Base(bin) != "bin" || filepath.Base(appDir) != "streambeats" || filepath.Base(shareDir) != "share" {
+		return ""
+	}
+	return filepath.Dir(shareDir)
 }
