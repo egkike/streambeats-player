@@ -66,12 +66,15 @@ func parseCommand(args []string) (command, error) {
 	if len(args) == 0 {
 		return cmdTUI, nil
 	}
-	if len(args) > 1 {
-		return cmdTUI, fmt.Errorf("expected at most one command, got %d arguments", len(args))
-	}
+	// uninstall carries its own flag set (--cache, issue #9): delegate BEFORE
+	// the generic >1-arguments guard so its flags reach the uninstaller
+	// (regression for review finding R3-001).
 	if args[0] == "uninstall" {
 		cmd, _, err := parseUninstallArgs(args)
 		return cmd, err
+	}
+	if len(args) > 1 {
+		return cmdTUI, fmt.Errorf("expected at most one command, got %d arguments", len(args))
 	}
 	switch args[0] {
 	case "tui":

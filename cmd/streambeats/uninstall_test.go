@@ -292,3 +292,31 @@ func TestParseUninstallCommand(t *testing.T) {
 		})
 	}
 }
+
+// Regression for review finding R3-001: --cache must reach the uninstaller
+// end-to-end (parseCommand delegates before the generic >1-arguments check).
+func TestUninstallCacheFlagReachesUninstallerR31(t *testing.T) {
+	stdout, stderr, _, _ := testEnv(t)
+	t.Setenv("STREAMBEATS_INSTALL_PREFIX", prefixBuilt)
+
+	code := run([]string{"uninstall", "--cache"}, stdout, stderr)
+	if code != 0 {
+		t.Fatalf("uninstall --cache exit code = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if out := strings.ToLower(stdout.String() + stderr.String()); out == "" ||
+		strings.Contains(out, "expected at most one command") {
+		t.Fatalf("--cache never reached the uninstaller; stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+// Pin the sibling behavior that shares the parser: other commands keep
+// rejecting extra arguments with exit code 2.
+func TestOtherCommandsStillRejectExtraArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"refresh", "sync"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("refresh sync exit code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "expected at most one command") {
+		t.Fatalf("sibling parse behavior changed: %q", stderr.String())
+	}
+}
