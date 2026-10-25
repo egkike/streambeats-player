@@ -1,6 +1,8 @@
 # Installing streambeats-player
 
-`scripts/install.sh` turns any machine into a playable setup from one line:
+`scripts/install.sh` turns any machine into a playable setup from one line
+(Linux for the full desktop experience — macOS for the TUI + native Ghostty
+path, see the macOS note below):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/egkike/streambeats-player/main/scripts/install.sh | bash
@@ -52,10 +54,24 @@ installed prefix.
 
 | Check | Consequence when missing |
 | --- | --- |
-| Linux + amd64/arm64 | refusal: the runtime contract needs Unix sockets |
+| Linux (amd64/arm64) / macOS (amd64/arm64) | refusal on other OSes: the runtime contract needs Unix sockets |
 | `mpv` in PATH | advisory; TUI browses but cannot play |
-| `ghostty` in PATH | advisory; only the floating panel needs it |
-| `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint |
+| `ghostty` in PATH | advisory; only the floating panel needs it (Linux) |
+| `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |
+
+## macOS notes (darwin)
+
+- The installer skips everything Linux-specific: no `.desktop`, no hicolor
+  icon, no KWin rules, no systemd advisory. The TUI + `streambeats-quick`
+  presets are the install.
+- Floating panel: the native Ghostty global hotkey is the official macOS
+  path (better than the KDE keybind story — one line in Ghostty settings,
+  see docs/ghostty.md).
+- PATH hint: `~/.zprofile` (zsh).
+- Note: the streambeats-panel wrapper includes a `setsid`-based detached
+  fallback when systemd is absent, so it degrades gracefully without dying.
+- Validated by CI (real-binary install/uninstall e2e on macOS arm64); the
+  floating-panel experience still awaits live validation on a physical Mac.
 
 Network access to `bandcamp.com` and `api.github.com` / `raw.githubusercontent.com`
 is required at install time; the player then only needs `bandcamp.com`.

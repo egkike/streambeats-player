@@ -195,6 +195,28 @@ presets serve both modes. Confirm what your binary supports with
 `ghostty +help | grep toggle-quick-terminal`: on 1.3.1 the action is absent and
 `ghostty +toggle-quick-terminal` fails with *unknown CLI action*.
 
+## macOS (darwin): the floating path without systemd
+
+macOS is a **declared install target** (see docs/install.md, macOS notes).
+The whole Linux desktop story (.desktop, KWin rules, keybind) is skipped by
+the installer there; what remains is exactly what makes the per-side
+presets useful:
+
+1. Install Ghostty for macOS (<https://ghostty.org/docs/install>), then run
+   `streambeats` for the TUI and `streambeats-quick <side>` for a panel.
+2. Floating panel: the native **Ghostty global hotkey** is the official
+   macOS path — one hotkey, no window rules or kdotool needed. Configure it
+   in Ghostty settings; the panel then feels like the KDE keybind on Linux
+   but lives entirely inside the app.
+3. `streambeats-panel` on macOS runs without systemd — the wrapper falls
+   back to a `setsid`-style detached background spawn (no journalctl, no
+   per-side unit lock; the single-instance guard then relies on Ghostty
+   itself).
+
+Caveat: the install/uninstall cycle is CI-validated on a real darwin
+binary; the floating-panel experience itself still awaits live validation
+on a physical Mac.
+
 ## Troubleshooting
 
 - **`ghostty not found on PATH`** — install Ghostty
