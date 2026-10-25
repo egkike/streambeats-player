@@ -140,6 +140,14 @@ func manifestTargets(stderr io.Writer, prefix, manifestPath string) ([]string, s
 // with a warning; absent targets are kept because the removal loop counts
 // them as already absent.
 func symlinkEscapeFilter(stderr io.Writer, prefix string, targets []string) []string {
+	// R4-001 correction: with a symlinked install prefix, targets resolve to
+	// the prefix's real path but the containment comparison would use the
+	// unresolved prefix and drop every valid target. Resolve the prefix once;
+	// a resolution failure falls back to the lexical prefix (as before).
+	resolvedPrefix, perr := filepath.EvalSymlinks(prefix)
+	if perr != nil || resolvedPrefix == "" {
+		resolvedPrefix = prefix
+	}
 	kept := make([]string, 0, len(targets))
 	for _, target := range targets {
 		resolved, err := filepath.EvalSymlinks(target)
@@ -157,7 +165,7 @@ func symlinkEscapeFilter(stderr io.Writer, prefix string, targets []string) []st
 			// below surface the real failure (empty `resolved` would fail Rel).
 			resolved = target
 		}
-		if rel, relErr := filepath.Rel(prefix, resolved); relErr != nil || rel == ".." ||
+		if rel, relErr := filepath.Rel(resolvedPrefix, resolved); relErr != nil || rel == ".." ||
 			strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			fmt.Fprintf(stderr, "streambeats: ignoring manifest path resolving outside the prefix: %s -> %s\n", target, resolved)
 			continue

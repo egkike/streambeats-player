@@ -598,3 +598,36 @@ func TestUninstallLstatPermissionErrorSurfacesAsFailureR301(t *testing.T) {
 		t.Fatalf("stderr must name the removal failure:\n%s", stderr.String())
 	}
 }
+
+// R4-001 correction (native review, lineage 2): with a SYMLINKED install
+// prefix, targets resolve to the prefix's real path while the old containment
+// check compared against the unresolved prefix — every valid target was
+// dropped as "outside" and the uninstall reported success without removing
+// anything. The containment must compare against the resolved prefix.
+func TestUninstallSymlinkedPrefixKeepsItsTargetsR401(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	realPrefix := filepath.Join(fakeRoot, "local-real")
+	linkPrefix := filepath.Join(fakeRoot, "local-link")
+	if err := os.MkdirAll(realPrefix, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realPrefix, linkPrefix); err != nil {
+		t.Fatal(err)
+	}
+	prefixBuilt = linkPrefix // install through the symlinked prefix
+	installTree(t, []string{
+		linkPrefix + "/share/streambeats",
+		linkPrefix + "/bin/streambeats",
+	})
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: linkPrefix, Deps: deps})
+	if code != 0 {
+		t.Fatalf("symlinked-prefix uninstall exit code = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if strings.Contains(strings.ToLower(stdout.String()), "nothing to uninstall") {
+		t.Fatalf("symlinked-prefix install survived uninstall (R4-001):\n%s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(realPrefix, "share", "streambeats")); !os.IsNotExist(err) {
+		t.Fatalf("manifest target under the real prefix was not removed: %v", err)
+	}
+}
