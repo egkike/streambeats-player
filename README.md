@@ -62,7 +62,12 @@ nothing above ever touches it.
 ## Requirements
 
 - **Linux (amd64/arm64)** — the runtime contract builds on Unix domain
-  sockets (mpv IPC) and POSIX tooling; installing on Windows is refused.
+  sockets (mpv IPC) and POSIX tooling; a native Windows install is refused.
+- **Windows via WSL2 (Ubuntu)** — the TUI player works in WSL2 (same
+  linux_amd64 runtime and sockets): install inside WSL2 with the same
+  one-liner and run `streambeats` in any terminal. The floating panel is
+  NOT available there — it needs Ghostty, which does not support Windows;
+  the panel/flotation story stays Linux + macOS.
 - **macOS (amd64/arm64, darwin)** — declared as of this release: the
   installer detects darwin, skips the Linux freedesktop integration
   (`.desktop`, hicolor icon, KWin rules are Linux-only) and points the PATH
