@@ -76,7 +76,9 @@ nothing above ever touches it.
   `docs/ghostty.md`); the manual per-side presets under `assets/ghostty/`
   keep working. The installer and CLI are validated by the CI macOS job
   (real-binary install + uninstall end-to-end, bash 3.2 gate); the floating
-  panel itself still needs live validation on a physical Mac by the owner.
+  panel itself is CI-validated (real-binary install/uninstall); physical
+  Mac live validation is accepted as out of scope — the owner has no
+  macOS hardware, so CI coverage is the support contract.
 - **mpv ≥ 0.41** — playback backend over JSON IPC. Without mpv the TUI still
   browses the catalog and says so in a friendly status line; it never crashes.
 - **Network access to bandcamp.com** — stream URLs are tokenized and expire;
