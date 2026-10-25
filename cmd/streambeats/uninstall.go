@@ -148,8 +148,14 @@ func symlinkEscapeFilter(stderr io.Writer, prefix string, targets []string) []st
 				kept = append(kept, target)
 				continue
 			}
-			fmt.Fprintf(stderr, "streambeats: ignoring manifest path that cannot be resolved: %s: %v\n", target, err)
-			continue
+			// R3-001 correction: an uninspectable path (permission denial) is
+			// NOT absence — keep it so the removal attempt surfaces the failure
+			// (exit 1), instead of silently dropping it as "already absent".
+			fmt.Fprintf(stderr, "streambeats: manifest path cannot be resolved: %s: %v\n", target, err)
+			// R3-001: containment is unknowable for an uninspectable path —
+			// keep the lexically validated target and let the removal attempt
+			// below surface the real failure (empty `resolved` would fail Rel).
+			resolved = target
 		}
 		if rel, relErr := filepath.Rel(prefix, resolved); relErr != nil || rel == ".." ||
 			strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -217,10 +223,10 @@ func runUninstall(stdout, stderr io.Writer, req uninstallRequest) int {
 
 	removed, absent, failed := 0, 0, 0
 	for _, target := range targets {
-		// S1: a target already absent is counted as such and never passed to
-		// RemoveAll — os.RemoveAll returns nil for a nonexistent path, so the
-		// old unconditional call reported absent installs as "removed".
-		if _, statErr := os.Lstat(target); statErr != nil {
+		// S1 (R3-002) with the R3-001 boundary: only a genuine ENOENT counts
+		// the target as already absent; any other stat failure still reaches
+		// RemoveAll so its error surfaces as a counted failure.
+		if _, statErr := os.Lstat(target); statErr != nil && errors.Is(statErr, os.ErrNotExist) {
 			absent++
 			continue
 		}

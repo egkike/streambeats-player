@@ -569,3 +569,32 @@ func TestUninstallRejectsSymlinkEscapeOutsidePrefixS6(t *testing.T) {
 		t.Fatalf("stderr should warn about the symlink escape:\n%s", got)
 	}
 }
+
+// R3-001 correction (native review): an Lstat error that is NOT an absence
+// (e.g. permission denial, EACCES) must not be treated as "already absent".
+// The removal attempt must run and its failure must surface: exit 1, the
+// target reported in stderr, and counted as removed-attempted, absent-failed.
+func TestUninstallLstatPermissionErrorSurfacesAsFailureR301(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	installTree(t, []string{
+		prefixBuilt + "/share/streambeats",
+		prefixBuilt + "/bin/locked/target",
+		prefixBuilt + "/bin/streambeats",
+	})
+	locked := filepath.Join(prefixBuilt, "bin", "locked")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if code != 1 {
+		t.Fatalf("uninspectable-target exit code = %d, want 1 (stdout: %s) (stderr: %s)", code, stdout.String(), stderr.String())
+	}
+	if got := stdout.String(); strings.Contains(got, "2 path(s) removed, 1 already absent") || !strings.Contains(got, ", 1 failed") {
+		t.Fatalf("uninspectable target must be a FAILED removal, not an absent one:\n%s", got)
+	}
+	if !strings.Contains(stderr.String(), "cannot remove") {
+		t.Fatalf("stderr must name the removal failure:\n%s", stderr.String())
+	}
+}
