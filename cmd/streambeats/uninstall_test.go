@@ -374,3 +374,198 @@ func TestUninstallResolvesPrefixFromRunningExecutableR401(t *testing.T) {
 		t.Fatalf("foreign path was removed: %v", err)
 	}
 }
+
+// --- Quality sweep (issue #21): truthfulness, contract and hardening rules.
+
+// S1 (R3-002): a target that is already absent must not be reported as
+// "removed"; the uninstaller never lies about what it deleted.
+func TestUninstallDoesNotCountAbsentPathsAsRemovedS1(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	installTree(t, []string{
+		prefixBuilt + "/share/streambeats",
+		prefixBuilt + "/bin/streambeats",
+		prefixBuilt + "/bin/streambeats-quick",
+		prefixBuilt + "/bin/streambeats-panel",
+		prefixBuilt + "/share/applications/streambeats-panel.desktop",
+		prefixBuilt + "/share/icons/hicolor/scalable/apps/streambeats-panel.svg",
+	})
+	icon := filepath.Join(prefixBuilt, "share", "icons", "hicolor", "scalable", "apps", "streambeats-panel.svg")
+	if err := os.Remove(icon); err != nil {
+		t.Fatal(err)
+	}
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if code != 0 {
+		t.Fatalf("uninstall exit code = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if got := stdout.String(); strings.Contains(got, "removed: "+icon) {
+		t.Fatalf("absent path reported as removed (S1):\n%s", got)
+	}
+	if got, want := stdout.String(), "5 path(s) removed, 1 already absent"; !strings.Contains(got, want) {
+		t.Fatalf("stdout = %q, want summary %q", got, want)
+	}
+}
+
+// S2 (R3-003): when a removal was attempted and failed, runUninstall exits 1
+// as its own doc contract states — not the old unconditional 0.
+func TestUninstallExitCodeOneOnFailedRemovalS2(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	installTree(t, []string{
+		prefixBuilt + "/share/streambeats",
+		prefixBuilt + "/bin/streambeats",
+		prefixBuilt + "/bin/streambeats-quick",
+		prefixBuilt + "/bin/streambeats-panel",
+		prefixBuilt + "/share/applications/streambeats-panel.desktop",
+		prefixBuilt + "/share/icons/hicolor/scalable/apps/streambeats-panel.svg",
+	})
+	bin := filepath.Join(prefixBuilt, "share", "streambeats", "bin")
+	if err := os.Chmod(bin, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(bin, 0o755) })
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if code != 1 {
+		t.Fatalf("failed-removal exit code = %d, want 1 (stdout: %s)", code, stdout.String())
+	}
+}
+
+// S3 (R4-001): the summary line reports the failed count too, so a partial
+// uninstall is visible in one glance without scanning stderr lines.
+func TestUninstallSummaryReportsFailedCountS3(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	installTree(t, []string{
+		prefixBuilt + "/share/streambeats",
+		prefixBuilt + "/bin/streambeats",
+		prefixBuilt + "/bin/streambeats-quick",
+		prefixBuilt + "/bin/streambeats-panel",
+		prefixBuilt + "/share/applications/streambeats-panel.desktop",
+		prefixBuilt + "/share/icons/hicolor/scalable/apps/streambeats-panel.svg",
+	})
+	bin := filepath.Join(prefixBuilt, "share", "streambeats", "bin")
+	if err := os.Chmod(bin, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(bin, 0o755) })
+
+	_ = runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if got, want := stdout.String(), "5 path(s) removed, 0 already absent, 1 failed"; !strings.Contains(got, want) {
+		t.Fatalf("stdout = %q, want summary %q", got, want)
+	}
+	if !strings.Contains(stderr.String(), "streambeats: cannot remove") {
+		t.Fatalf("stderr should still name the failing target:\n%s", stderr.String())
+	}
+}
+
+// S4 (R4-002): the uninstaller names the target set it uses — manifest with
+// its entry count, or the explicit known-layout fallback notice.
+func TestUninstallNamesTargetSourceS4(t *testing.T) {
+	t.Run("manifest present", func(t *testing.T) {
+		stdout, stderr, deps, _ := testEnv(t)
+		installTree(t, []string{
+			prefixBuilt + "/share/streambeats",
+			prefixBuilt + "/bin/streambeats",
+		})
+		code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+		if code != 0 {
+			t.Fatalf("exit code = %d (stderr: %s)", code, stderr.String())
+		}
+		if got := stdout.String() + stderr.String(); !strings.Contains(got, "install manifest") || !strings.Contains(got, "2 entries") {
+			t.Fatalf("stdout should name the manifest source with its count:\n%s", got)
+		}
+	})
+	t.Run("no manifest", func(t *testing.T) {
+		stdout, stderr, deps, _ := testEnv(t)
+		installTree(t, nil)
+		code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+		if code != 0 {
+			t.Fatalf("exit code = %d (stderr: %s)", code, stderr.String())
+		}
+		if got := stdout.String() + stderr.String(); !strings.Contains(got, "known install layout") {
+			t.Fatalf("stdout should announce the known-layout fallback:\n%s", got)
+		}
+	})
+	t.Run("manifest unreadable falls back", func(t *testing.T) {
+		stdout, stderr, deps, _ := testEnv(t)
+		installTree(t, nil)
+		manifest := filepath.Join(prefixBuilt, "share", "streambeats", "manifest.txt")
+		_ = os.MkdirAll(filepath.Dir(manifest), 0o755)
+		_ = os.WriteFile(manifest, []byte{0}, 0o644) // binary-garbled manifest
+		code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+		_ = code
+		if got := stdout.String() + stderr.String(); !strings.Contains(got, "known install layout") {
+			t.Fatalf("garbled manifest should announce the known-layout fallback:\n%s", got)
+		}
+	})
+}
+
+// S5 (R3-001): the two manifest rejections (relative line vs outside-prefix
+// line) print DIFFERENT warning messages, each naming its actual reason.
+func TestUninstallManifestRejectionMessagesDistinguishReasonS5(t *testing.T) {
+	t.Run("relative line", func(t *testing.T) {
+		stdout, stderr, deps, _ := testEnv(t)
+		share := filepath.Join(prefixBuilt, "share", "streambeats")
+		installTree(t, []string{prefixBuilt + "/share/streambeats"})
+		if err := os.WriteFile(filepath.Join(share, "manifest.txt"), []byte("relative/steal\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_ = runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+		if got := stderr.String(); !strings.Contains(got, "not an absolute path") {
+			t.Fatalf("relative rejection should say so:\n%s", got)
+		}
+	})
+	t.Run("outside-prefix line", func(t *testing.T) {
+		stdout, stderr, deps, _ := testEnv(t)
+		share := filepath.Join(prefixBuilt, "share", "streambeats")
+		installTree(t, []string{prefixBuilt + "/share/streambeats"})
+		if err := os.WriteFile(filepath.Join(share, "manifest.txt"), []byte(prefixBuilt+"/../host-owned\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_ = runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+		if got := stderr.String(); !strings.Contains(got, "outside the prefix") {
+			t.Fatalf("outside-prefix rejection should say so:\n%s", got)
+		}
+	})
+}
+
+// S6 (R1-manifest-path-scope hardening): a manifest path that resolves
+// through a symlink outside the prefix is rejected with a warning and never
+// touched; the rest of the manifest still runs.
+func TestUninstallRejectsSymlinkEscapeOutsidePrefixS6(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	outside := filepath.Join(fakeRoot, "elsewhere")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	secret := filepath.Join(outside, "secret.txt")
+	if err := os.WriteFile(secret, []byte("KEEP"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	installTree(t, []string{
+		prefixBuilt + "/share/streambeats",
+		prefixBuilt + "/bin/streambeats",
+	})
+	link := filepath.Join(prefixBuilt, "bin", "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(prefixBuilt, "share", "streambeats", "manifest.txt"),
+		[]byte("# streambeats install manifest\n"+prefixBuilt+"/bin/escape\n"+prefixBuilt+"/bin/streambeats\n"), 0o644)
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if code != 0 {
+		t.Fatalf("symlink rejection is a warning, not an error: exit %d (stderr: %s)", code, stderr.String())
+	}
+	if _, err := os.Stat(link); err != nil {
+		t.Fatalf("in-prefix symlink itself must survive a scope rejection: %v", err)
+	}
+	if _, err := os.Stat(secret); err != nil {
+		t.Fatalf("manifest symlink executed outside the prefix: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(prefixBuilt, "bin", "streambeats")); !os.IsNotExist(err) {
+		t.Fatalf("the rest of the manifest should still remove its targets: %v", err)
+	}
+	if got := stderr.String(); !strings.Contains(got, "outside the prefix") {
+		t.Fatalf("stderr should warn about the symlink escape:\n%s", got)
+	}
+}

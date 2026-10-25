@@ -93,17 +93,19 @@ func knownUninstallTargets(prefix string) []string {
 // manifestTargets parses share/manifest.txt (one absolute path per line; '#'
 // starts a comment). Lines that are not absolute paths safely contained in the
 // prefix are rejected with a warning instead of being executed: a corrupted
-// manifest must never make the uninstaller delete outside the prefix.
-func manifestTargets(stderr io.Writer, prefix, manifestPath string) ([]string, error) {
+// manifest must never make the uninstaller delete outside the prefix. The
+// second return describes the source that produced the targets, for the S4
+// observability notice; an empty string means no manifest exists at all.
+func manifestTargets(stderr io.Writer, prefix, manifestPath string) ([]string, string, error) {
 	// #nosec G304 — manifestPath is the installer-owned
 	// $PREFIX/share/streambeats/manifest.txt; its lines are validated against
 	// the prefix before any path is ever used (see the prefix-escape check).
 	f, err := os.Open(manifestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+			return nil, "", nil // no manifest on disk; caller announces the fallback
 		}
-		return nil, err
+		return nil, "", err
 	}
 	defer f.Close() //nolint:errcheck // read-only file
 
@@ -119,37 +121,72 @@ func manifestTargets(stderr io.Writer, prefix, manifestPath string) ([]string, e
 			continue
 		}
 		if !filepath.IsAbs(line) {
-			fmt.Fprintf(stderr, "streambeats: ignoring manifest line outside of the prefix: %q\n", line)
+			fmt.Fprintf(stderr, "streambeats: ignoring manifest line that is not an absolute path: %q\n", line)
 			continue
 		}
 		if rel, relErr := filepath.Rel(prefix, line); relErr != nil || rel == ".." ||
 			strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			fmt.Fprintf(stderr, "streambeats: ignoring manifest line outside of the prefix: %q\n", line)
+			fmt.Fprintf(stderr, "streambeats: ignoring manifest line outside the prefix: %q\n", line)
 			continue
 		}
 		targets = append(targets, filepath.Clean(line))
 	}
-	return targets, scanner.Err()
+	return targets, manifestName, scanner.Err()
+}
+
+// symlinkEscapeFilter drops targets whose symlink-resolved location escapes
+// the prefix (R1-manifest-path-scope defense-in-depth: the lexical Rel check
+// cannot see through in-tree symlinks). Rejected entries are left untouched
+// with a warning; absent targets are kept because the removal loop counts
+// them as already absent.
+func symlinkEscapeFilter(stderr io.Writer, prefix string, targets []string) []string {
+	kept := make([]string, 0, len(targets))
+	for _, target := range targets {
+		resolved, err := filepath.EvalSymlinks(target)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				kept = append(kept, target)
+				continue
+			}
+			fmt.Fprintf(stderr, "streambeats: ignoring manifest path that cannot be resolved: %s: %v\n", target, err)
+			continue
+		}
+		if rel, relErr := filepath.Rel(prefix, resolved); relErr != nil || rel == ".." ||
+			strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			fmt.Fprintf(stderr, "streambeats: ignoring manifest path resolving outside the prefix: %s -> %s\n", target, resolved)
+			continue
+		}
+		kept = append(kept, target)
+	}
+	return kept
 }
 
 // runUninstall executes the uninstaller and returns the process exit code:
 // 0 on success (including the idempotent "nothing to uninstall" case), 1 when
-// the prefix could not be resolved or nothing at all could be removed while
-// removals were attempted and failed.
+// the prefix could not be resolved or removals were attempted and any of them
+// failed (S2 — the contract this function documents is enforced, not merely
+// described).
 func runUninstall(stdout, stderr io.Writer, req uninstallRequest) int {
 	deps := req.Deps
 	if deps == nil {
 		deps = newUninstallDeps()
 	}
 
-	targets, err := manifestTargets(stderr, req.Prefix,
+	fallbackNotice := fmt.Sprintf("using targets: known install layout — %d paths", len(knownUninstallTargets(req.Prefix)))
+	targets, source, err := manifestTargets(stderr, req.Prefix,
 		filepath.Join(req.Prefix, "share", "streambeats", manifestName))
 	if err != nil {
 		fmt.Fprintf(stderr, "streambeats: cannot read manifest: %v (falling back to known layout)\n", err)
+		targets, source = nil, ""
 	}
-	if len(targets) == 0 {
+	switch {
+	case source != "" && len(targets) > 0:
+		fmt.Fprintf(stdout, "using targets: install manifest — %d entries\n", len(targets))
+	default:
 		targets = knownUninstallTargets(req.Prefix)
+		fmt.Fprintln(stdout, fallbackNotice)
 	}
+	targets = symlinkEscapeFilter(stderr, req.Prefix, targets)
 
 	present := 0
 	for _, target := range targets {
@@ -180,6 +217,13 @@ func runUninstall(stdout, stderr io.Writer, req uninstallRequest) int {
 
 	removed, absent, failed := 0, 0, 0
 	for _, target := range targets {
+		// S1: a target already absent is counted as such and never passed to
+		// RemoveAll — os.RemoveAll returns nil for a nonexistent path, so the
+		// old unconditional call reported absent installs as "removed".
+		if _, statErr := os.Lstat(target); statErr != nil {
+			absent++
+			continue
+		}
 		err := os.RemoveAll(target)
 		switch {
 		case os.IsNotExist(err):
@@ -192,9 +236,12 @@ func runUninstall(stdout, stderr io.Writer, req uninstallRequest) int {
 			fmt.Fprintf(stdout, "removed: %s\n", target)
 		}
 	}
-	fmt.Fprintf(stdout, "uninstalled: %d path(s) removed, %d already absent\n", removed, absent)
+	fmt.Fprintf(stdout, "uninstalled: %d path(s) removed, %d already absent, %d failed\n", removed, absent, failed)
 	if req.Cache {
 		clearCache(stdout, stderr, deps.cacheDir)
+	}
+	if failed > 0 {
+		return 1 // S2: partial-failure uninstaller must not report success
 	}
 	return 0
 }
