@@ -73,7 +73,14 @@ stage_release() {
 	tar -czf "$Fx/stage/artifacts/$name.tar.gz" -C "$share" \
 		bin scripts assets ghostty-right.conf 2>/dev/null ||
 			tar -czf "$Fx/stage/artifacts/$name.tar.gz" -C "$share" bin scripts assets || true
-	sha256sum "$Fx/stage/artifacts/$name.tar.gz" |
+	# sha256sum is absent on stock macOS (review R3-macos-checksum-tool):
+	# mirror the installer's own tool discovery (shasum fallback).
+	check_command="sha256sum"
+	if ! command -v sha256sum >/dev/null 2>&1; then
+		check_command="shasum"
+		shasum_flags=(-a 256)
+	fi
+	$check_command ${shasum_flags+"${shasum_flags[@]}"} "$Fx/stage/artifacts/$name.tar.gz" |
 		awk -v n="$name.tar.gz" '{ print $1 "  " n }' \
 		>"$Fx/stage/artifacts/checksums.txt"
 	touch "$Fx/stage/raw"
