@@ -61,8 +61,17 @@ nothing above ever touches it.
 
 ## Requirements
 
-- **Linux** — the runtime contract builds on Unix domain sockets (mpv IPC)
-  and POSIX tooling; installing on Windows is refused, macOS is untested.
+- **Linux (amd64/arm64)** — the runtime contract builds on Unix domain
+  sockets (mpv IPC) and POSIX tooling; installing on Windows is refused.
+- **macOS (amd64/arm64, darwin)** — declared as of this release: the
+  installer detects darwin, skips the Linux freedesktop integration
+  (`.desktop`, hicolor icon, KWin rules are Linux-only) and points the PATH
+  hint at `~/.zprofile` (zsh). The floating panel on macOS is the NATIVE
+  Ghostty experience (global hotkey — better than the KDE keybind story, see
+  `docs/ghostty.md`); the manual per-side presets under `assets/ghostty/`
+  keep working. The installer and CLI are validated by the CI macOS job
+  (real-binary install + uninstall end-to-end, bash 3.2 gate); the floating
+  panel itself still needs live validation on a physical Mac by the owner.
 - **mpv ≥ 0.41** — playback backend over JSON IPC. Without mpv the TUI still
   browses the catalog and says so in a friendly status line; it never crashes.
 - **Network access to bandcamp.com** — stream URLs are tokenized and expire;

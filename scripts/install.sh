@@ -28,6 +28,10 @@
 #   STREAMBEATS_API_URL      GitHub API base          (default api.github.com/.../releases)
 #   STREAMBEATS_RAW_URL      raw content base         (default raw.githubusercontent.com/...)
 #   STREAMBEATS_INSTALL_PREFIX    install prefix      (default ~/.local)
+#   STREAMBEATS_FAKE_OS      OS override for Darwin/Linux branches (test-only; the
+#                            installer detects its native OS via uname -s and
+#                            the harness uses this to exercise the missing
+#                            platform's branch on this machine)
 
 umask 077
 set -u
@@ -39,6 +43,15 @@ VERSION_ARG=""
 VERSION_PINNED=""
 PREFIX="${STREAMBEATS_INSTALL_PREFIX:-${HOME:-$PWD}/.local}"
 CURL_BIN="${STREAMBEATS_CURL:-curl}"
+# Host OS flavor: "darwin" enables the macOS branch (no freedesktop
+# integration, zsh PATH hint, native-Ghostty floating path). "linux" keeps
+# the full desktop story. uname -s is the authority; the harness overrides
+# with STREAMBEATS_FAKE_OS to exercise the Darwin branch on this host.
+OS_FLAVOR_RAW="${STREAMBEATS_FAKE_OS:-$(uname -s)}"
+case "$OS_FLAVOR_RAW" in
+Darwin | darwin) OS_FLAVOR="darwin" ;;
+*) OS_FLAVOR="linux" ;;
+esac
 
 CURRENT_TMP=""
 EXTRACT_TMP=""
@@ -252,32 +265,39 @@ install_bundle() {
 	# Desktop integration extras (optional by design): panel spawn script,
 	# icon, KWin rules doc; from this tag forward they ride inside the
 	# checksum-verified archive, older tags fall back to raw content.
-	local have_panel=1
-	consume_optional_asset "scripts/streambeats-panel" \
-		"$share/scripts/streambeats-panel" 0755 || have_panel=0
-	local icons_dir="$prefix/share/icons/hicolor/scalable/apps"
-	mkdir -p "$icons_dir" "$share/assets/kwin" ||
-		die "cannot create the desktop integration directories"
-	if [ "$have_panel" = 1 ]; then
-		consume_optional_asset "assets/icons/streambeats-panel.svg" \
-			"$icons_dir/streambeats-panel.svg" 0644 || have_panel=0
-	fi
-	consume_optional_asset "assets/kwin/window-rules.md" \
-		"$share/assets/kwin/window-rules.md" 0644 || true
-	if [ "$have_panel" = 1 ]; then
-		local desktop_src="$EXTRACT_TMP/assets/desktop/streambeats-panel.desktop.in"
-		if [ ! -f "$desktop_src" ]; then
-			desktop_src="$(new_tmp)"
-			consume_optional_asset "assets/desktop/streambeats-panel.desktop.in" \
-				"$desktop_src" 0644 || have_panel=0
-		fi
-		if [ -f "$desktop_src" ]; then
-			generate_desktop_file "$prefix" "$desktop_src"
-		else
-			warn "streambeats-panel.desktop generation skipped (template unavailable)"
-		fi
+	# Linux-only: the freedesktop story (.desktop + hicolor icon + KWin
+	# rules) belongs to the Linux desktop; macOS keeps the native Ghostty
+	# experience documented in docs/ghostty.md (issue #10).
+	if [ "$OS_FLAVOR" = "darwin" ]; then
+		say "macOS: skipping freedesktop integration — the floating panel is the native Ghostty experience (docs/ghostty.md)"
 	else
-		warn "desktop integration (streambeats-panel) skipped: assets missing"
+		local have_panel=1
+		consume_optional_asset "scripts/streambeats-panel" \
+			"$share/scripts/streambeats-panel" 0755 || have_panel=0
+		local icons_dir="$prefix/share/icons/hicolor/scalable/apps"
+		mkdir -p "$icons_dir" "$share/assets/kwin" ||
+			die "cannot create the desktop integration directories"
+		if [ "$have_panel" = 1 ]; then
+			consume_optional_asset "assets/icons/streambeats-panel.svg" \
+				"$icons_dir/streambeats-panel.svg" 0644 || have_panel=0
+		fi
+		consume_optional_asset "assets/kwin/window-rules.md" \
+			"$share/assets/kwin/window-rules.md" 0644 || true
+		if [ "$have_panel" = 1 ]; then
+			local desktop_src="$EXTRACT_TMP/assets/desktop/streambeats-panel.desktop.in"
+			if [ ! -f "$desktop_src" ]; then
+				desktop_src="$(new_tmp)"
+				consume_optional_asset "assets/desktop/streambeats-panel.desktop.in" \
+					"$desktop_src" 0644 || have_panel=0
+			fi
+			if [ -f "$desktop_src" ]; then
+				generate_desktop_file "$prefix" "$desktop_src"
+			else
+				warn "streambeats-panel.desktop generation skipped (template unavailable)"
+			fi
+		else
+			warn "desktop integration (streambeats-panel) skipped: assets missing"
+		fi
 	fi
 
 	# Run from the repo copy's docs; cheap and keeps the installed tree whole.
@@ -415,7 +435,12 @@ environment_advisories() {
 	local prefix="$1"
 	case ":$PATH:" in
 	*":$prefix/bin:"*) ;;
-	*) warn "$prefix/bin is not in PATH — add it ('export PATH=\"$prefix/bin:\$PATH\"') or call with its full path" ;;
+	*)
+		warn "$prefix/bin is not in PATH — add it ('export PATH=\"$prefix/bin:\$PATH\"') or call with its full path"
+		if [ "$OS_FLAVOR" = "darwin" ]; then
+			say "macOS PATH hint: add the export line to ~/.zprofile (zsh) and restart the shell"
+		fi
+		;;
 	esac
 	if command -v mpv >/dev/null 2>&1; then
 		say "mpv found at $(command -v mpv)"
@@ -497,6 +522,9 @@ main() {
 	environment_advisories "$PREFIX"
 
 	say "done — try:  $PREFIX/bin/streambeats-quick right"
+	if [ "$OS_FLAVOR" = "darwin" ]; then
+		say "macOS: the floating panel is the native Ghostty experience — see docs/ghostty.md"
+	fi
 	say "uninstall:   $PREFIX/bin/streambeats uninstall (add --cache to also clear the catalog cache)"
 }
 

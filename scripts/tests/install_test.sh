@@ -331,6 +331,65 @@ else
 	pass "--version without value rejected"
 fi
 
+
+
+# ---------------------------------------------------------------------------
+# Scenario 8: DARWIN BRANCH — the freedesktop story (.desktop, hicolor icon,
+# KWin rules) is SKIPPED on macOS, the manifest still records the canonical
+# targets (uninstall reports them as already absent), and the completion echo
+# carries the per-OS hints (issue #10). STREAMBEATS_FAKE_OS is the documented
+# test-only override letting this Linux harness exercise the Darwin branch;
+# the macOS CI job runs the real branch natively.
+# ---------------------------------------------------------------------------
+STAGE="$Fx/darwin"
+PREFIX="$Fx/darwin_prefix"
+mkdir -p "$STAGE/api/releases/tags"
+stage_fake_release "$STAGE/artifacts" 1
+cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
+say "scenario 8: darwin branch (freedesktop skipped, per-OS hints)"
+OUTD=$(STREAMBEATS_FAKE_OS=darwin run_installer "$PREFIX" 2>"$Fx/err8")
+rcD=$?
+if [ "$rcD" = "0" ]; then
+	pass "darwin-mode installer exits 0"
+else
+	fail "darwin-mode installer exited $rcD; stderr: $(cat "$Fx/err8")"
+fi
+SHARED="$PREFIX/share/streambeats"
+for f in "$SHARED/bin/streambeats" "$SHARED/scripts/streambeats-quick" \
+	"$PREFIX/bin/streambeats" "$PREFIX/bin/streambeats-quick" \
+	"$SHARED/assets/ghostty/streambeats-right.conf" "$SHARED/manifest.txt"; do
+	assert_file "$f" "darwin bundle keeps the generic install layout"
+done
+for f in "$PREFIX/share/applications/streambeats-panel.desktop" \
+	"$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg"; do
+	assert_not_file "$f" "darwin mode never generates freedesktop entries"
+done
+if [ -d "$SHARED/assets/kwin" ]; then
+	fail "kwin rules dir created on darwin"
+else
+	pass "kwin rules dir skipped on darwin"
+fi
+if printf '%s\n' "$OUTD" | grep -q "macOS"; then
+	pass "completion echo carries the macOS floating-path hint"
+else
+	fail "completion echo missing the macOS hint"
+fi
+if printf '%s\n' "$OUTD" | grep -q "zprofile"; then
+	pass "PATH hint points macOS users at ~/.zprofile"
+else
+	fail "PATH hint missing the zsh guidance"
+fi
+for p in "$SHARED" "$PREFIX/bin/streambeats" "$PREFIX/bin/streambeats-quick" \
+	"$PREFIX/bin/streambeats-panel" \
+	"$PREFIX/share/applications/streambeats-panel.desktop" \
+	"$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg"; do
+	if grep -qxF "$p" "$SHARED/manifest.txt"; then
+		pass "darwin manifest lists $p"
+	else
+		fail "darwin manifest does not list $p"
+	fi
+done
+
 say "----------------------------------------"
 say "scenarios: $((PASS_COUNT + FAIL_COUNT)) assertions — $PASS_COUNT pass, $FAIL_COUNT fail"
 [ "$FAIL_COUNT" -eq 0 ] || exit 1
