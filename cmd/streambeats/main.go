@@ -26,6 +26,9 @@ Usage:
   streambeats            launch the TUI player (default)
   streambeats refresh    scrape the catalog and update the local cache
   streambeats sync       download every playable album to the local library
+  streambeats uninstall [--cache]
+                          remove everything the installer landed; user data
+                          (local library, cache without --cache) stays
   streambeats help       show this help
 
 Keys (in the TUI):
@@ -54,6 +57,7 @@ const (
 	cmdTUI command = iota
 	cmdRefresh
 	cmdSync
+	cmdUninstall
 	cmdHelp
 )
 
@@ -64,6 +68,10 @@ func parseCommand(args []string) (command, error) {
 	}
 	if len(args) > 1 {
 		return cmdTUI, fmt.Errorf("expected at most one command, got %d arguments", len(args))
+	}
+	if args[0] == "uninstall" {
+		cmd, _, err := parseUninstallArgs(args)
+		return cmd, err
 	}
 	switch args[0] {
 	case "tui":
@@ -94,6 +102,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runRefresh(stdout, stderr)
 	case cmdSync:
 		return runSync(stdout, stderr)
+	case cmdUninstall:
+		_, cache, parseErr := parseUninstallArgs(args)
+		if parseErr != nil {
+			fmt.Fprintf(stderr, "streambeats: %v\n\n%s", parseErr, usage)
+			return 2
+		}
+		prefix, err := uninstallPrefix()
+		if err != nil {
+			return fail(stderr, err)
+		}
+		return runUninstall(stdout, stderr, uninstallRequest{Prefix: prefix, Cache: cache, Deps: newUninstallDeps()})
 	default:
 		return runTUI(stderr)
 	}
