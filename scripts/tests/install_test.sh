@@ -155,6 +155,25 @@ if printf '%s\n' "$OUT" | grep -q "streambeats-quick right"; then
 else
 	fail "summary missing try-it command"
 fi
+if printf '%s\n' "$OUT" | grep -q "streambeats uninstall"; then
+	pass "summary advertises the uninstall CLI"
+else
+	fail "summary missing uninstall CLI advertisement"
+fi
+
+assert_file "$SHARE/manifest.txt" "install manifest for the uninstall CLI"
+for p in "$SHARE" "$PREFIX/bin/streambeats" "$PREFIX/bin/streambeats-quick" "$PREFIX/bin/streambeats-panel" "$PREFIX/share/applications/streambeats-panel.desktop" "$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg"; do
+	if grep -qxF "$p" "$SHARE/manifest.txt"; then
+		pass "manifest lists $p"
+	else
+		fail "manifest does not list $p"
+	fi
+done
+if grep -qE 'Music|XDG_CACHE|catalog' "$SHARE/manifest.txt"; then
+	fail "manifest must not list user data (Music/cache)"
+else
+	pass "manifest excludes user data"
+fi
 
 # ---------------------------------------------------------------------------
 # Scenario 2: checksum mismatch refuses BEFORE installing anything

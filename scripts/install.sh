@@ -285,6 +285,29 @@ install_bundle() {
 	[ -f "$EXTRACT_TMP/LICENSE" ] && cp "$EXTRACT_TMP/LICENSE" "$share/LICENSE"
 
 	write_wrappers "$prefix" "$share"
+	write_manifest "$prefix" "$share"
+}
+
+# write_manifest: record the canonical installed paths for the `streambeats
+# uninstall` CLI (issue #9): uninstall is registry-driven and the manifest is
+# its registry. The six paths are stable by design (absent entries uninstall
+# as "already absent"), and user data (~/Music/StreamBeats, catalog cache) is
+# NEVER listed — only --cache clears the cache opt-in.
+write_manifest() { # <prefix> <share>
+	local prefix="$1" share="$2" m
+	m="$(new_tmp)"
+	{
+		printf '# streambeats-player install manifest — consumed by: streambeats uninstall\n'
+		printf '%s\n' \
+			"$share" \
+			"$prefix/bin/streambeats" \
+			"$prefix/bin/streambeats-quick" \
+			"$prefix/bin/streambeats-panel" \
+			"$prefix/share/applications/streambeats-panel.desktop" \
+			"$prefix/share/icons/hicolor/scalable/apps/streambeats-panel.svg"
+	} >"$m"
+	mv "$m" "$share/manifest.txt"
+	chmod 0644 "$share/manifest.txt"
 }
 
 # fetch_raw_asset: pull one support file from the repository content at the
@@ -474,7 +497,7 @@ main() {
 	environment_advisories "$PREFIX"
 
 	say "done — try:  $PREFIX/bin/streambeats-quick right"
-	say "uninstall:   rm -rf \"$PREFIX/share/streambeats\" \"$PREFIX/bin/streambeats\" \"$PREFIX/bin/streambeats-quick\" \"$PREFIX/bin/streambeats-panel\" \"$PREFIX/share/applications/streambeats-panel.desktop\" \"$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg\""
+	say "uninstall:   $PREFIX/bin/streambeats uninstall (add --cache to also clear the catalog cache)"
 }
 
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
