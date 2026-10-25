@@ -283,14 +283,29 @@ func TestParseUninstallCommand(t *testing.T) {
 func TestUninstallCacheFlagReachesUninstallerR31(t *testing.T) {
 	stdout, stderr, _, _ := testEnv(t)
 	t.Setenv("STREAMBEATS_INSTALL_PREFIX", prefixBuilt)
+	// Isolation (review R3-001 fix): run() builds PRODUCTION dependencies, so
+	// the catalog cache this end-to-end run touches MUST live under a temp
+	// XDG root instead of the developer's real cache. Assert the cleared cache
+	// directly so the --cache path is observed end to end.
+	cacheRoot := filepath.Join(fakeRoot, "xdg-cache")
+	t.Setenv("XDG_CACHE_HOME", cacheRoot)
+	cache := filepath.Join(cacheRoot, "streambeats")
+	if err := os.MkdirAll(cache, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cache, "catalog.json"), []byte("[]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	code := run([]string{"uninstall", "--cache"}, stdout, stderr)
 	if code != 0 {
 		t.Fatalf("uninstall --cache exit code = %d, want 0 (stderr: %s)", code, stderr.String())
 	}
-	if out := strings.ToLower(stdout.String() + stderr.String()); out == "" ||
-		strings.Contains(out, "expected at most one command") {
+	if out := strings.ToLower(stdout.String() + stderr.String()); !strings.Contains(out, "cleared catalog cache") {
 		t.Fatalf("--cache never reached the uninstaller; stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(cache); !os.IsNotExist(err) {
+		t.Fatalf("--cache did not clear the isolated catalog cache: %v", err)
 	}
 }
 
@@ -303,5 +318,59 @@ func TestOtherCommandsStillRejectExtraArguments(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "expected at most one command") {
 		t.Fatalf("sibling parse behavior changed: %q", stderr.String())
+	}
+}
+
+// Regression for review finding R4-001 (lineage 3): a custom-prefix install
+// must be removed by the plain `streambeats uninstall` — the running binary
+// knows where it lives. StreambeatsInstallPrefix/e HOME are deliberately NOT
+// set for the prefix resolution: only the fake executable path is known.
+func TestUninstallResolvesPrefixFromRunningExecutableR401(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	t.Setenv("STREAMBEATS_INSTALL_PREFIX", "") // no env override on purpose
+	t.Setenv("HOME", filepath.Join(fakeRoot, "home-under-test"))
+	if err := os.MkdirAll(filepath.Join(prefixBuilt, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeExe := filepath.Join(prefixBuilt, "share", "streambeats", "bin", "streambeats")
+	if err := os.MkdirAll(filepath.Dir(fakeExe), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fakeExe, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	installTree(t, []string{
+		prefixBuilt + "/share/streambeats",
+		prefixBuilt + "/bin/streambeats",
+		prefixBuilt + "/bin/streambeats-quick",
+	}, "/foreign.txt")
+	deps.execPath = func() (string, error) { return fakeExe, nil }
+
+	// run() builds production deps, so the run-uninstall seam takes the
+	// resolved prefix directly (the run() parse path is covered by R31).
+	prefix, err := uninstallPrefix(deps)
+	if err != nil {
+		t.Fatalf("uninstallPrefix: %v", err)
+	}
+	if prefix != prefixBuilt {
+		t.Fatalf("prefix resolved to %q, want the custom prefix %q (R4-001)", prefix, prefixBuilt)
+	}
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefix, Deps: deps})
+	if code != 0 {
+		t.Fatalf("uninstall exit code = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if strings.Contains(strings.ToLower(stdout.String()), "nothing to uninstall") {
+		t.Fatalf("custom-prefix install survived uninstall (R4-001):\n%s", stdout.String())
+	}
+	for _, want := range []string{
+		filepath.Join(prefixBuilt, "share", "streambeats"),
+		filepath.Join(prefixBuilt, "bin", "streambeats-quick"),
+	} {
+		if _, err := os.Stat(want); !os.IsNotExist(err) {
+			t.Fatalf("custom-prefix path still present: %s", want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(fakeRoot, "foreign.txt")); err != nil {
+		t.Fatalf("foreign path was removed: %v", err)
 	}
 }
