@@ -6,3 +6,7 @@
 .agents/
 skills-lock.json
 shaders/
+# build/release output (goreleaser snapshot + checksums)
+dist/
+# local harness workspace (skill-registry cache, e2e stubs, schemas)
+.atl/
