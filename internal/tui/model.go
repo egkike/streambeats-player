@@ -749,6 +749,12 @@ func (m Model) hitSpan(x int) (buttonSpan, bool) {
 // transport row act; every hit maps through buttonLayout spans onto the
 // SAME handlers the keybinds use (S2), so there is no second action path.
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	dbg := func(format string, a ...any) {
+		if m.debug != nil {
+			m.debug(fmt.Sprintf("MOUSE-DISPATCH "+format, a...))
+		}
+	}
+	dbg("press x=%d y=%d h=%d btnY=%d mode=%v playing=%v lob=%d alb=%d trk=%d", msg.X, msg.Y, m.height, m.buttonsRowY(), m.mode, m.playing, m.playingLib, m.playingAlbum, m.playingTrack)
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil // motion/release/wheel: nothing (S6)
 	}
@@ -762,12 +768,14 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if span, ok := m.hitSpan(msg.X); ok {
 			btnSpan, btnCandidate = span, cy
+			dbg("button candidate row=%d span=%v", cy, span)
 			if cy == msg.Y {
 				break
 			}
 		}
 	}
 	if btnCandidate >= 0 {
+		dbg("dispatching button %v (candidate row %d)", btnSpan.Kind, btnCandidate)
 		switch btnSpan.Kind {
 		case btnPrev:
 			return m.jukePrev()
@@ -788,6 +796,7 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// The reported row wins when both candidates are valid list slots.
 	for _, cy := range m.clickCandidates(msg.Y) {
 		if idx, _, ok := m.listSlotAt(cy); ok {
+			dbg("list candidate row=%d -> index=%d (mode=%v inTracks=%v)", cy, idx, m.mode, m.inTracks)
 			m.selectListRow(idx)
 			if m.mode == ModeConfig {
 				return m, nil
@@ -795,6 +804,7 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m.activateSelection()
 		}
 	}
+	dbg("no target resolved (gap)")
 	return m, nil
 }
 
