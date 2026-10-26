@@ -1,0 +1,27 @@
+# Theme Config (UX Look Phase A)
+
+Theme system (Claro/Oscuro/System), persistent settings.json, in-TUI Config screen.
+Issue: egkike/streambeats-player#35 (pre-approved per standing grant, type:feature).
+
+## Specs
+
+- **S1**: "UX Look Phase A — theme system Claro/Oscuro/System via lipgloss adaptive colors" — three themes: `Claro` (light), `Oscuro` (dark), `System` (follow the terminal/OS); implemented with lipgloss adaptive colors; theme applies to all panel chrome (title, header, rows, player bar, status line, help block).
+- **S2**: "settings.json at ~/.config/streambeats/settings.json persisted from an in-TUI Config screen" — the TUI has a Config screen; picking a theme there persists immediately to `~/.config/streambeats/settings.json` and survives restarts.
+- **S3**: "installer ships config paths" — the installer creates/declares the config path so installs are complete; uninstall never deletes user config (user data policy: `~/Music/StreamBeats` and its declared user-data peers are never touched).
+- **S4**: "the TUI must not crash" (robustness contract) — absent, malformed, or partially-invalid settings.json falls back to a default theme with no crash; settings never store secrets or stream tokens (catalog-cache security contract).
+- **S5**: existing behavior stays pinned — every list/mode/quit behavior touched by the theming change keeps working (differential check against previous code for shared helpers: `truncate`, `renderRow`, `helpLines` render path).
+
+## Tasks
+
+- **T1** (S1): theme package/registry `Claro/Oscuro/System` with lipgloss adaptive colors; styles resolved once per mode; view.go consumes the registry. RED test first. **DONE** (internal/theme + view/model/launch wiring).
+- **T2** (S4): settings store — load/save `theme` at `~/.config/streambeats/settings.json` (strict parse, atomic write like the catalog store, `os.UserConfigDir` like `os.UserCacheDir` precedent). RED test first.
+- **T3** (S2, S4, S5): Config screen in the TUI (new Mode), keybind from `keys.go` single source of truth, selection persists via T2 store, friendly status on save failure. RED→GREEN with pure-update fakes.
+- **T4** (S3, S4): installer expansion — create `~/.config/streambeats` path if missing (config note in echo), manifest entry, harness scenario; uninstall leaves the config file untouched; docs.
+- **T5**: docs + ODD log entries accompany the behavior change.
+
+## Log
+
+- **L1**: (vía standing agenda, obs-1550/1543/1525) Owner: "UX Look Phase A — theme system Claro/Oscuro/System + ~/.config/streambeats/settings.json + Config TUI screen; installer ships config paths" — spec recorded as approved. Owner quote from Phase A planning: "UX look Phase A: theme system Claro/Oscuro/System (lipgloss adaptive colors), settings.json at ~/.config/streambeats/settings.json persisted from an in-TUI Config screen; installer ships config paths; owner validated anchor: internal/tui/view.go".
+- **L2**: The help lines truncation was explicitly folded to Phase B by the owner ("¿crees que esto lo podemos meter en Fase A... "), decision recorded in obs-1541: it belongs to Phase B (bottom-block redesign with transport buttons), NOT Phase A.
+- **L3**: Uninstall CLI was originally slotted with Phase A but already shipped (v1.3.0, issue #9/PR #11) — out of A's scope.
+- **L4**: T1 executed RED→GREEN: internal/theme (deterministic Resolve(theme, dark); dark pair = shipped palette byte-parity; System = default; light pair tuned for light backgrounds), palette moved from package-level vars to a Model field (view.go methods consume m.palette), launch passes the real background detection (fallback path documented; detection failure = dark panel). Issue #35 opened pre-approved (status:approved + type:feature in one call). Differential note: the view code change is mechanical (sed rename to receiver calls); byte-parity of the shipped dark look is pinned by TestResolveIsDeterministicPerTheme/TestResolveSystemFollowsDetection; the unknown-id fallback inherits the detection flag explicitly (no hidden bool default).

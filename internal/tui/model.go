@@ -17,6 +17,7 @@ import (
 
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
+	"streambeats/internal/theme"
 )
 
 // Player is the playback surface the TUI drives. *player.Client implements it.
@@ -83,6 +84,8 @@ type Options struct {
 	PlayerNote   string // friendly note shown when mpv could not be reached
 	Width        int
 	Height       int
+	Theme        string // raw theme id from settings; "" = default
+	ThemeDark    bool   // resolved background detection result
 }
 
 // Model is the TUI state.
@@ -122,6 +125,10 @@ type Model struct {
 	// "property unavailable" right after a load, so status needs debouncing.
 	progressMisses int
 
+	// palette is the resolved theme palette (Phase A): every style the
+	// view derives comes from it, so theme switches are pure state.
+	palette theme.Palette
+
 	status   string
 	width    int
 	height   int
@@ -142,6 +149,7 @@ func NewModel(opts Options) Model {
 		width:        opts.Width,
 		height:       opts.Height,
 		status:       opts.PlayerNote,
+		palette:      resolvePalette(opts.Theme, opts.ThemeDark),
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
@@ -150,6 +158,16 @@ func NewModel(opts Options) Model {
 		m.status = joinStatus(m.status, "catalog is empty — run `streambeats refresh`")
 	}
 	return m
+}
+
+// resolvePalette maps a raw theme id onto its palette; an unknown or empty
+// id falls back to the default theme, so callers never need to pre-validate.
+func resolvePalette(id string, dark bool) theme.Palette {
+	t, ok := theme.Lookup(id)
+	if !ok {
+		t = theme.Default
+	}
+	return theme.Resolve(t, dark)
 }
 
 // Init starts the progress ticker when an audio backend is connected.

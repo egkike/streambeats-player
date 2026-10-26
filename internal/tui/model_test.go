@@ -13,7 +13,36 @@ import (
 
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
+	"streambeats/internal/theme"
 )
+
+// T1: the model carries its resolved theme palette; defaults keep the
+// shipped dark look deterministic and an explicit Theme option applies.
+func TestNewModelResolvesTheme(t *testing.T) {
+	goldenDark := theme.Resolve(theme.Oscuro, true)
+
+	// ThemeDark is explicit, never a hidden default: launch passes the real
+	// background detection, so an explicit golden reflects a dark system.
+	m := NewModel(Options{ThemeDark: true})
+	if m.palette != goldenDark {
+		t.Errorf("default palette = %+v, want shipped dark %+v", m.palette, goldenDark)
+	}
+
+	m = NewModel(Options{Theme: "claro"})
+	if m.palette != theme.Resolve(theme.Claro, true) {
+		t.Errorf("claro palette = %+v, want %+v", m.palette, theme.Resolve(theme.Claro, true))
+	}
+
+	m = NewModel(Options{Theme: "nope", ThemeDark: true})
+	if m.palette != goldenDark {
+		t.Errorf("unknown theme palette = %+v, want default fallback %+v", m.palette, goldenDark)
+	}
+
+	m = NewModel(Options{Theme: "system", ThemeDark: false})
+	if m.palette != theme.Resolve(theme.System, false) {
+		t.Errorf("system-light palette = %+v, want %+v", m.palette, theme.Resolve(theme.System, false))
+	}
+}
 
 // fakePlayer records playback calls instead of talking to mpv.
 type fakePlayer struct {

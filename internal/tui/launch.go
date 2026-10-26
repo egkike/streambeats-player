@@ -9,6 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
 )
@@ -48,12 +50,17 @@ func Launch(cat *catalog.Catalog) error {
 		defer stopProcess(proc)
 	}
 
+	// Theme resolution (Phase A): System follows the terminal background;
+	// detection failure falls back to a dark panel (the shipped look).
+	// Settings wiring (persistence + Config screen) lands with T2/T3.
 	opts := Options{
 		Catalog:      cat,
 		LibraryFiles: files,
 		LibraryRoot:  root,
 		PlayerNote:   playerNote,
 		Resolver:     catalog.NewClient(),
+		Theme:        "",
+		ThemeDark:    lipgloss.HasDarkBackground(),
 	}
 	if client != nil {
 		opts.Player = client
