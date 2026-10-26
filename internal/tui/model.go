@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 
 	tea "github.com/charmbracelet/bubbletea"
+	zone "github.com/lrstanley/bubblezone"
 
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
@@ -149,12 +150,7 @@ type Model struct {
 	settingsStore *settings.Store
 	// debug records received messages when the diagnostic kit is on.
 	debug func(msg string)
-	// yCalib is the per-session mouse-row offset calibrated from a
-	// transport-button anchor (issue round-5): some terminal setups report
-	// each row one cell above what we paint; yCalib = reported - painted.
-	// 0 until a button hit proves otherwise.
-	yCalib int
-	// darkBackground is the background detection decision the palette was
+	// debug records received messages when the diagnostic kit is on.
 	// resolved with, so theme switches keep System's contrast pairing.
 	darkBackground bool
 
@@ -243,19 +239,19 @@ type (
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Diagnostic kit (never active in normal runs): one line per message.
 	if m.debug != nil {
-		m.debug(fmt.Sprintf("%T %+v | h=%d w=%d mode=%v btnY=%d", msg, msg, m.height, m.width, m.mode, m.buttonsRowY()))
+		m.debug(fmt.Sprintf("%T %+v | h=%d w=%d mode=%v", msg, msg, m.height, m.width, m.mode))
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case tea.MouseMsg:
-		// Transport clicks (Phase B): the buttons ROUTE to the same
-		// handlers as keybinds (S2); in config mode they are inert, like
-		// every playback binding (config owns the keyboard).
+		// Zone clicks (round-6, #54): bubblezone Maps the press against the
+		// real painted frame, so the dispatch is by MARKED ZONE, not by
+		// coordinate math. Config rows own their keyboard flow (inert here).
 		if m.mode == ModeConfig {
 			return m, nil
 		}
-		return m.handleMouseMsg(msg)
+		return m.handleZoneClick(msg)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
@@ -682,157 +678,50 @@ func (m Model) changeVolume(delta int) (tea.Model, tea.Cmd) {
 	return m, changeVolumeCmd(m.player, delta)
 }
 
-func (m Model) clickCandidates(y int) []int {
-	if m.height <= 0 {
-		return []int{y}
-	}
-	// Round-5: the calibrated row is the primary candidate; ±1 neighbors
-	// carry the一行 reporting-offset error the owner's install shows (mouse
-	// rows arrive one cell above the painted row); the bottom mirror and
-	// its neighbors trail so mirrored-terminal setups resolve too.
-	adj := y - m.yCalib
-	mirror := m.height - 1 - adj
-	mirrorRaw := m.height - 1 - y
-	candidates := []int{adj, adj - 1, adj + 1}
-	if mirror != adj && mirror >= 0 && mirror <= m.height-1 {
-		candidates = append(candidates, mirror, mirror-1, mirror+1)
-	}
-	if mirrorRaw != adj && mirrorRaw != mirror && mirrorRaw >= 0 && mirrorRaw <= m.height-1 {
-		candidates = append(candidates, mirrorRaw)
-	}
-	seen := map[int]bool{}
-	out := candidates[:0]
-	for _, c := range candidates {
-		if c < 0 || c > m.height-1 || seen[c] {
-			continue
-		}
-		seen[c] = true
-		out = append(out, c)
-	}
-	return out
-}
-
-// listSlotAt maps a panel row onto the browsing list slot: slot k is the
-// k-th visible row (0-based) below the header. ok=false when the row is not
-// part of the list viewport or the slot is beyond the list length.
-func (m Model) listSlotAt(row int) (slot int, n int, ok bool) {
-	if row < 3 {
-		return 0, 0, false // title/blank/header rows
-	}
-	height := m.listHeight()
-	if row >= 3+height {
-		return 0, 0, false // below the list viewport
-	}
-	var n2 int
-	switch {
-	case m.mode == ModeConfig:
-		return 0, 0, false // config rows are handled by configKey
-	case m.mode == ModeLibrary:
-		n2 = len(m.library)
-	case m.inTracks:
-		album, ok := m.selectedAlbum()
-		if !ok {
-			return 0, 0, false
-		}
-		n2 = len(album.Tracks)
-	default:
-		n2 = len(m.albums)
-	}
-	slot = row - 3
-	start, _ := windowBounds(n2, m.activeCursor(), height)
-	if slot < 0 || start+slot >= n2 {
-		return 0, 0, false
-	}
-	return slot + start, n2, true
-}
-
-// activeCursor is the browsing cursor of the focused list (used to compute
-// the visible window baseline for list-slot clicks).
-func (m Model) activeCursor() int {
-	switch {
-	case m.mode == ModeLibrary:
-		return m.libraryCursor
-	case m.inTracks:
-		return m.trackCursor
-	default:
-		return m.albumCursor
-	}
-}
-
-// hitSpan resolves a reported X column against the button spans.
-func (m Model) hitSpan(x int) (buttonSpan, bool) {
-	for _, span := range m.buttonLayout() {
-		if x >= span.Start && x < span.Start+span.Width {
-			return span, true
-		}
-	}
-	return buttonSpan{}, false
-}
-
-// handleMouseMsg dispatches one mouse event. Only plain left-presses on the
-// transport row act; every hit maps through buttonLayout spans onto the
-// SAME handlers the keybinds use (S2), so there is no second action path.
-func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	dbg := func(format string, a ...any) {
-		if m.debug != nil {
-			m.debug(fmt.Sprintf("MOUSE-DISPATCH "+format, a...))
-		}
-	}
-	dbg("press x=%d y=%d h=%d btnY=%d mode=%v playing=%v lob=%d alb=%d trk=%d", msg.X, msg.Y, m.height, m.buttonsRowY(), m.mode, m.playing, m.playingLib, m.playingAlbum, m.playingTrack)
+// handleZoneClick dispatches one left-press through bubblezone's painted
+// regions (round-6, #54): the marked zones carry the mapping; our code only
+// switches on the zone ID. Every action is the SAME command the keybinds
+// use (S2), and list rows select + play like a music app (jukebox).
+func (m Model) handleZoneClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil // motion/release/wheel: nothing (S6)
 	}
-	// Button candidates first: both row candidates may hit the transport
-	// row; when both do (tiny windows), the reported row wins.
-	var btnSpan buttonSpan
-	btnCandidate := -1
-	for _, cy := range m.clickCandidates(msg.Y) {
-		if cy != m.buttonsRowY() {
-			continue
-		}
-		if span, ok := m.hitSpan(msg.X); ok {
-			btnSpan, btnCandidate = span, cy
-			dbg("button candidate row=%d span=%v", cy, span)
-			if cy == msg.Y {
-				break
-			}
-		}
+	if zone.Get("btn-prev").InBounds(msg) {
+		return m.jukePrev()
 	}
-	if btnCandidate >= 0 {
-		if m.yCalib == 0 {
-			m.yCalib = msg.Y - m.buttonsRowY() // round-5: anchor calibration
-			dbg("calibration: yCalib=%d (report y=%d btnY=%d)", m.yCalib, msg.Y, m.buttonsRowY())
-		}
-		dbg("dispatching button %v (candidate row %d)", btnSpan.Kind, btnCandidate)
-		switch btnSpan.Kind {
-		case btnPrev:
-			return m.jukePrev()
-		case btnToggle:
-			return m.togglePause()
-		case btnStop:
-			return m.stopPlayback()
-		case btnNext:
-			return m.jukeNext()
-		case btnVolume:
-			return m.changeVolume(volumeStep)
-		}
+	if zone.Get("btn-toggle").InBounds(msg) {
+		return m.togglePause()
 	}
-	// List clicks (the owner's expectation: clicking a music item plays it,
-	// like a music app): move the browsing cursor to the row and fire the
-	// SAME activateSelection path as Enter (S2 parity; no second action
-	// logic), except on the config screen where configKey owns the input.
-	// The reported row wins when both candidates are valid list slots.
-	for _, cy := range m.clickCandidates(msg.Y) {
-		if idx, _, ok := m.listSlotAt(cy); ok {
-			dbg("list candidate row=%d -> index=%d (mode=%v inTracks=%v)", cy, idx, m.mode, m.inTracks)
-			m.selectListRow(idx)
-			if m.mode == ModeConfig {
-				return m, nil
-			}
+	if zone.Get("btn-stop").InBounds(msg) {
+		return m.stopPlayback()
+	}
+	if zone.Get("btn-next").InBounds(msg) {
+		return m.jukeNext()
+	}
+	if zone.Get("btn-volume").InBounds(msg) {
+		return m.changeVolume(volumeStep)
+	}
+	// Music rows: resolve against the focused list's typed row zones. The
+	// marks carry the ITEM index (the actual list position), so a windowed
+	// list dispatches the clicked item even when the window scrolls.
+	prefix := "alb-row"
+	count := len(m.albums)
+	switch {
+	case m.mode == ModeLibrary:
+		prefix, count = "lib-row", len(m.library)
+	case m.inTracks:
+		album, ok := m.selectedAlbum()
+		if !ok {
+			return m, nil
+		}
+		prefix, count = "cat-row", len(album.Tracks)
+	}
+	for i := 0; i < count; i++ {
+		if z := zone.Get(fmt.Sprintf("%s-%d", prefix, i)); z != nil && z.InBounds(msg) {
+			m.selectListRow(i)
 			return m.activateSelection()
 		}
 	}
-	dbg("no target resolved (gap)")
 	return m, nil
 }
 
@@ -844,18 +733,14 @@ func (m *Model) selectListRow(idx int) {
 	case m.mode == ModeLibrary:
 		m.libraryCursor = clampCursor(idx, len(m.library))
 	case m.inTracks:
-		m.trackCursor = clampCursor(idx, len(m.selectedTrackSafely()))
+		album, ok := m.albumAt(m.albumCursor)
+		if !ok {
+			return
+		}
+		m.trackCursor = clampCursor(idx, len(album.Tracks))
 	default:
 		m.albumCursor = clampCursor(idx, len(m.albums))
 	}
-}
-
-// selectedTrackSafely is the track count of the focused album (0 when none).
-func (m Model) selectedTrackSafely() []catalog.Track {
-	if album, ok := m.selectedAlbum(); ok {
-		return album.Tracks
-	}
-	return nil
 }
 
 // --- jukebox transport (issue #45 round-4, owner-approved) -------------
