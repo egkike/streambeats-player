@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 
 	"streambeats/internal/catalog"
 )
@@ -56,9 +57,10 @@ const (
 //
 // Layout contract (issue #31): the top block is title+header, the flexible
 // middle is the list viewport padded to its full height, and the bottom block
-// (player bar, reserved status slot, help) is anchored to the bottom edge —
-// the panel always paints its full terminal height, so the controls never sit
-// above a dead gap and never jump when a status message appears or clears.
+// (player bar, buttons, reserved status slot, help) is anchored to the bottom
+// edge. The root output is wrapped in zone.Scan so bubblezone can resolve
+// mouse clicks against the real painted frame (issue round-6, #54):
+// our code never computes click coordinates again.
 func (m Model) View() string {
 	if m.quitting {
 		return ""
@@ -82,7 +84,7 @@ func (m Model) View() string {
 	for _, line := range helpLines() {
 		lines = append(lines, m.dimStyle().Render(truncate(line, width)))
 	}
-	return strings.Join(lines, "\n") + "\n"
+	return zone.Scan(strings.Join(lines, "\n") + "\n")
 }
 
 // totalViewLines is the full-height paint budget: the terminal height when
@@ -102,79 +104,24 @@ func (m Model) statusLine() string {
 	return m.statusStyle().Render("! " + m.status)
 }
 
-// buttonKind names one clickable transport button (issue #37 S1).
-type buttonKind string
-
-const (
-	btnPrev   buttonKind = "prev"
-	btnToggle buttonKind = "toggle"
-	btnStop   buttonKind = "stop"
-	btnNext   buttonKind = "next"
-	btnVolume buttonKind = "volume"
-)
-
-// buttonSpan is one clickable area of the buttons row. Start/Width are
-// columns within the row (0-based), shared by the renderer and the mouse
-// hit-test so they can never drift apart.
-type buttonSpan struct {
-	Start, Width int
-	Kind         buttonKind
-}
-
-// buttonsRowY is the 0-based panel row of the transport buttons (bottom
-// block: player bar(2) + buttons(1) + status(1) + help(2)).
-func (m Model) buttonsRowY() int {
-	if m.height <= 0 {
-		return -1
-	}
-	return m.height - 4
-}
-
-// buttonLayout lays out the transport row for the CURRENT model state: the
-// glyph table lives here once, so the renderer and hit-test agree by
-// construction (S2: the row is the keybinds, not a second action path).
-func (m Model) buttonLayout() []buttonSpan {
-	labels := []struct {
-		Kind  buttonKind
-		Glyph string
-	}{
-		{btnPrev, "\u23ee\ufe0f"},
-		{btnToggle, "\u23ef\ufe0f"},
-		{btnStop, "\u23f9\ufe0f"},
-		{btnNext, "\u23ed\ufe0f"},
-		{btnVolume, "\U0001f50a"},
-	}
-	spans := make([]buttonSpan, 0, len(labels))
-	col := 0
-	for i, b := range labels {
-		w := lipgloss.Width(b.Glyph)
-		spans = append(spans, buttonSpan{Start: col, Width: w, Kind: b.Kind})
-		col += w
-		if i < len(labels)-1 {
-			col += 2 // two-space gap; also part of the row text below
-		}
-	}
-	return spans
-}
-
 // buttonsLine renders the row the layout table describes.
 func (m Model) buttonsLine() string {
-	if m.buttonsRowY() < 0 {
-		return ""
-	}
-	glyphs := []struct {
-		Kind  buttonKind
+	// Each button is its OWN zone (issue round-6, #54): bubblezone resolves
+	// the press against the real painted frame, so the click-to-action
+	// mapping needs no coordinate math in our code.
+	buttons := []struct {
+		ID    string
 		Glyph string
 	}{
-		{btnPrev, "\u23ee\ufe0f"},
-		{btnToggle, "\u23ef\ufe0f"},
-		{btnStop, "\u23f9\ufe0f"},
-		{btnNext, "\u23ed\ufe0f"},
-		{btnVolume, "\U0001f50a"},
+		{"btn-prev", "\u23ee\ufe0f"},
+		{"btn-toggle", "\u23ef\ufe0f"},
+		{"btn-stop", "\u23f9\ufe0f"},
+		{"btn-next", "\u23ed\ufe0f"},
+		{"btn-volume", "\U0001f50a"},
 	}
-	parts := make([]string, 0, len(glyphs))
-	for _, g := range glyphs {
-		parts = append(parts, g.Glyph)
+	parts := make([]string, 0, len(buttons))
+	for _, b := range buttons {
+		parts = append(parts, zone.Mark(b.ID, b.Glyph))
 	}
 	return strings.Join(parts, "  ")
 }
@@ -236,7 +183,7 @@ func (m Model) listRows() []string {
 		for i := start; i < end; i++ {
 			path := m.library[i]
 			title := libraryEntryTitle(path)
-			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width))
+			rows = append(rows, zone.Mark(fmt.Sprintf("lib-row-%d", i), m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width)))
 		}
 		return padRows(rows, height)
 
@@ -258,7 +205,7 @@ func (m Model) listRows() []string {
 				label += "  " + formatDuration(track.DurationSeconds)
 			}
 			playing := m.nowPlaying != "" && m.nowPlaying == trackTitle(track)
-			rows = append(rows, m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width))
+			rows = append(rows, zone.Mark(fmt.Sprintf("cat-row-%d", i), m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width)))
 		}
 		return padRows(rows, height)
 
@@ -275,7 +222,7 @@ func (m Model) listRows() []string {
 				label += "  " + album.Artist
 			}
 			label += fmt.Sprintf("  (%d tracks)", len(album.Tracks))
-			rows = append(rows, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width))
+			rows = append(rows, zone.Mark(fmt.Sprintf("alb-row-%d", i), m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width)))
 		}
 		return padRows(rows, height)
 	}

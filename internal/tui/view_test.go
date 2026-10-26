@@ -4,7 +4,6 @@ package tui
 
 import (
 	"math"
-	"reflect"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -283,10 +282,9 @@ func TestHelpLinesFitThePanelWidthR31B(t *testing.T) {
 	}
 }
 
-// VS16 emoji tokens (issue #42 round-3): the owner's terminal rendered the
-// bare ambiguous glyphs 2 cells wide while our model counted 1. The row now
-// uses emoji-presentation sequences everywhere (\u23ee\ufe0f family):
-// ghostty (unicode AND legacy) and charm ansi both agree on 2 cells.
+// Round-6 (#54): buttons are bubblezone MARKS resolved by the manager —
+// the painted row keeps the emoji-presentation tokens, but no manual span
+// computation remains anywhere.
 func TestTransportRowUsesEmojiPresentationTokens(t *testing.T) {
 	m := layoutModel("")
 	m.width, m.height = 52, 24
@@ -295,10 +293,5 @@ func TestTransportRowUsesEmojiPresentationTokens(t *testing.T) {
 		if !strings.Contains(row, want) {
 			t.Fatalf("transport row missing token %q:\n%s", want, row)
 		}
-	}
-	spans := m.buttonLayout()
-	want := []buttonSpan{{0, 2, btnPrev}, {4, 2, btnToggle}, {8, 2, btnStop}, {12, 2, btnNext}, {16, 2, btnVolume}}
-	if !reflect.DeepEqual(spans, want) {
-		t.Fatalf("button spans = %v, want the 2-cell emoji pitch %v", spans, want)
 	}
 }

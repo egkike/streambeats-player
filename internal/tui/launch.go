@@ -17,6 +17,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	zone "github.com/lrstanley/bubblezone"
+
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
 	"streambeats/internal/settings"
@@ -75,6 +77,10 @@ func (w *debugRawWriter) Write(b []byte) (int, error) {
 
 // Launch boots the TUI with the given catalog and blocks until the user quits.
 func Launch(cat *catalog.Catalog) error {
+	// Click-zone manager (round-6, #54): mouse events resolve against the
+	// painted frame; cleaning up stops the zone worker on exit.
+	zone.NewGlobal()
+	defer zone.Close()
 	root, rootErr := catalog.DefaultLibraryPath()
 
 	var files []string
