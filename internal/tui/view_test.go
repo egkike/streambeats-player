@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"streambeats/internal/catalog"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -179,5 +181,90 @@ func TestMPVArgs(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("mpv args %q are missing %q", joined, want)
 		}
+	}
+}
+
+// --- Panel layout (issue #31): bottom-anchored, status slot reserved. ---
+
+func layoutModel(status string) Model {
+	return NewModel(Options{
+		Catalog: &catalog.Catalog{Albums: []catalog.AlbumEntry{
+			{Title: "Alpha"},
+			{Title: "Beta"},
+		}},
+		PlayerNote: status,
+	})
+}
+
+// S2/S3: with fewer items than viewport rows, the player bar sits at the
+// bottom: the blank rows between the last list row and the bottom block are
+// the list's viewport padding.
+func TestViewAnchorsBottomBlockToTheBottomPanelRight(t *testing.T) {
+	m := layoutModel("")
+	m.width, m.height = 60, 24
+	out := m.View()
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	total := len(lines)
+	barAt := strings.Index(out, "nothing playing")
+	if barAt < 0 {
+		t.Fatalf("player bar missing:\n%s", out)
+	}
+	// The bottom block (player bar 2 lines + reserved status 1 + help 3)
+	// occupies the last 6 lines; nothing after it but the trailing newline.
+	if got := strings.Join(lines[total-6:], "\n"); !strings.Contains(got, "nothing playing") {
+		t.Fatalf("player bar not inside the last 6 lines:\n%s", got)
+	}
+	// The list viewport is fully padded: help lines are the last 3, so the
+	// gap between the last list row ("Beta") and the bottom block must be
+	// listHeight-2 blank rows (listHeight = 24-9 = 15).
+	wantGap := 15 - 2
+	gap := 0
+	for i := total - 7; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) == "" {
+			gap++
+			continue
+		}
+		break
+	}
+	if gap != wantGap {
+		t.Fatalf("blank rows between list and bottom block = %d, want %d (list padding)", gap, wantGap)
+	}
+	if got := strings.Count(out, "Alpha"); got < 1 {
+		t.Fatalf("list rows missing:\n%s", out)
+	}
+}
+
+// S4: the status slot is reserved — with or without a message the View has
+// the same line count, so the controls never jump vertically.
+func TestViewReservesTheStatusSlotR31(t *testing.T) {
+	withStatus := layoutModel("something broke")
+	withStatus.width, withStatus.height = 60, 24
+	without := layoutModel("")
+	without.width, without.height = 60, 24
+
+	a := strings.Split(strings.TrimSuffix(withStatus.View(), "\n"), "\n")
+	b := strings.Split(strings.TrimSuffix(without.View(), "\n"), "\n")
+	if len(a) != len(b) {
+		t.Fatalf("line count changed with status: %d vs %d (slot must be reserved)", len(a), len(b))
+	}
+	// The reserved line is the 3rd from the bottom: player bar(2) + status(1)
+	// + help(2) block, so status sits exactly one help row above the bottom.
+	statusAt := len(a) - 3
+	if strings.TrimSpace(a[statusAt]) == "" {
+		t.Fatalf("status slot did not render the message:\n%q", a[statusAt])
+	}
+	if strings.TrimSpace(b[statusAt]) != "" {
+		t.Fatalf("slot must be blank without a message:\n%q", b[statusAt])
+	}
+}
+
+// S5: total rendered lines equal the terminal height when it is tall enough
+// (alt-screen contract: full-height paint, no dead space at the end).
+func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
+	m := layoutModel("")
+	m.width, m.height = 60, 24
+	rendered := strings.Count(strings.TrimSuffix(m.View(), "\n"), "\n") + 1
+	if rendered != 24 {
+		t.Fatalf("rendered %d lines for a 24-row panel, want full-height paint", rendered)
 	}
 }

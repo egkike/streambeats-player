@@ -27,37 +27,59 @@ var (
 const (
 	minListHeight = 3
 	defaultWidth  = 80
-	// chromeLines is vertical space used by title, header, player bar,
-	// status and help lines.
-	chromeLines = 9
+	// chromeLines is the vertical space OUTSIDE the list viewport, computed
+	// exactly: title(1) + separator(1) + header(1) + player bar(2) +
+	// reserved status slot(1) + help lines(2). The old value (9) overcounted
+	// the help block and left every panel one line short — the visible dead
+	// space at the bottom edge (issue #31).
+	chromeLines = 8
 )
 
 // View renders the whole screen. It must stay side-effect free.
+//
+// Layout contract (issue #31): the top block is title+header, the flexible
+// middle is the list viewport padded to its full height, and the bottom block
+// (player bar, reserved status slot, help) is anchored to the bottom edge —
+// the panel always paints its full terminal height, so the controls never sit
+// above a dead gap and never jump when a status message appears or clears.
 func (m Model) View() string {
 	if m.quitting {
 		return ""
 	}
 
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("streambeats"))
-	b.WriteString(dimStyle.Render("  terminal music player"))
-	b.WriteString("\n\n")
-
-	b.WriteString(m.headerView())
-	b.WriteString("\n")
-	b.WriteString(m.listView())
-	b.WriteString("\n")
-	b.WriteString(m.playerBar())
-	b.WriteString("\n")
-	if m.status != "" {
-		b.WriteString(statusStyle.Render("! " + m.status))
-		b.WriteString("\n")
-	}
+	width := m.contentWidth()
+	lines := make([]string, 0, m.totalViewLines())
+	lines = append(lines,
+		titleStyle.Render("streambeats")+dimStyle.Render("  terminal music player"),
+		"",
+		m.headerView(),
+	)
+	lines = append(lines, m.listRows()...)
+	lines = append(lines, m.playerBarLines()...)
+	// Reserved status slot (S4): always one line, blank when empty, so the
+	// bottom block holds a fixed position.
+	lines = append(lines, m.statusLine())
 	for _, line := range helpLines() {
-		b.WriteString(dimStyle.Render(truncate(line, m.contentWidth())))
-		b.WriteString("\n")
+		lines = append(lines, dimStyle.Render(truncate(line, width)))
 	}
-	return b.String()
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// totalViewLines is the full-height paint budget: the terminal height when
+// known, else title+header+list+chrome with the default list height.
+func (m Model) totalViewLines() int {
+	if m.height <= 0 {
+		return 3 + defaultListHeight + chromeLines
+	}
+	return m.height
+}
+
+// statusLine renders the reserved status row: blank when there is no message.
+func (m Model) statusLine() string {
+	if m.status == "" {
+		return ""
+	}
+	return statusStyle.Render("! " + m.status)
 }
 
 // headerView names the focused list.
@@ -86,35 +108,39 @@ func (m Model) headerView() string {
 	}
 }
 
-// listView renders the visible slice of the focused list.
-func (m Model) listView() string {
+// listRows renders the visible slice of the focused list, padded to the full
+// viewport height (S2: a shorter list keeps its viewport so the bottom block
+// stays anchored at the panel edge).
+func (m Model) listRows() []string {
 	height := m.listHeight()
 	width := m.contentWidth()
 
+	rows := make([]string, 0, height)
 	switch {
 	case m.mode == ModeLibrary:
-		start, end := windowBounds(len(m.library), m.libraryCursor, height)
 		if len(m.library) == 0 {
-			return dimStyle.Render("  no local files yet — run `streambeats sync`") + "\n"
+			rows = append(rows, dimStyle.Render("  no local files yet — run `streambeats sync`"))
+			return padRows(rows, height)
 		}
-		lines := make([]string, 0, end-start)
+		start, end := windowBounds(len(m.library), m.libraryCursor, height)
 		for i := start; i < end; i++ {
 			path := m.library[i]
 			title := libraryEntryTitle(path)
-			lines = append(lines, m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width))
+			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width))
 		}
-		return strings.Join(lines, "\n") + "\n"
+		return padRows(rows, height)
 
 	case m.inTracks:
 		album, ok := m.selectedAlbum()
 		if !ok {
-			return dimStyle.Render("  no album selected") + "\n"
+			rows = append(rows, dimStyle.Render("  no album selected"))
+			return padRows(rows, height)
 		}
 		start, end := windowBounds(len(album.Tracks), m.trackCursor, height)
 		if len(album.Tracks) == 0 {
-			return dimStyle.Render("  album has no tracks") + "\n"
+			rows = append(rows, dimStyle.Render("  album has no tracks"))
+			return padRows(rows, height)
 		}
-		lines := make([]string, 0, end-start)
 		for i := start; i < end; i++ {
 			track := album.Tracks[i]
 			label := fmt.Sprintf("%02d  %s", i+1, trackTitle(track))
@@ -122,16 +148,16 @@ func (m Model) listView() string {
 				label += "  " + formatDuration(track.DurationSeconds)
 			}
 			playing := m.nowPlaying != "" && m.nowPlaying == trackTitle(track)
-			lines = append(lines, m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width))
+			rows = append(rows, m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width))
 		}
-		return strings.Join(lines, "\n") + "\n"
+		return padRows(rows, height)
 
 	default:
 		if len(m.albums) == 0 {
-			return dimStyle.Render("  no albums cached — run `streambeats refresh`") + "\n"
+			rows = append(rows, dimStyle.Render("  no albums cached — run `streambeats refresh`"))
+			return padRows(rows, height)
 		}
 		start, end := windowBounds(len(m.albums), m.albumCursor, height)
-		lines := make([]string, 0, end-start)
 		for i := start; i < end; i++ {
 			album := m.albums[i]
 			label := fmt.Sprintf("%02d  %s", i+1, album.Title)
@@ -139,10 +165,18 @@ func (m Model) listView() string {
 				label += "  " + album.Artist
 			}
 			label += fmt.Sprintf("  (%d tracks)", len(album.Tracks))
-			lines = append(lines, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width))
+			rows = append(rows, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width))
 		}
-		return strings.Join(lines, "\n") + "\n"
+		return padRows(rows, height)
 	}
+}
+
+// padRows fills rows up to height with blank lines (viewport padding).
+func padRows(rows []string, height int) []string {
+	for len(rows) < height {
+		rows = append(rows, "")
+	}
+	return rows
 }
 
 // renderRow draws one list row with cursor/playing markers.
@@ -166,7 +200,13 @@ func (m Model) renderRow(selected, playing bool, label string, width int) string
 }
 
 // playerBar renders the now-playing line and progress.
+// playerBar keeps the two-line bar join for callers and tests.
 func (m Model) playerBar() string {
+	return strings.Join(m.playerBarLines(), "\n")
+}
+
+// playerBarLines splits the now-playing line and the progress line.
+func (m Model) playerBarLines() []string {
 	width := m.contentWidth()
 
 	glyph := "■"
@@ -190,7 +230,7 @@ func (m Model) playerBar() string {
 	}
 	progress := progressBar(m.position, m.duration, barWidth)
 	times := fmt.Sprintf("%s / %s", formatDuration(m.position), formatDuration(m.duration))
-	return line + "\n" + barStyle.Render(progress) + " " + dimStyle.Render(times)
+	return []string{line, barStyle.Render(progress) + " " + dimStyle.Render(times)}
 }
 
 // listHeight is how many rows fit below the header.
