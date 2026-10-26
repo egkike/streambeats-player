@@ -1235,16 +1235,15 @@ func TestTransportButtonsRowIsRendered(t *testing.T) {
 	out := m.View()
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	row := strings.Join(lines[m.height-4:m.height-3], "\n")
-	for _, want := range []string{"<<", "|>", "[]", ">>", "+"} {
+	for _, want := range []string{"⏮️", "⏯️", "⏹️", "⏭️", "🔊"} {
 		if !strings.Contains(row, want) {
 			t.Fatalf("buttons row %q is missing %q", row, want)
 		}
 	}
-	// Playing + not paused switches the toggle token to "||".
-	m.playing = true
-	row = strings.Join(strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")[m.height-4:m.height-3], "\n")
-	if !strings.Contains(row, "||") || strings.Contains(row, "|>") {
-		t.Fatalf("buttons row while playing must show ||: %q", row)
+	// The toggle is a steady 2-cell token; its SEMANTICS carry the
+	// play/pause switch (jukebox) instead of the glyph.
+	if !strings.Contains(row, "⏯️") {
+		t.Fatalf("toggle token missing:\n%s", row)
 	}
 }
 
@@ -1545,5 +1544,60 @@ func TestClickPlayBeginsPlayingNow(t *testing.T) {
 	}
 	if cmd2 == nil {
 		t.Fatalf("row click must fire the play command like Enter")
+	}
+}
+
+// Jukebox semantics (issue #45 follow-up, owner decision A): the transport
+// buttons are STATE-INDEPENDENT — next/prev advance the queue from the
+// browsing/playing base and AUTO-PLAY, even with playback stopped. At the
+// ends the base item restarts (that is what "wrap" means here), never
+// erroring out idle-clicking.
+func TestMouseNextPrevAdvanceAndAutoPlayFromIdle(t *testing.T) {
+	// Library path: two items, playback STOPPED, cursor on item 0. Clicking
+	// ">>" must arm from the cursor (base=0) and advance to item 1 with
+	// sound; clicking "<<" back restarts item 0.
+	m, fake := clickModel(t)
+	m.mode = ModeLibrary
+	m.library = []string{"01 - a/01 - first.mp3", "01 - a/02 - second.mp3"}
+	m.libraryCursor = 0
+	rsp, cmd := m.Update(tea.MouseMsg{X: 13, Y: m.buttonsRowY(), Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if cmd != nil {
+		cmd()
+	}
+	nm := rsp.(Model)
+	if len(fake.loaded) != 1 || !strings.Contains(fake.loaded[0], "second") {
+		t.Fatalf("juke next from idle did not play the NEXT item: %v", fake.loaded)
+	}
+	if nm.playing != true {
+		t.Fatalf("juke next must auto-play, playing=%v", nm.playing)
+	}
+	// Click "<<" while the (now) current item is 1: restart... item 0.
+	rsp, cmd = nm.Update(tea.MouseMsg{X: 0, Y: m.buttonsRowY(), Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if cmd != nil {
+		cmd()
+	}
+	nm = rsp.(Model)
+	if !strings.Contains(fake.loaded[len(fake.loaded)-1], "first") {
+		t.Fatalf("juke prev did not rewind: %v", fake.loaded)
+	}
+}
+
+func TestMouseNextAtLastRestartsTheBase(t *testing.T) {
+	m, fake := clickModel(t)
+	m.mode = ModeLibrary
+	m.library = []string{"01 - a/01 - only.mp3"}
+	m.libraryCursor = 0
+	// Single-item queue: ">>" is already at the end (base=0=last) → jukebox
+	// restarts the base; "<<" restarts it too.
+	rsp, cmd := m.Update(tea.MouseMsg{X: 13, Y: m.buttonsRowY(), Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if cmd != nil {
+		// the load lands like every other play path (async, loadedMsg)
+		if next, ok := rsp.(Model); ok {
+			_ = next
+		}
+		cmd()
+	}
+	if len(fake.loaded) != 1 || !strings.Contains(fake.loaded[0], "only") {
+		t.Fatalf("juke next at the last must restart the base: %v", fake.loaded)
 	}
 }
