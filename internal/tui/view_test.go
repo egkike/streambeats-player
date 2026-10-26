@@ -281,3 +281,30 @@ func TestHelpLinesFitThePanelWidthR31B(t *testing.T) {
 		}
 	}
 }
+
+// ASCII transport tokens (issue #42 follow-up): the owner's terminal renders
+// ambiguous width glyphs (⏮⏯⏹⏭) 2 cells wide, so the painted layout drifted
+// from the hit-test model. The row now uses pure-ASCII tokens with fixed
+// spans, and the toggle paints "|>" idle / "||" playing.
+func TestTransportRowUsesUnambiguousASCIITokens(t *testing.T) {
+	m := layoutModel("")
+	m.width, m.height = 52, 24
+	out := m.View()
+	row := strings.Join(strings.Split(strings.TrimSuffix(out, "\n"), "\n")[20:21], "\n")
+	for _, want := range []string{"<<", "|>", "[]", ">>", "+"} {
+		if !strings.Contains(row, want) {
+			t.Fatalf("ASCII transport row missing %q:\n%s", want, row)
+		}
+	}
+	for _, gone := range []string{"⏮", "⏯", "⏹", "⏭", "🔊"} {
+		if strings.Contains(row, gone) {
+			t.Fatalf("ambiguous glyph %q leaked back into the row: %s", gone, row)
+		}
+	}
+	// Playing → the toggle becomes "||".
+	m.playing = true
+	row = strings.Join(strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")[20:21], "\n")
+	if !strings.Contains(row, "||") || strings.Contains(row, "|>") {
+		t.Fatalf("playing row must show ||: %s", row)
+	}
+}
