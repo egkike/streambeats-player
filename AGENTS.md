@@ -74,7 +74,7 @@ Full ordered pipeline (each number is a hard ordering; no step is skipped, only 
 
 | # | Step | Actor | Invariants |
 |---|------|-------|------------|
-| 0 | **Issue + `status:approved`** (scope BEFORE code) | agent opens, owner approves | issue names the invariant, evidence and negative controls; without this no branch work starts |
+| 0 | **Issue + `status:approved`** (scope BEFORE code) | agent opens; the issue carries `status:approved` directly when the owner already authorized the cycle in conversation (standing grant, established 2026-10-25, issue #25 is the working model) — otherwise it opens pending and the owner approves | the standing grant NEVER self-authorizes: it only pre-labels a scope the owner already green-lit, and the issue still names the invariant, evidence and negative controls. A grant for one cycle never extends to another; without this no branch work starts. The matching one `type:*`/lane label rides on the issue body at creation (registry reality: no `type:fix` — fix PRs use `type:bug`; `size:exception` exists for the advisory) |
 | 1 | Branch + ODD feature doc + work-unit commits (≤ ~400 authored lines each) with the local pipeline (RED→GREEN, gofmt/vet/test) | agent | tests run BEFORE the native review — reviewers never see a broken candidate |
 | 2 | **RDD native review** on the committed candidate (committed-only is why step 1's commits exist) | agent runs + owner authorizes model runs (lenses/group/refuter/validator forecasts) | corrections stay bounded inside the review; a burned acknowledgment produces the receipt the PR references |
 | 3 | Push + **PR** (`Closes #N` + exactly one `type:*`) with CI + `pr-gate` green | agent | the gate proves step 0 actually happened |
