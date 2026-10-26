@@ -415,6 +415,13 @@ if grep -q "desktop integration skipped" "$OUT9" "$Fx/err9" 2>/dev/null; then
 else
 	fail "no 'desktop integration skipped' notice in output"
 fi
+# R2-001: the degrade warning must name BOTH dirs the guarded mkdir can fail
+# on (the message may not suggest only the icons dir was the cause).
+if grep -q "assets/kwin" "$OUT9" "$Fx/err9" 2>/dev/null; then
+	pass "degrade warning names both guarded directories"
+else
+	fail "degrade warning hides the kwin dir from the skip notice"
+fi
 SHARE9="$PREFIX/share/streambeats"
 assert_file "$SHARE9/bin/streambeats" "core binary installed despite skipped integration"
 assert_file "$SHARE9/manifest.txt" "manifest written for the uninstall CLI"

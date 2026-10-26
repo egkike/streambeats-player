@@ -145,7 +145,10 @@ func symlinkEscapeFilter(stderr io.Writer, prefix string, targets []string) []st
 	// unresolved prefix and drop every valid target. Resolve the prefix once;
 	// a resolution failure falls back to the lexical prefix (as before).
 	resolvedPrefix, perr := filepath.EvalSymlinks(prefix)
-	if perr != nil || resolvedPrefix == "" {
+	if resolvedPrefix == "" || perr != nil {
+		// R3-001 follow-up: this fallback re-enables the lexical-only
+		// containment the R4-001 fix removed — it must never happen silently.
+		fmt.Fprintf(stderr, "streambeats: cannot resolve the install prefix (%v) — using the lexical containment check on %s\n", perr, prefix)
 		resolvedPrefix = prefix
 	}
 	kept := make([]string, 0, len(targets))
@@ -196,6 +199,13 @@ func runUninstall(stdout, stderr io.Writer, req uninstallRequest) int {
 	switch {
 	case source != "" && len(targets) > 0:
 		fmt.Fprintf(stdout, "using targets: install manifest — %d entries\n", len(targets))
+	case source != "" && err == nil:
+		// R4-001 follow-up: the manifest exists but parsed to nothing usable
+		// (all lines rejected) — announce the fallback instead of letting the
+		// earlier per-line warnings imply the manifest governed the removal.
+		fmt.Fprintf(stderr, "streambeats: manifest present but yielded no usable targets (falling back to known layout)\n")
+		targets = knownUninstallTargets(req.Prefix)
+		fmt.Fprintln(stdout, fallbackNotice)
 	default:
 		targets = knownUninstallTargets(req.Prefix)
 		fmt.Fprintln(stdout, fallbackNotice)

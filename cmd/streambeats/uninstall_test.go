@@ -631,3 +631,45 @@ func TestUninstallSymlinkedPrefixKeepsItsTargetsR401(t *testing.T) {
 		t.Fatalf("manifest target under the real prefix was not removed: %v", err)
 	}
 }
+
+// --- Second-sweep follow-ups (issue #27, from the APPROVED receipt).
+
+// R3-001 follow-up: when the install prefix itself cannot be resolved, the
+// containment falls back to the lexical check — the fallback must announce
+// itself instead of silently re-enabling the weakness R4-001 removed.
+func TestUninstallPrefixResolutionFallbackAnnouncesItselfR301b(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	ghostPrefix := filepath.Join(fakeRoot, "gone") // never created: EvalSymlinks fails
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: ghostPrefix, Deps: deps})
+	if code != 0 {
+		t.Fatalf("ghost-prefix exit code = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "containment check") {
+		t.Fatalf("prefix-resolution fallback must warn it downgraded to lexical containment:\n%s", stderr.String())
+	}
+}
+
+// R4-001 follow-up: a manifest that EXISTS but yields zero usable targets
+// must announce its fallback to the known layout, not silently imply the
+// manifest was used.
+func TestUninstallUnusableManifestAnnouncesFallbackR401b(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	share := filepath.Join(prefixBuilt, "share", "streambeats")
+	installTree(t, []string{prefixBuilt + "/share/streambeats"})
+	if err := os.WriteFile(filepath.Join(share, "manifest.txt"),
+		[]byte("# streambeats install manifest\nrelative/line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if code != 0 {
+		t.Fatalf("exit code = %d (stderr: %s)", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "manifest present but yielded no usable targets") {
+		t.Fatalf("unusable manifest fallback must announce itself:\n%s", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "known install layout") {
+		t.Fatalf("fallback notice for the known layout missing:\n%s", stdout.String())
+	}
+}
