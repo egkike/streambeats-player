@@ -1601,3 +1601,41 @@ func TestMouseNextAtLastRestartsTheBase(t *testing.T) {
 		t.Fatalf("juke next at the last must restart the base: %v", fake.loaded)
 	}
 }
+
+// Round-5 (owner log 20:01-20:02): their terminal reports each mouse row
+// ONE CELL ABOVE what we paint (button clicks arrived y=19 for btnY=20,
+// and a listed row click played the row above). Fix: button candidates
+// tolerate the adjacent row, and any button hit calibrates the row offset
+// for the rest of the session; list clicks then resolve the row the owner
+// actually clicked.
+func TestMouseClickCalibratesRowOffset(t *testing.T) {
+	m, fake := clickModel(t)
+	m.height = 24
+	m.playing = true
+	// The owner's reality: the stop button click arrives one row above.
+	rsp, cmd := m.Update(tea.MouseMsg{X: 8, Y: 19, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	nm := rsp.(Model)
+	if cmd == nil {
+		t.Fatalf("(pre-calibration) the adjacent-row button click must still dispatch")
+	}
+	cmd()
+	if fake.stopCalls != 1 {
+		t.Fatalf("adjacent-row stop click did not dispatch: %d", fake.stopCalls)
+	}
+	if nm.yCalib == 0 {
+		t.Fatalf("the button hit must calibrate the offset (got 0)")
+	}
+	// Now a list click with the drifted reporting: y=6 means the owner
+	// actually pointed at visual row 7 → slot 4 → index 4.
+	m2, _ := clickModel(t)
+	m2.playing = true
+	m2.mode = ModeLibrary
+	m2.library = []string{"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"}
+	m2.yCalib = -1 // calibrated by an earlier button hit
+	rsp2, _ := m2.Update(tea.MouseMsg{X: 10, Y: 6, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	r2 := rsp2.(Model)
+	// slot = row+calib-3 = 6-(-1)-3 = 4 → item "a4"
+	if r2.libraryCursor != 4 {
+		t.Fatalf("list click with calibration landed on %d, want 4", r2.libraryCursor)
+	}
+}

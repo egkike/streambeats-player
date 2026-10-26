@@ -149,6 +149,11 @@ type Model struct {
 	settingsStore *settings.Store
 	// debug records received messages when the diagnostic kit is on.
 	debug func(msg string)
+	// yCalib is the per-session mouse-row offset calibrated from a
+	// transport-button anchor (issue round-5): some terminal setups report
+	// each row one cell above what we paint; yCalib = reported - painted.
+	// 0 until a button hit proves otherwise.
+	yCalib int
 	// darkBackground is the background detection decision the palette was
 	// resolved with, so theme switches keep System's contrast pairing.
 	darkBackground bool
@@ -681,11 +686,30 @@ func (m Model) clickCandidates(y int) []int {
 	if m.height <= 0 {
 		return []int{y}
 	}
-	mirror := m.height - 1 - y
-	if mirror == y {
-		return []int{y}
+	// Round-5: the calibrated row is the primary candidate; ±1 neighbors
+	// carry the一行 reporting-offset error the owner's install shows (mouse
+	// rows arrive one cell above the painted row); the bottom mirror and
+	// its neighbors trail so mirrored-terminal setups resolve too.
+	adj := y - m.yCalib
+	mirror := m.height - 1 - adj
+	mirrorRaw := m.height - 1 - y
+	candidates := []int{adj, adj - 1, adj + 1}
+	if mirror != adj && mirror >= 0 && mirror <= m.height-1 {
+		candidates = append(candidates, mirror, mirror-1, mirror+1)
 	}
-	return []int{y, mirror}
+	if mirrorRaw != adj && mirrorRaw != mirror && mirrorRaw >= 0 && mirrorRaw <= m.height-1 {
+		candidates = append(candidates, mirrorRaw)
+	}
+	seen := map[int]bool{}
+	out := candidates[:0]
+	for _, c := range candidates {
+		if c < 0 || c > m.height-1 || seen[c] {
+			continue
+		}
+		seen[c] = true
+		out = append(out, c)
+	}
+	return out
 }
 
 // listSlotAt maps a panel row onto the browsing list slot: slot k is the
@@ -775,6 +799,10 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if btnCandidate >= 0 {
+		if m.yCalib == 0 {
+			m.yCalib = msg.Y - m.buttonsRowY() // round-5: anchor calibration
+			dbg("calibration: yCalib=%d (report y=%d btnY=%d)", m.yCalib, msg.Y, m.buttonsRowY())
+		}
 		dbg("dispatching button %v (candidate row %d)", btnSpan.Kind, btnCandidate)
 		switch btnSpan.Kind {
 		case btnPrev:
