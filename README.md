@@ -107,7 +107,8 @@ go build -o bin/streambeats ./cmd/streambeats
 
 TUI keys: `j/k` move, `enter` play, `l` local-library mode, `space` pause,
 `s` stop, `+/-` volume, `>` next song, `<` previous song, `esc` back,
-`q` quit. The player auto-advances to the
+`q` quit. The transport buttons in the bottom block (⏮ ⏯ ⏹ ⏭ 🔊) do the
+same actions with the mouse. The player auto-advances to the
 next item of the list when a track ends; the end of the queue shows
 `playlist ended` in the status line. Tracks always resolve a fresh
 stream URL right before playing (Bandcamp tokens expire).

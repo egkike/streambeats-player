@@ -6,6 +6,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -759,7 +760,7 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 	m.playing = true
 	m.nowPlaying = "First Song"
 	out := m.View()
-	for _, want := range []string{"streambeats", "First Song", "▶", "0:05 / 0:10", "space: pause/resume"} {
+	for _, want := range []string{"streambeats", "First Song", "▶", "0:05 / 0:10", "space ⏯"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("catalog view is missing %q:\n%s", want, out)
 		}
@@ -1183,5 +1184,194 @@ func TestPrevKeyAtAlbumStartShowsNote(t *testing.T) {
 	}
 	if !strings.Contains(m.status, "no previous track") {
 		t.Fatalf("status = %q, want the no-previous note", m.status)
+	}
+}
+
+// T1 (issue #37 S1): the transport buttons row renders on the panel and is
+// mouse-clickable; every click routes through the SAME commands as the
+// keybinds (S2: no duplicate action logic), and invalid hits change nothing
+// (S6). The row Y comes from the bottom block layout (0-based index).
+// runClick runs a mouse hit like the tea runtime would: Update returns a
+// command; the side effect lands when the command executes.
+func runClick(m Model, msg tea.Msg) (Model, tea.Cmd) {
+	next, cmd := m.Update(msg)
+	if cmd != nil {
+		cmd()
+	}
+	return next.(Model), cmd
+}
+
+func clickModel(t *testing.T) (Model, *fakePlayer) {
+	t.Helper()
+	fp := &fakePlayer{}
+	m := NewModel(Options{Player: fp})
+	m.width, m.height = 52, 24
+	return m, fp
+}
+
+func mouseAt(m Model, span buttonSpan) tea.MouseMsg {
+	return tea.MouseMsg{
+		X:      span.Start + span.Width/2,
+		Y:      m.height - 4, // the buttons row inside the bottom block
+		Button: tea.MouseButtonLeft,
+		Action: tea.MouseActionPress,
+	}
+}
+
+func buttonSpanByKind(t *testing.T, m Model, kind buttonKind) buttonSpan {
+	t.Helper()
+	for _, s := range m.buttonLayout() {
+		if s.Kind == kind {
+			return s
+		}
+	}
+	t.Fatalf("button row has no %q span: %+v", kind, m.buttonLayout())
+	return buttonSpan{}
+}
+
+func TestTransportButtonsRowIsRendered(t *testing.T) {
+	m, _ := clickModel(t)
+	m.width, m.height = 52, 24
+	out := m.View()
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	row := strings.Join(lines[m.height-4:m.height-3], "\n")
+	for _, want := range []string{"⏮", "⏹", "⏭", "🔊", "▶"} {
+		if !strings.Contains(row, want) {
+			t.Fatalf("buttons row %q is missing %q", row, want)
+		}
+	}
+	// Playing + not paused shows the pause glyph instead of play (⏯).
+	m.playing = true
+	row = strings.Join(strings.Split(strings.TrimSuffix(m.View()+"\n", "\x00"), "\x00"), "\n")
+	row = strings.Join(strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")[m.height-4:m.height-3], "\n")
+	if strings.Contains(row, "▶") || !strings.Contains(row, "⏸") {
+		t.Fatalf("buttons row while playing must show ⏸ (not ▶): %q", row)
+	}
+}
+
+func TestMouseClickPaintsPausePathLikeTheKey(t *testing.T) {
+	mKey, fakeKey := clickModel(t)
+	mBtn, fakeBtn := clickModel(t)
+	for _, m := range []*Model{&mKey, &mBtn} {
+		m.playing = true
+		m.nowPlaying, m.volume = "song", 50
+	}
+	span := buttonSpanByKind(t, mBtn, btnToggle)
+	// Same action, two transports: key 'space' vs click on ⏸.
+	am, _ := runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	bm, _ := runClick(mBtn, mouseAt(mBtn, span))
+	if am.paused != true || bm.paused != true {
+		t.Fatalf("pause state after space=%v vs click=%v", am.paused, bm.paused)
+	}
+	if fakeKey.pauseCalls != fakeBtn.pauseCalls || fakeBtn.pauseCalls != 1 {
+		t.Fatalf("pause calls: key=%d button=%d", fakeKey.pauseCalls, fakeBtn.pauseCalls)
+	}
+	// Second click unpauses (Play path), same as a second space.
+	am, _ = runClick(am, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	bm, _ = runClick(bm, mouseAt(mBtn, span))
+	if !am.playing || !bm.playing {
+		t.Fatalf("resume state after space=%v vs click=%v", am.playing, bm.playing)
+	}
+}
+
+func TestMouseClickStopNextPrevVolMatchTheirKeys(t *testing.T) {
+	// stop: click ⏹ == key 's' (stops + clears the bar).
+	mKey, fakeKey := clickModel(t)
+	mBtn, fakeBtn := clickModel(t)
+	for _, m := range []*Model{&mKey, &mBtn} {
+		m.playing, m.paused = true, true
+	}
+	aKey, _ := runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	aBtn, _ := runClick(mBtn, mouseAt(mBtn, buttonSpanByKind(t, mBtn, btnStop)))
+	if fakeKey.stopCalls != 1 || fakeBtn.stopCalls != 1 {
+		t.Fatalf("stop calls: key=%d button=%d", fakeKey.stopCalls, fakeBtn.stopCalls)
+	}
+	if aKey.playing || aBtn.playing {
+		t.Fatalf("bar must clear after stop: key=%v button=%v", aKey.playing, aBtn.playing)
+	}
+
+	// next: click ⏭ == key '>' (library bookkeeping; 2 items, playing #0).
+	mKey, fakeKey = clickModel(t)
+	mBtn, fakeBtn = clickModel(t)
+	for _, m := range []*Model{&mKey, &mBtn} {
+		m.mode = ModeLibrary
+		m.library = []string{"01 - a/01 - s0.mp3", "01 - a/02 - s1.mp3"}
+		m.playingLib, m.playing = 0, true
+	}
+	runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'>'}})
+	runClick(mBtn, mouseAt(mBtn, buttonSpanByKind(t, mBtn, btnNext)))
+	fakeKeyKey := fakeKey.loaded == nil
+	if fakeKey.loaded == nil || fakeBtn.loaded == nil {
+		t.Fatalf("queue-next advance from library top must reload: key=%v button=%v", fakeKey.loaded, fakeBtn.loaded)
+	}
+	_ = fakeKeyKey
+	if fakeKey.titles == nil || fakeBtn.titles == nil || fakeKey.titles[0] != fakeBtn.titles[0] {
+		t.Fatalf("next loaded titles differ: key=%v button=%v", fakeKey.titles, fakeBtn.titles)
+	}
+
+	// prev: click ⏮ == key '<' (library wrap path).
+	mKey, fakeKey = clickModel(t)
+	mBtn, fakeBtn = clickModel(t)
+	for _, m := range []*Model{&mKey, &mBtn} {
+		m.mode = ModeLibrary
+		m.library = []string{"01 - a/01 - s0.mp3", "01 - a/02 - s1.mp3"}
+		m.playingLib, m.playing = 1, true
+	}
+	runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	runClick(mBtn, mouseAt(mBtn, buttonSpanByKind(t, mBtn, btnPrev)))
+	if fakeKey.titles == nil || fakeBtn.titles == nil || fakeKey.titles[0] != fakeBtn.titles[0] {
+		t.Fatalf("prev loaded titles differ: key=%v button=%v", fakeKey.titles, fakeBtn.titles)
+	}
+
+	// volume: click 🔊 == key '+' (same step).
+	mKey, fakeKey = clickModel(t)
+	mBtn, fakeBtn = clickModel(t)
+	runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'+'}})
+	runClick(mBtn, mouseAt(mBtn, buttonSpanByKind(t, mBtn, btnVolume)))
+	if fakeKey.volumes == nil || fakeBtn.volumes == nil || fakeKey.volumes[0] != fakeBtn.volumes[0] {
+		t.Fatalf("volume steps differ: key=%v button=%v", fakeKey.volumes, fakeBtn.volumes)
+	}
+}
+
+func TestMouseClickInvalidHitsChangeNothing(t *testing.T) {
+	m, fake := clickModel(t)
+	m.playing = true
+	base := func() string {
+		return m.View() + fmt.Sprint(fake.pauseCalls, fake.playCalls, fake.stopCalls, fake.volumes, m.status)
+	}
+	before, other := base(), tea.MouseMsg{X: 999, Y: m.height - 4, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
+	m.Update(other)
+	m.Update(tea.MouseMsg{X: 5, Y: 2, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})  // list area, not a button
+	m.Update(tea.MouseMsg{X: 1, Y: 2, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion}) // motion, not press
+	if got := base(); got != before {
+		t.Fatalf("invalid/motion hits changed state:\nbefore=%q\nafter =%q", before, got)
+	}
+}
+
+func TestMouseWithoutPlayerIsFriendly(t *testing.T) {
+	m := NewModel(Options{})
+	m.height = 24
+	span := buttonSpanByKind(t, m, btnToggle)
+	next, _ := m.Update(mouseAt(m, span))
+	nm := next.(Model)
+	if nm.status == "" {
+		t.Fatalf("toggle click without player must surface a friendly status:\n%s", nm.View())
+	}
+}
+
+// R4-001 (receipt review-656a2bb02230f588): mpv-reported volume is untrusted
+// input for the UI math — receipt must clamp like our own writes do.
+func TestVolumeMsgReceiptClampsToPanelBounds(t *testing.T) {
+	m := NewModel(Options{})
+	for _, tc := range []struct {
+		in, want int
+	}{
+		{150, 100},
+		{-7, 0},
+	} {
+		next, _ := m.Update(volumeMsg{volume: tc.in})
+		if got := next.(Model).volume; got != tc.want {
+			t.Errorf("volume receipt %d => %d, want clamped %d", tc.in, got, tc.want)
+		}
 	}
 }
