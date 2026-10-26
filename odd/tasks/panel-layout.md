@@ -19,8 +19,11 @@ status message appears or clears.
   full-height with the controls always at the bottom.
 - S4: reserved status slot: one line always allocated for status (blank when
   empty), so the bottom block never jumps when a message appears or clears.
-- S5: panel size `window-height = 36` stays; no size-hint change (declared
-  honestly; ChromeLines metrics must stay consistent with the rendered lines).
+- S5 (rewritten 2026-10-26, owner-validated visually): side presets
+  (left/right) drop to `window-height = 24`; 36 left ~24% of vertical slack
+  under the bottom-anchored layout for a catalog list. Top/bottom presets
+  keep 30 (horizontal strips). chromeLines metrics unchanged (the render
+  already paints m.height fully).
 - S6 (negative controls): View side-effect free; pure-update tests only;
   help truncation, header text, playing/selected markers, list windowing and
   `chromeLines` semantics pinned; no keybind changes.
@@ -31,7 +34,13 @@ status message appears or clears.
 
 ## Log
 
-- L1: User authorized this cycle in conversation (issue #31 opens directly
+- L4 (2026-10-26, owner visual validation + size decision): after PR #32 the
+  owner still saw slack ("ahora sale con el mismo tamaño y los controles en
+  la parte inferior... el espacio vacio queda en el medio ahora") — the layout
+  worked as designed and the residual slack was the preset height itself
+  (36 rows). Side presets set to 24; owner: "Ahora si... ya no sale el espacio
+  vacio y la ventana es ajustada al contenido". Issue #33 carries the asset
+  change (code lane, L-sidebar 36→24; top/bottom keep 30). User authorized this cycle in conversation (issue #31 opens directly
   `status:approved` per the AGENTS.md standing grant). Branch `feat/panel-layout`.
 
 ## Log
