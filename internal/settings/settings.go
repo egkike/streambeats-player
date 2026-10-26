@@ -84,7 +84,7 @@ func (s *Store) Save(set Settings) error {
 		_ = os.Remove(staged) // no residue on any failed commit (R4-002)
 	}()
 	if _, err := tmp.Write(raw); err != nil {
-		tmp.Close()
+		_ = tmp.Close() // best effort discard; the error is returned below
 		return fmt.Errorf("write settings: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
