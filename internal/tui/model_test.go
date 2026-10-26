@@ -1235,17 +1235,16 @@ func TestTransportButtonsRowIsRendered(t *testing.T) {
 	out := m.View()
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	row := strings.Join(lines[m.height-4:m.height-3], "\n")
-	for _, want := range []string{"⏮", "⏹", "⏭", "🔊", "▶"} {
+	for _, want := range []string{"<<", "|>", "[]", ">>", "+"} {
 		if !strings.Contains(row, want) {
 			t.Fatalf("buttons row %q is missing %q", row, want)
 		}
 	}
-	// Playing + not paused shows the pause glyph instead of play (⏯).
+	// Playing + not paused switches the toggle token to "||".
 	m.playing = true
-	row = strings.Join(strings.Split(strings.TrimSuffix(m.View()+"\n", "\x00"), "\x00"), "\n")
 	row = strings.Join(strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")[m.height-4:m.height-3], "\n")
-	if strings.Contains(row, "▶") || !strings.Contains(row, "⏸") {
-		t.Fatalf("buttons row while playing must show ⏸ (not ▶): %q", row)
+	if !strings.Contains(row, "||") || strings.Contains(row, "|>") {
+		t.Fatalf("buttons row while playing must show ||: %q", row)
 	}
 }
 
@@ -1479,7 +1478,7 @@ func TestMirrorReportedClickStillHitsTheButtons(t *testing.T) {
 	// The owner's evidence: a click reported at y=3 while the visual button
 	// row is 42 — the MIRRORED candidate must land on a button span; x=6 is
 	// the stop span, so a dispatched click would stop and state it.
-	rsp, cmd := m.Update(tea.MouseMsg{X: 6, Y: 3, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	rsp, cmd := m.Update(tea.MouseMsg{X: 8, Y: 3, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
 	if cmd != nil {
 		cmd()
 	}
@@ -1508,5 +1507,43 @@ func TestClickOnListRowMovesCursor(t *testing.T) {
 	r2, _ := nm.Update(tea.MouseMsg{X: 10, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
 	if r2.(Model).albumCursor != 2 {
 		t.Fatalf("click on the title area moved the cursor to %d", r2.(Model).albumCursor)
+	}
+}
+
+// Semantics follow-up (issue #42 round-3): the owner's mental model — a play
+// button that starts the highlighted item, and clicking a music row plays it
+// (not just cursor moves). Both route through the SAME activateSelection
+// path the Enter keybind uses (S2 parity).
+func TestClickPlayBeginsPlayingNow(t *testing.T) {
+	fp := &fakePlayer{}
+	m := NewModel(Options{Player: fp, Resolver: &fakeResolver{url: "https://fake/stream"}, Catalog: &catalog.Catalog{Albums: []catalog.AlbumEntry{
+		{Title: "Alpha", Tracks: []catalog.Track{{Slug: "aa"}}},
+	}}})
+	m.width, m.height = 52, 24
+	// Click the toggle token (x=3) while idle: it must play the highlighted
+	// track (cursor clamped to album 0 track 0), not just report a status.
+	_, cmd := m.Update(tea.MouseMsg{X: 4, Y: m.buttonsRowY(), Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if cmd == nil {
+		t.Fatalf("idle toggle must return the play command (resolve+loadfile)")
+	}
+	cmd() // the same resolve+loadfile pipeline as the Enter path
+	if len(fp.loaded) != 1 || !strings.Contains(fp.loaded[0], "fake/stream") {
+		t.Fatalf("idle toggle did not load the resolved stream: %v", fp.loaded)
+	}
+
+	// Click the second music row in the tracks list: selects AND plays.
+	m2 := NewModel(Options{Player: &fakePlayer{}, Resolver: &fakeResolver{url: "https://fake/stream"}, Catalog: &catalog.Catalog{Albums: []catalog.AlbumEntry{
+		{Title: "Alpha", Tracks: []catalog.Track{{Slug: "aa"}, {Slug: "bb"}}},
+	}}})
+	m2.width, m2.height = 52, 24
+	st, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	nm2 := st.(Model)
+	st, cmd2 := nm2.Update(tea.MouseMsg{X: 10, Y: 4, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	nm2 = st.(Model)
+	if nm2.trackCursor != 1 {
+		t.Fatalf("row click moved track cursor to %d, want 1", nm2.trackCursor)
+	}
+	if cmd2 == nil {
+		t.Fatalf("row click must fire the play command like Enter")
 	}
 }

@@ -615,8 +615,17 @@ func (m Model) togglePause() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if !m.playing {
-		m.setStatus("nothing is playing — press enter on a track")
-		return m, nil
+		// The play token now BEHAVES like the owner expects (issue #42
+		// round-3): with nothing playing, pressing ▶/|> starts the
+		// highlighted item. It replays the Enter flow one step at a time
+		// (catalog: open the album, then play the highlighted/first track)
+		// until playback starts — the SAME command path as Enter (S2
+		// parity, no second action logic), looping at most twice.
+		next, cmd := m.activateSelection()
+		if nm, ok := next.(Model); ok && !nm.playing {
+			return nm.activateSelection()
+		}
+		return next, cmd
 	}
 	p := m.player
 	m.paused = !m.paused
@@ -772,12 +781,18 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m.changeVolume(volumeStep)
 		}
 	}
-	// List clicks (Phase B follow-up: the owner expects click-to-select):
-	// the reported row wins when both candidates are valid list slots.
+	// List clicks (the owner's expectation: clicking a music item plays it,
+	// like a music app): move the browsing cursor to the row and fire the
+	// SAME activateSelection path as Enter (S2 parity; no second action
+	// logic), except on the config screen where configKey owns the input.
+	// The reported row wins when both candidates are valid list slots.
 	for _, cy := range m.clickCandidates(msg.Y) {
 		if idx, _, ok := m.listSlotAt(cy); ok {
 			m.selectListRow(idx)
-			return m, nil
+			if m.mode == ModeConfig {
+				return m, nil
+			}
+			return m.activateSelection()
 		}
 	}
 	return m, nil
