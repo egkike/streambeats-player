@@ -53,21 +53,26 @@ func Launch(cat *catalog.Catalog) error {
 
 	// Theme resolution (Phase A): the persisted choice wins; an absent or
 	// malformed settings file falls back to System on the detected
-	// background (S4: the TUI never crashes over settings).
+	// background (S4: the TUI never crashes over settings). The store goes
+	// on Options so the Config screen can also persist (R3-config-not-
+	// persisted, review lineage review-d1aeb96ca49e64a5): loading without
+	// wiring the store back in breaks the write path at the junction point.
+	settingsStore, settingsErr := settings.DefaultStore()
 	theme := ""
-	if store, err := settings.DefaultStore(); err == nil {
-		if user, err := store.Load(); err == nil {
+	if settingsErr == nil {
+		if user, err := settingsStore.Load(); err == nil {
 			theme = user.Theme
 		}
 	}
 	opts := Options{
-		Catalog:      cat,
-		LibraryFiles: files,
-		LibraryRoot:  root,
-		PlayerNote:   playerNote,
-		Resolver:     catalog.NewClient(),
-		Theme:        theme,
-		ThemeDark:    lipgloss.HasDarkBackground(),
+		Catalog:       cat,
+		LibraryFiles:  files,
+		LibraryRoot:   root,
+		PlayerNote:    playerNote,
+		Resolver:      catalog.NewClient(),
+		Theme:         theme,
+		ThemeDark:     lipgloss.HasDarkBackground(),
+		SettingsStore: settingsStore,
 	}
 	if client != nil {
 		opts.Player = client
