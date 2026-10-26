@@ -1451,3 +1451,62 @@ func TestFeedbackSurvivesProgressAndExpiresByTicks(t *testing.T) {
 		t.Fatalf("feedback must expire after %d ticks: %q", statusFeedbackTicks, nm.status)
 	}
 }
+
+// Debug-input kit (issue #40 follow-up): when enabled, every Update logs the
+// received tea.Msg so a real-device click can be diagnosed from a log.
+func TestDebugInputHookLogsMessages(t *testing.T) {
+	var lines []string
+	m := NewModel(Options{Debug: func(s string) { lines = append(lines, s) }})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if len(lines) != 1 || !strings.Contains(lines[0], "tea.KeyMsg") {
+		t.Fatalf("debug hook captured %d lines: %q", len(lines), lines)
+	}
+	// Without the hook nothing logs and nothing breaks.
+	if _, _ = NewModel(Options{}).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}); false {
+		t.Fatal("unreachable")
+	}
+}
+
+// Tolerant hit-test (issue #40 follow-up): some terminals report mouse rows
+// mirrored (counted from the bottom edge — observed on the owner's install:
+// a click on the visually bottom button row arrived as y=3 on a 46-row
+// window, 3+43=46). Both candidates resolve; a healthy terminal keeps
+// working because the reported row wins when it hits.
+func TestMirrorReportedClickStillHitsTheButtons(t *testing.T) {
+	m, fake := clickModel(t)
+	m.height = 46 // the owner's 46-row window; buttons painted at row 42
+	m.playing = true
+	// The owner's evidence: a click reported at y=3 while the visual button
+	// row is 42 — the MIRRORED candidate must land on a button span; x=6 is
+	// the stop span, so a dispatched click would stop and state it.
+	rsp, cmd := m.Update(tea.MouseMsg{X: 6, Y: 3, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if cmd != nil {
+		cmd()
+	}
+	nm := rsp.(Model)
+	if fake.stopCalls != 1 || !strings.Contains(nm.status, "stopped") {
+		t.Fatalf("mirror-candidate click did not dispatch btnStop: calls=%d status=%q", fake.stopCalls, nm.status)
+	}
+}
+
+func TestClickOnListRowMovesCursor(t *testing.T) {
+	m := NewModel(Options{Catalog: &catalog.Catalog{Albums: []catalog.AlbumEntry{
+		{Title: "Alpha"}, {Title: "Beta"}, {Title: "Gamma"},
+	}}})
+	m.width, m.height = 52, 24
+	// Click the 3rd visible list row (y=5 0-based: rows start below the
+	// header at y=3): the album cursor must move there; no playback.
+	rsp, cmd := m.Update(tea.MouseMsg{X: 10, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	nm := rsp.(Model)
+	if nm.albumCursor != 2 {
+		t.Fatalf("list click moved cursor to %d, want 2", nm.albumCursor)
+	}
+	if cmd != nil {
+		cmd() // must not fire playback commands
+	}
+	// A click outside the list (on the title) changes nothing.
+	r2, _ := nm.Update(tea.MouseMsg{X: 10, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if r2.(Model).albumCursor != 2 {
+		t.Fatalf("click on the title area moved the cursor to %d", r2.(Model).albumCursor)
+	}
+}

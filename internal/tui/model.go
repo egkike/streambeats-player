@@ -94,6 +94,9 @@ type Options struct {
 	Theme         string          // raw theme id from settings; "" = default
 	ThemeDark     bool            // resolved background detection result
 	SettingsStore *settings.Store // nil disables persistence (tests, alt runtimes)
+	// Debug, when set, records every received tea.Msg for diagnostic
+	// sessions (STREAMBEATS_DEBUG_INPUT; never active in normal runs).
+	Debug func(msg string)
 }
 
 // Model is the TUI state.
@@ -144,6 +147,8 @@ type Model struct {
 	// screen marks it as current and settings persists it.
 	theme         theme.Theme
 	settingsStore *settings.Store
+	// debug records received messages when the diagnostic kit is on.
+	debug func(msg string)
 	// darkBackground is the background detection decision the palette was
 	// resolved with, so theme switches keep System's contrast pairing.
 	darkBackground bool
@@ -171,6 +176,7 @@ func NewModel(opts Options) Model {
 		height:        opts.Height,
 		status:        opts.PlayerNote,
 		settingsStore: opts.SettingsStore,
+		debug:         opts.Debug,
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
@@ -230,6 +236,10 @@ type (
 
 // Update implements tea.Model. It never performs I/O itself.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Diagnostic kit (never active in normal runs): one line per message.
+	if m.debug != nil {
+		m.debug(fmt.Sprintf("%T %+v | h=%d w=%d mode=%v btnY=%d", msg, msg, m.height, m.width, m.mode, m.buttonsRowY()))
+	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -658,22 +668,98 @@ func (m Model) changeVolume(delta int) (tea.Model, tea.Cmd) {
 	return m, changeVolumeCmd(m.player, delta)
 }
 
-// handleMouseMsg dispatches one mouse event. Only plain left-presses on
-// the transport row act; every hit maps through buttonLayout spans onto the
+func (m Model) clickCandidates(y int) []int {
+	if m.height <= 0 {
+		return []int{y}
+	}
+	mirror := m.height - 1 - y
+	if mirror == y {
+		return []int{y}
+	}
+	return []int{y, mirror}
+}
+
+// listSlotAt maps a panel row onto the browsing list slot: slot k is the
+// k-th visible row (0-based) below the header. ok=false when the row is not
+// part of the list viewport or the slot is beyond the list length.
+func (m Model) listSlotAt(row int) (slot int, n int, ok bool) {
+	if row < 3 {
+		return 0, 0, false // title/blank/header rows
+	}
+	height := m.listHeight()
+	if row >= 3+height {
+		return 0, 0, false // below the list viewport
+	}
+	var n2 int
+	switch {
+	case m.mode == ModeConfig:
+		return 0, 0, false // config rows are handled by configKey
+	case m.mode == ModeLibrary:
+		n2 = len(m.library)
+	case m.inTracks:
+		album, ok := m.selectedAlbum()
+		if !ok {
+			return 0, 0, false
+		}
+		n2 = len(album.Tracks)
+	default:
+		n2 = len(m.albums)
+	}
+	slot = row - 3
+	start, _ := windowBounds(n2, m.activeCursor(), height)
+	if slot < 0 || start+slot >= n2 {
+		return 0, 0, false
+	}
+	return slot + start, n2, true
+}
+
+// activeCursor is the browsing cursor of the focused list (used to compute
+// the visible window baseline for list-slot clicks).
+func (m Model) activeCursor() int {
+	switch {
+	case m.mode == ModeLibrary:
+		return m.libraryCursor
+	case m.inTracks:
+		return m.trackCursor
+	default:
+		return m.albumCursor
+	}
+}
+
+// hitSpan resolves a reported X column against the button spans.
+func (m Model) hitSpan(x int) (buttonSpan, bool) {
+	for _, span := range m.buttonLayout() {
+		if x >= span.Start && x < span.Start+span.Width {
+			return span, true
+		}
+	}
+	return buttonSpan{}, false
+}
+
+// handleMouseMsg dispatches one mouse event. Only plain left-presses on the
+// transport row act; every hit maps through buttonLayout spans onto the
 // SAME handlers the keybinds use (S2), so there is no second action path.
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil // motion/release/wheel: nothing (S6)
 	}
-	if row := m.buttonsRowY(); row < 0 || msg.Y != row {
-		return m, nil // clicks outside the transport row (S6)
-	}
-	x := msg.X
-	for _, span := range m.buttonLayout() {
-		if x < span.Start || x >= span.Start+span.Width {
+	// Button candidates first: both row candidates may hit the transport
+	// row; when both do (tiny windows), the reported row wins.
+	var btnSpan buttonSpan
+	btnCandidate := -1
+	for _, cy := range m.clickCandidates(msg.Y) {
+		if cy != m.buttonsRowY() {
 			continue
 		}
-		switch span.Kind {
+		if span, ok := m.hitSpan(msg.X); ok {
+			btnSpan, btnCandidate = span, cy
+			if cy == msg.Y {
+				break
+			}
+		}
+	}
+	if btnCandidate >= 0 {
+		switch btnSpan.Kind {
 		case btnPrev:
 			return m.queuePrev()
 		case btnToggle:
@@ -686,7 +772,37 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m.changeVolume(volumeStep)
 		}
 	}
-	return m, nil // gaps between glyphs (S6)
+	// List clicks (Phase B follow-up: the owner expects click-to-select):
+	// the reported row wins when both candidates are valid list slots.
+	for _, cy := range m.clickCandidates(msg.Y) {
+		if idx, _, ok := m.listSlotAt(cy); ok {
+			m.selectListRow(idx)
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// selectListRow moves the browsing cursor of the focused list to a row
+// WITHOUT changing playback (playing stays; Enter starts what it points
+// at). Config rows are not selectable because configKey owns that screen.
+func (m *Model) selectListRow(idx int) {
+	switch {
+	case m.mode == ModeLibrary:
+		m.libraryCursor = clampCursor(idx, len(m.library))
+	case m.inTracks:
+		m.trackCursor = clampCursor(idx, len(m.selectedTrackSafely()))
+	default:
+		m.albumCursor = clampCursor(idx, len(m.albums))
+	}
+}
+
+// selectedTrackSafely is the track count of the focused album (0 when none).
+func (m Model) selectedTrackSafely() []catalog.Track {
+	if album, ok := m.selectedAlbum(); ok {
+		return album.Tracks
+	}
+	return nil
 }
 
 // selectedAlbum returns the highlighted album, clamped to the list.
