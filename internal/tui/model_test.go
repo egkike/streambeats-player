@@ -23,7 +23,7 @@ import (
 // T1: the model carries its resolved theme palette; defaults keep the
 // shipped dark look deterministic and an explicit Theme option applies.
 func TestNewModelResolvesTheme(t *testing.T) {
-	goldenDark := theme.Resolve(theme.Oscuro, true)
+	goldenDark := theme.Resolve(theme.System, true)
 
 	// ThemeDark is explicit, never a hidden default: launch passes the real
 	// background detection, so an explicit golden reflects a dark system.
@@ -1373,5 +1373,81 @@ func TestVolumeMsgReceiptClampsToPanelBounds(t *testing.T) {
 		if got := next.(Model).volume; got != tc.want {
 			t.Errorf("volume receipt %d => %d, want clamped %d", tc.in, got, tc.want)
 		}
+	}
+}
+
+// T1 (issue #40 S1): every transport action leaves a distinct, honest status
+// line — pause/resume/stop through both transports, and the volume receipt
+// (currently silent when a player is connected).
+func TestTransportFeedbackStatuses(t *testing.T) {
+	// pause with a live player says "paused"; resume says "resumed".
+	m, fake := clickModel(t)
+	m.playing = true
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	nm := next.(Model)
+	if nm.paused != true || !strings.Contains(nm.status, "paused") {
+		t.Fatalf("pause feedback: paused=%v status=%q", nm.paused, nm.status)
+	}
+	for _, c := range []rune{' '} {
+		_ = c
+	}
+	_ = fake
+	next, _ = nm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	nm = next.(Model)
+	if nm.paused != false || !strings.Contains(nm.status, "resumed") {
+		t.Fatalf("resume feedback: paused=%v status=%q", nm.paused, nm.status)
+	}
+
+	// stop while playing says "stopped" and keeps the player calls.
+	m, fake = clickModel(t)
+	m.playing, m.paused, m.nowPlaying = true, true, "song"
+	a, stopCmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if stopCmd != nil {
+		stopCmd()
+	}
+	nm = a.(Model)
+	if fake.stopCalls != 1 || !strings.Contains(nm.status, "stopped") {
+		t.Fatalf("stop feedback: calls=%d status=%q", fake.stopCalls, nm.status)
+	}
+
+	// the volume receipt states the level (previously silent).
+	m2 := NewModel(Options{Player: &fakePlayer{}})
+	next, _ = m2.Update(volumeMsg{volume: 55})
+	nm = next.(Model)
+	if !strings.Contains(nm.status, "volume 55%") {
+		t.Fatalf("volume feedback missing: %q", nm.status)
+	}
+}
+
+// T2/T3 (issue #40 S3/S4): the progress poll must not erase fresh feedback,
+// and any feedback statuses expire by themselves (tick-count based, ~4s at
+// the 1s cadence).
+func TestFeedbackSurvivesProgressAndExpiresByTicks(t *testing.T) {
+	m, fake := clickModel(t)
+	m.playing = true
+	a, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	nm := a.(Model)
+	if !strings.Contains(nm.status, "paused") {
+		t.Fatalf("paused feedback missing: %q", nm.status)
+	}
+	_ = fake
+	// A real progress reading must NOT eat the fresh feedback.
+	r2, _ := nm.Update(progressMsg{pos: 1, dur: 100})
+	nm = r2.(Model)
+	if !strings.Contains(nm.status, "paused") {
+		t.Fatalf("progress tick erased fresh feedback: %q", nm.status)
+	}
+	// Ticks inside the window keep it visible; the 4th tick expires it.
+	for i := 0; i < statusFeedbackTicks-1; i++ {
+		r3, _ := nm.Update(tickMsg{})
+		nm = r3.(Model)
+		if !strings.Contains(nm.status, "paused") {
+			t.Fatalf("feedback expired before its window at tick %d: %q", i, nm.status)
+		}
+	}
+	r4, _ := nm.Update(tickMsg{})
+	nm = r4.(Model)
+	if nm.status != "" {
+		t.Fatalf("feedback must expire after %d ticks: %q", statusFeedbackTicks, nm.status)
 	}
 }

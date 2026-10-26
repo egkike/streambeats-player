@@ -54,18 +54,18 @@ func TestResolveIsDeterministicPerTheme(t *testing.T) {
 		t.Errorf("Claro must ignore detection; light %+v vs dark %+v", claroLight, claroDark)
 	}
 
-	// Oscuro ignores detection: always the dark pair (byte-parity with the
-	// panel as shipped).
-	if got := Resolve(Oscuro, false); !reflect.DeepEqual(got, goldenDark) {
-		t.Errorf("Oscuro rendered light = %v, want shipped palette %v", got, goldenDark)
+	// Oscuro ignores detection: always its own dark accents (issue #40 S2,
+	// visibly different from the shipped System-dark look).
+	if !reflect.DeepEqual(Resolve(Oscuro, false), Resolve(Oscuro, true)) {
+		t.Errorf("Oscuro must ignore detection")
 	}
-	if got := Resolve(Oscuro, true); !reflect.DeepEqual(got, goldenDark) {
-		t.Errorf("Oscuro rendered dark = %v, want shipped palette %v", got, goldenDark)
+	if osc := Resolve(Oscuro, true); osc == goldenDark {
+		t.Errorf("Oscuro repeats the shipped palette; the switch must be visible")
 	}
 
 	// The light pair is a different palette, not a copy.
 	if reflect.DeepEqual(claroLight, goldenDark) {
-		t.Errorf("Claro palette repeats the dark palette; the switch must be visible")
+		t.Errorf("Claro palette repeats the shipped palette; the switch must be visible")
 	}
 }
 
@@ -101,6 +101,62 @@ func TestNamesMatchLowercaseStorage(t *testing.T) {
 		got, ok := Lookup(th.String())
 		if !ok || got != th {
 			t.Errorf("round trip %q failed: got (%q, %v)", th, got, ok)
+		}
+	}
+}
+
+// T4 (issue #40 S2): the owner must SEE the theme switch. System keeps the
+// shipped dark pair at boot; Oscuro carries distinct accents so changing the
+// theme is visible even on a dark terminal; Claro moves every role.
+func TestSystemOnDarkKeepsTheShippedPalette(t *testing.T) {
+	if got := Resolve(System, true); !reflect.DeepEqual(got, goldenDark) {
+		t.Errorf("System on a dark terminal = %+v, want the shipped panel look %+v", got, goldenDark)
+	}
+}
+
+func TestOscuroAccentsDifferFromSystemDark(t *testing.T) {
+	sysDark := Resolve(System, true)
+	osc := Resolve(Oscuro, true)
+	if osc == sysDark {
+		t.Fatalf("Oscuro repeats the System-dark palette; the switch is a no-op to the eye")
+	}
+	var diffs int
+	if osc.Title != sysDark.Title {
+		diffs++
+	}
+	if osc.Dim != sysDark.Dim {
+		diffs++
+	}
+	if osc.Selected != sysDark.Selected {
+		diffs++
+	}
+	if osc.Playing != sysDark.Playing {
+		diffs++
+	}
+	if osc.Status != sysDark.Status {
+		diffs++
+	}
+	if osc.Bar != sysDark.Bar {
+		diffs++
+	}
+	if diffs < 2 {
+		t.Errorf("only %d accents differ between Oscuro and System-dark; need at least 2 visible ones", diffs)
+	}
+}
+
+func TestClaroDiffersFromOscuroInEveryRole(t *testing.T) {
+	claro := Resolve(Claro, false)
+	osc := Resolve(Oscuro, false)
+	for name, a := range map[string][2]string{
+		"Title":    {claro.Title, osc.Title},
+		"Dim":      {claro.Dim, osc.Dim},
+		"Selected": {claro.Selected, osc.Selected},
+		"Playing":  {claro.Playing, osc.Playing},
+		"Status":   {claro.Status, osc.Status},
+		"Bar":      {claro.Bar, osc.Bar},
+	} {
+		if a[0] == a[1] {
+			t.Errorf("role %s identical across Claro/Oscuro: %q", name, a[0])
 		}
 	}
 }
