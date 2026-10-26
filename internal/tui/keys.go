@@ -55,13 +55,3 @@ func helpLines() []string {
 
 // helpText joins the hint rows (used by tests and docs).
 func helpText() string { return strings.Join(helpLines(), "\n") }
-
-// formatHelp renders one row of key hints.
-func formatHelp(bindings []key.Binding) string {
-	parts := make([]string, 0, len(bindings))
-	for _, b := range bindings {
-		h := b.Help()
-		parts = append(parts, h.Key+": "+h.Desc)
-	}
-	return strings.Join(parts, "  ")
-}

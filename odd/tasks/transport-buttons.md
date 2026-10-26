@@ -15,10 +15,9 @@ Issue: egkike/streambeats-player#37 (pre-approved per standing grant, type:featu
 
 ## Tasks
 
-- **T1** (S1, S2): transport button row in the bottom block + mouse hit-testing (ClickCellMsg bounds-checked) routing to the SAME commands as keybinds. RED test first.
-- **T2** (S3): bottom-block redesign so both help lines fit 52 cols without truncation (wrap/rearrange, keep `keys.go` source of truth). RED test first (52-col render with ui width).
-- **T3** (S4): re-derive the 5 findings' prose on merged main, disposition table (fix or no-op with reason) recorded here; fixes carry their own RED→GREEN.
-- **T4** (S5, S6): docs + ODD log; differential check for touched shared helpers.
+- **T1** (S1, S2): transport button row in the bottom block + mouse hit-testing (bounds-checked) routing to the SAME commands as keybinds. **DONE** (row + spans + tea.MouseMsg route + parity tests; enabled via tea.WithMouseCellMotion). - **T2** (S3): bottom-block redesign so both help lines fit 52 cols without truncation (wrap/rearrange, keep `keys.go` source of truth). 
+- **T3** (S4): re-derive the 5 findings' prose on merged main, disposition table (fix or no-op with reason) recorded here; fixes carry their own RED→GREEN. **DONE** (3 fixes + 1 reasoned no-op + latent-fix; L4).
+- **T4** (S5, S6): docs + ODD log; differential check for touched shared helpers. **DONE** (README mouse sentence; harnesses 71/71 + 21/21; suite + race).
 
 ## Log
 
