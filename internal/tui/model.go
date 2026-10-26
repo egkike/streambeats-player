@@ -340,7 +340,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// property banners (mpv not reporting duration while buffering)
 		// clear right here — but NEVER a fresh feedback status within its
 		// window (issue #40 S4).
-		if !(m.status != "" && m.tick < m.statusClearTick) {
+		if m.status == "" || m.tick >= m.statusClearTick {
 			m.status = ""
 		}
 		m.position, m.duration = msg.pos, msg.dur
