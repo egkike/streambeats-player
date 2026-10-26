@@ -200,11 +200,6 @@ func (m Model) renderRow(selected, playing bool, label string, width int) string
 }
 
 // playerBar renders the now-playing line and progress.
-// playerBar keeps the two-line bar join for callers and tests.
-func (m Model) playerBar() string {
-	return strings.Join(m.playerBarLines(), "\n")
-}
-
 // playerBarLines splits the now-playing line and the progress line.
 func (m Model) playerBarLines() []string {
 	width := m.contentWidth()
