@@ -302,7 +302,8 @@ install_bundle() {
 			# (gh#7 semantics: the core install never fails for desktop assets).
 			# A blocked path degrades: warn + skip, the bundle and the manifest
 			# below are written regardless.
-			warn "desktop integration skipped: cannot create the freedesktop directories under $prefix/share/icons — core install unaffected"
+			# R2-001: name BOTH dirs the guarded mkdir can fail on.
+			warn "desktop integration skipped: cannot create the freedesktop directories under $icons_dir and $share/assets/kwin — core install unaffected"
 		fi
 	fi
 
