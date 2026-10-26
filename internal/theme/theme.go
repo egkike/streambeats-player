@@ -34,7 +34,9 @@ type Palette struct {
 	Bar      string
 }
 
-// darkPalette is the shipped panel palette (dark background).
+// darkPalette is the shipped panel palette, kept as the SYSTEM-on-dark
+// look (byte-parity at boot on dark terminals; TestSystemOnDarkKeeps...
+// pins it).
 var darkPalette = Palette{
 	Title:    "205",
 	Dim:      "241",
@@ -44,15 +46,27 @@ var darkPalette = Palette{
 	Bar:      "205",
 }
 
-// lightPalette is the Claro variant, tuned for light-background terminals:
-// darker, higher-contrast picks for the same roles.
-var lightPalette = Palette{
+// oscuroPalette is the explicit dark theme: same ambient as the shipped
+// panel but with distinct accents (selected/playing moved), so the theme
+// switch is VISIBLE at a glance on a dark terminal (issue #40 S2).
+var oscuroPalette = Palette{
 	Title:    "205",
-	Dim:      "239",
-	Selected: "5",
-	Playing:  "28",
-	Status:   "208",
+	Dim:      "241",
+	Selected: "99", // violet
+	Playing:  "46", // bright green
+	Status:   "214",
 	Bar:      "205",
+}
+
+// lightPalette is the Claro family, tuned for light-background terminals:
+// a different hue per role (dark-on-light readable):
+var lightPalette = Palette{
+	Title:    "18",  // dark teal
+	Dim:      "59",  // gray-green
+	Selected: "5",   // magenta
+	Playing:  "28",  // green
+	Status:   "166", // coral
+	Bar:      "18",
 }
 
 // Lookup maps a raw settings value to a Theme. Empty or unknown values are
@@ -82,7 +96,7 @@ func Resolve(t Theme, dark bool) Palette {
 	case Claro:
 		return lightPalette
 	case Oscuro:
-		return darkPalette
+		return oscuroPalette
 	case System:
 		if dark {
 			return darkPalette

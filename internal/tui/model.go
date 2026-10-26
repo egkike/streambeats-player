@@ -59,7 +59,11 @@ const (
 
 const (
 	defaultVolume = 100
-	volumeStep    = 5
+	// statusFeedbackTicks is the expiry window for feedback statuses (T2/T3,
+	// issue #40): ~4 ticks at the 1s cadence. The progress poll may only
+	// clear a status after the window has passed, so feedback is visible.
+	statusFeedbackTicks = 4
+	volumeStep          = 5
 
 	// tickInterval is how often playback progress is polled from mpv.
 	tickInterval = time.Second
@@ -144,10 +148,12 @@ type Model struct {
 	// resolved with, so theme switches keep System's contrast pairing.
 	darkBackground bool
 
-	status   string
-	width    int
-	height   int
-	quitting bool
+	status          string
+	statusClearTick int
+	tick            int
+	width           int
+	height          int
+	quitting        bool
 }
 
 // NewModel builds a model from already-loaded data. No I/O happens here.
@@ -239,6 +245,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
 	case tickMsg:
+		m.tick++
+		if m.status != "" && m.tick >= m.statusClearTick {
+			m.status = "" // feedback expired (T3)
+			m.statusClearTick = 0
+		}
 		if m.player == nil {
 			return m, nil
 		}
@@ -327,18 +338,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progressMisses = 0
 		// A real progress reading proves the source is live: transient
 		// property banners (mpv not reporting duration while buffering)
-		// clear right here.
-		m.status = ""
+		// clear right here — but NEVER a fresh feedback status within its
+		// window (issue #40 S4).
+		if !(m.status != "" && m.tick < m.statusClearTick) {
+			m.status = ""
+		}
 		m.position, m.duration = msg.pos, msg.dur
 		return m, nil
 	case volumeMsg:
 		if msg.err != nil {
-			m.status = friendlyError("mpv error", msg.err)
+			m.setStatus(friendlyError("mpv error", msg.err))
 			return m, nil
 		}
 		// mpv-reported volume is untrusted input for the UI math (R4-001):
-		// clamp on receipt exactly like our own writes do.
+		// clamp on receipt exactly like our own writes do, then state the
+		// level honestly (issue #40 S1: the volume click/receipt used to be
+		// silent).
 		m.volume = clampVolume(msg.volume)
+		m.setStatus(fmt.Sprintf("volume %d%%", m.volume))
 		return m, nil
 	}
 	return m, nil
@@ -405,6 +422,17 @@ func (m *Model) openConfig() {
 	m.configReturn = m.mode
 	m.configIndex = configIndexFor(m.theme)
 	m.mode = ModeConfig
+}
+
+// setStatus records panel feedback and arms its expiry window: the value
+// survives the next progress reading and clears itself after
+// statusFeedbackTicks ticks (issue #40 S1/S3/S4).
+func (m *Model) setStatus(text string) {
+	if text == "" {
+		return
+	}
+	m.status = text
+	m.statusClearTick = m.tick + statusFeedbackTicks
 }
 
 // moveCursor clamps and updates the cursor of whichever list is focused.
@@ -573,16 +601,21 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 // togglePause flips the pause state through the player.
 func (m Model) togglePause() (tea.Model, tea.Cmd) {
 	if m.player == nil {
-		m.status = friendlyError("playback unavailable", errNoPlayer)
+		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
 		return m, nil
 	}
 	if !m.playing {
-		m.status = "nothing is playing — press enter on a track"
+		m.setStatus("nothing is playing — press enter on a track")
 		return m, nil
 	}
 	p := m.player
 	m.paused = !m.paused
 	paused := m.paused
+	if paused {
+		m.setStatus("paused — space to resume")
+	} else {
+		m.setStatus("resumed")
+	}
 	return m, func() tea.Msg {
 		var err error
 		if paused {
@@ -597,10 +630,11 @@ func (m Model) togglePause() (tea.Model, tea.Cmd) {
 // stopPlayback stops audio and clears the now-playing bar.
 func (m Model) stopPlayback() (tea.Model, tea.Cmd) {
 	if m.player == nil {
-		m.status = friendlyError("playback unavailable", errNoPlayer)
+		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
 		return m, nil
 	}
 	if !m.playing {
+		m.setStatus("nothing is playing — press enter on a track")
 		return m, nil
 	}
 	p := m.player
@@ -608,6 +642,7 @@ func (m Model) stopPlayback() (tea.Model, tea.Cmd) {
 	m.paused = false
 	m.nowPlaying = ""
 	m.position, m.duration = 0, 0
+	m.setStatus("stopped")
 	return m, func() tea.Msg { return actionMsg{err: p.Stop()} }
 }
 
@@ -679,7 +714,7 @@ func (m Model) queueNext() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if !m.playing {
-		m.status = "nothing is playing — press enter on a track"
+		m.setStatus("nothing is playing — press enter on a track")
 		return m, nil
 	}
 	return m.autoAdvance()
@@ -693,7 +728,7 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if !m.playing {
-		m.status = "nothing is playing — press enter on a track"
+		m.setStatus("nothing is playing — press enter on a track")
 		return m, nil
 	}
 	restart := func() tea.Model {
