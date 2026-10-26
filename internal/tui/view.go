@@ -138,11 +138,11 @@ func (m Model) buttonLayout() []buttonSpan {
 		Kind  buttonKind
 		Glyph string
 	}{
-		{btnPrev, "<<"},
-		{btnToggle, toggleGlyph(m.playing, m.paused)},
-		{btnStop, "[]"},
-		{btnNext, ">>"},
-		{btnVolume, "+"},
+		{btnPrev, "\u23ee\ufe0f"},
+		{btnToggle, "\u23ef\ufe0f"},
+		{btnStop, "\u23f9\ufe0f"},
+		{btnNext, "\u23ed\ufe0f"},
+		{btnVolume, "\U0001f50a"},
 	}
 	spans := make([]buttonSpan, 0, len(labels))
 	col := 0
@@ -157,17 +157,6 @@ func (m Model) buttonLayout() []buttonSpan {
 	return spans
 }
 
-// toggleGlyph is the transport token per playback state: "|>" asks to start
-// (the idle click carries the owner's mental model: play the highlighted
-// item); "||" pauses. Pure ASCII so the painted width is stable across
-// grapheme-width methods (issue #42 round-3).
-func toggleGlyph(playing, paused bool) string {
-	if playing && !paused {
-		return "||"
-	}
-	return "|>"
-}
-
 // buttonsLine renders the row the layout table describes.
 func (m Model) buttonsLine() string {
 	if m.buttonsRowY() < 0 {
@@ -177,11 +166,11 @@ func (m Model) buttonsLine() string {
 		Kind  buttonKind
 		Glyph string
 	}{
-		{btnPrev, "<<"},
-		{btnToggle, toggleGlyph(m.playing, m.paused)},
-		{btnStop, "[]"},
-		{btnNext, ">>"},
-		{btnVolume, "+"},
+		{btnPrev, "\u23ee\ufe0f"},
+		{btnToggle, "\u23ef\ufe0f"},
+		{btnStop, "\u23f9\ufe0f"},
+		{btnNext, "\u23ed\ufe0f"},
+		{btnVolume, "\U0001f50a"},
 	}
 	parts := make([]string, 0, len(glyphs))
 	for _, g := range glyphs {

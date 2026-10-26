@@ -770,13 +770,13 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if btnCandidate >= 0 {
 		switch btnSpan.Kind {
 		case btnPrev:
-			return m.queuePrev()
+			return m.jukePrev()
 		case btnToggle:
 			return m.togglePause()
 		case btnStop:
 			return m.stopPlayback()
 		case btnNext:
-			return m.queueNext()
+			return m.jukeNext()
 		case btnVolume:
 			return m.changeVolume(volumeStep)
 		}
@@ -820,6 +820,109 @@ func (m Model) selectedTrackSafely() []catalog.Track {
 	return nil
 }
 
+// --- jukebox transport (issue #45 round-4, owner-approved) -------------
+// The transport buttons act STATE-INDEPENDENTLY: with playback stopped, a
+// next/prev click still advances the queue and auto-plays, arming a base
+// position from the browsing cursor. At the ends the base item restarts
+// (that is the documented "wrap" for the buttons). The keybinds keep the
+// classic queue semantics — the muscle memory is the owner's own.
+
+func (m Model) jukeArm() Model {
+	if m.player == nil {
+		return m // nothing to arm: the handlers disclose the reason
+	}
+	next := m
+	next.playingLib, next.playingAlbum, next.playingTrack = -1, -1, -1
+	switch {
+	case m.mode == ModeLibrary:
+		next.mode, next.inTracks = ModeLibrary, false
+		next.playingLib = clampCursor(m.libraryCursor, len(m.library))
+	case m.inTracks:
+		next.inTracks, next.mode = true, ModeCatalog
+		next.playingAlbum = clampCursor(m.albumCursor, len(m.albums))
+		if album, ok := next.albumAt(next.playingAlbum); ok {
+			next.playingTrack = clampCursor(m.trackCursor, len(album.Tracks))
+		}
+	default:
+		next.playingAlbum = clampCursor(m.albumCursor, len(m.albums))
+		next.playingTrack = 0 // the album's first track is the jukebox base
+	}
+	next.playing = true
+	next.paused = false
+	return next
+}
+
+func (m Model) albumAt(idx int) (catalog.AlbumEntry, bool) {
+	if idx < 0 || idx >= len(m.albums) {
+		return catalog.AlbumEntry{}, false
+	}
+	return m.albums[idx], true
+}
+
+func (m Model) jukeNext() (tea.Model, tea.Cmd) {
+	if m.player == nil {
+		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
+		return m, nil
+	}
+	armed := m.jukeArm()
+	// Wrap rule: clicking next at the LAST item restarts the base.
+	switch {
+	case armed.playingLib >= 0:
+		if armed.playingLib >= len(armed.library)-1 {
+			return armed.jukeRestartLibrary(armed.playingLib)
+		}
+	default:
+		album, ok := armed.albumAt(armed.playingAlbum)
+		if ok && armed.playingAlbum >= len(armed.albums)-1 && armed.playingTrack >= len(album.Tracks)-1 {
+			return armed.jukeRestartCatalog(armed.playingAlbum, armed.playingTrack)
+		}
+	}
+	return armed.queueNext()
+}
+
+func (m Model) jukePrev() (tea.Model, tea.Cmd) {
+	if m.player == nil {
+		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
+		return m, nil
+	}
+	armed := m.jukeArm()
+	// Wrap rule: clicking prev at the FIRST item restarts the base.
+	switch {
+	case armed.playingLib >= 0:
+		if armed.playingLib <= 0 {
+			return armed.jukeRestartLibrary(armed.playingLib)
+		}
+	default:
+		if armed.playingAlbum <= 0 && armed.playingTrack <= 0 {
+			return armed.jukeRestartCatalog(armed.playingAlbum, armed.playingTrack)
+		}
+	}
+	return armed.queuePrev()
+}
+
+func (m Model) jukeRestartLibrary(idx int) (tea.Model, tea.Cmd) {
+	next := m
+	next.playingLib = idx
+	next.playingAlbum, next.playingTrack = -1, -1
+	next.playing, next.paused = false, false
+	next.setStatus("restarting — " + libraryEntryTitle(m.library[idx]))
+	return next, loadFileCmd(m.player, m.library[idx], libraryEntryTitle(m.library[idx]))
+}
+
+func (m Model) jukeRestartCatalog(a, t int) (tea.Model, tea.Cmd) {
+	album, ok := m.albumAt(a)
+	if !ok || t < 0 || t >= len(album.Tracks) {
+		m.setStatus("nothing is playing — press enter on a track")
+		return m, nil
+	}
+	next := m
+	next.playingAlbum, next.playingTrack, next.playingLib = a, t, -1
+	next.playing, next.paused = false, false
+	track := album.Tracks[t]
+	next.setStatus("restarting — " + trackTitle(track))
+	return next, resolveAndPlayCmd(m.player, m.resolve, album, track)
+}
+
 // selectedAlbum returns the highlighted album, clamped to the list.
 func (m Model) selectedAlbum() (catalog.AlbumEntry, bool) {
 	if len(m.albums) == 0 {
@@ -841,7 +944,7 @@ func (m Model) selectedTrack() (catalog.Track, bool) {
 // in-flight guard) so a slow resolve does not stack jumps.
 func (m Model) queueNext() (tea.Model, tea.Cmd) {
 	if m.player == nil {
-		m.status = friendlyError("playback unavailable", errNoPlayer)
+		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
 		return m, nil
 	}
 	if !m.playing {
