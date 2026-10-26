@@ -1358,3 +1358,20 @@ func TestMouseWithoutPlayerIsFriendly(t *testing.T) {
 		t.Fatalf("toggle click without player must surface a friendly status:\n%s", nm.View())
 	}
 }
+
+// R4-001 (receipt review-656a2bb02230f588): mpv-reported volume is untrusted
+// input for the UI math — receipt must clamp like our own writes do.
+func TestVolumeMsgReceiptClampsToPanelBounds(t *testing.T) {
+	m := NewModel(Options{})
+	for _, tc := range []struct {
+		in, want int
+	}{
+		{150, 100},
+		{-7, 0},
+	} {
+		next, _ := m.Update(volumeMsg{volume: tc.in})
+		if got := next.(Model).volume; got != tc.want {
+			t.Errorf("volume receipt %d => %d, want clamped %d", tc.in, got, tc.want)
+		}
+	}
+}

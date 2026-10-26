@@ -144,3 +144,39 @@ func TestSaveWritesReadableJSON(t *testing.T) {
 		t.Errorf("file does not contain the theme field:\n%s", raw)
 	}
 }
+
+// R1-001 (receipt review-656a2bb02230f588): the temp file must not rely on a
+// fixed ".tmp" name: a directory parked at that path stopped the whole save.
+// Unique CreateTemp names in the same dir keep atomicity without the clash.
+func TestSaveCopesWithAForeignTempPathOccupied(t *testing.T) {
+	st := testStore(t)
+	if err := os.MkdirAll(st.Path+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Save(Settings{Theme: "oscuro"}); err != nil {
+		t.Fatalf("Save must not depend on the fixed .tmp name: %v", err)
+	}
+	got, err := st.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Theme != "oscuro" {
+		t.Errorf("theme = %q, want oscuro", got.Theme)
+	}
+}
+
+// R4-002 (same receipt): a failed COMMIT must not leave the staged temp
+// file behind (rename can fail — here the target is a directory).
+func TestSaveCleansUpTheTempWhenCommitFails(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "blocked"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	st := NewStore(filepath.Join(dir, "blocked"))
+	if err := st.Save(Settings{Theme: "claro"}); err == nil {
+		t.Fatal("rename onto a directory path must fail")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "blocked.tmp")); !os.IsNotExist(err) {
+		t.Errorf("temp residue after failed commit: %v", err)
+	}
+}

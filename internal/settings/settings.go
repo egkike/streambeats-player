@@ -72,11 +72,28 @@ func (s *Store) Save(set Settings) error {
 	if err != nil {
 		return fmt.Errorf("encode settings: %w", err)
 	}
-	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+	// Unique staged temp in the SAME dir (R1-001): no fixed ".tmp" name, so
+	// a foreign directory parked at that path — or a concurrent writer —
+	// can never clash. Same-dir rename keeps the commit atomic.
+	tmp, err := os.CreateTemp(filepath.Dir(s.Path), filepath.Base(s.Path)+"-*.tmp")
+	if err != nil {
+		return fmt.Errorf("stage settings: %w", err)
+	}
+	staged := tmp.Name()
+	defer func() {
+		_ = os.Remove(staged) // no residue on any failed commit (R4-002)
+	}()
+	if _, err := tmp.Write(raw); err != nil {
+		tmp.Close()
 		return fmt.Errorf("write settings: %w", err)
 	}
-	if err := os.Rename(tmp, s.Path); err != nil {
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close settings: %w", err)
+	}
+	if err := os.Chmod(staged, 0o600); err != nil {
+		return fmt.Errorf("set settings perms: %w", err)
+	}
+	if err := os.Rename(staged, s.Path); err != nil {
 		return fmt.Errorf("commit settings: %w", err)
 	}
 	return nil

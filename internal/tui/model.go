@@ -336,7 +336,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = friendlyError("mpv error", msg.err)
 			return m, nil
 		}
-		m.volume = msg.volume
+		// mpv-reported volume is untrusted input for the UI math (R4-001):
+		// clamp on receipt exactly like our own writes do.
+		m.volume = clampVolume(msg.volume)
 		return m, nil
 	}
 	return m, nil
@@ -466,7 +468,9 @@ func configIndexFor(t theme.Theme) int {
 			return i
 		}
 	}
-	return configIndexFor(theme.Default)
+	// R3-002: resolve the fallback directly instead of recursing — if the
+	// default ever left the list, the old call decomposed to infinity.
+	return 0
 }
 
 // configTheme is the theme currently highlighted on the config screen.
