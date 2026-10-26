@@ -103,6 +103,9 @@ func (m Model) statusLine() string {
 // headerView names the focused list.
 func (m Model) headerView() string {
 	switch {
+	case m.mode == ModeConfig:
+		return m.titleStyle().Render("Settings") +
+			m.dimStyle().Render("  theme: enter to apply  esc: back")
 	case m.mode == ModeLibrary:
 		root := m.libraryRoot
 		if root == "" {
@@ -135,6 +138,16 @@ func (m Model) listRows() []string {
 
 	rows := make([]string, 0, height)
 	switch {
+	case m.mode == ModeConfig:
+		for i, id := range configThemeIDs {
+			label := configLabels[id]
+			if id == m.theme {
+				label += "  (current)"
+			}
+			row := m.renderRow(i == m.configIndex, false, label, width)
+			rows = append(rows, row)
+		}
+		return padRows(rows, height)
 	case m.mode == ModeLibrary:
 		if len(m.library) == 0 {
 			rows = append(rows, m.dimStyle().Render("  no local files yet — run `streambeats sync`"))

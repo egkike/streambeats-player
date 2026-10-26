@@ -17,6 +17,7 @@ import (
 
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
+	"streambeats/internal/settings"
 	"streambeats/internal/theme"
 )
 
@@ -52,6 +53,8 @@ const (
 	ModeCatalog Mode = iota
 	// ModeLibrary browses mp3 files already downloaded on disk.
 	ModeLibrary
+	// ModeConfig shows the settings screen (theme selection, Phase A).
+	ModeConfig
 )
 
 const (
@@ -76,16 +79,17 @@ var errNoPlayer = errors.New("mpv is not connected")
 
 // Options configures a Model.
 type Options struct {
-	Catalog      *catalog.Catalog
-	LibraryFiles []string
-	LibraryRoot  string
-	Player       Player // nil when mpv is unavailable
-	Resolver     Resolver
-	PlayerNote   string // friendly note shown when mpv could not be reached
-	Width        int
-	Height       int
-	Theme        string // raw theme id from settings; "" = default
-	ThemeDark    bool   // resolved background detection result
+	Catalog       *catalog.Catalog
+	LibraryFiles  []string
+	LibraryRoot   string
+	Player        Player // nil when mpv is unavailable
+	Resolver      Resolver
+	PlayerNote    string // friendly note shown when mpv could not be reached
+	Width         int
+	Height        int
+	Theme         string          // raw theme id from settings; "" = default
+	ThemeDark     bool            // resolved background detection result
+	SettingsStore *settings.Store // nil disables persistence (tests, alt runtimes)
 }
 
 // Model is the TUI state.
@@ -101,6 +105,10 @@ type Model struct {
 	albumCursor   int
 	trackCursor   int
 	libraryCursor int
+	// configIndex/configReturn drive the settings screen: the selection
+	// index over the theme list and the screen to go back to.
+	configIndex  int
+	configReturn Mode
 
 	nowPlaying string
 	playing    bool
@@ -128,6 +136,13 @@ type Model struct {
 	// palette is the resolved theme palette (Phase A): every style the
 	// view derives comes from it, so theme switches are pure state.
 	palette theme.Palette
+	// theme is the resolved theme id the palette came from; the config
+	// screen marks it as current and settings persists it.
+	theme         theme.Theme
+	settingsStore *settings.Store
+	// darkBackground is the background detection decision the palette was
+	// resolved with, so theme switches keep System's contrast pairing.
+	darkBackground bool
 
 	status   string
 	width    int
@@ -138,36 +153,36 @@ type Model struct {
 // NewModel builds a model from already-loaded data. No I/O happens here.
 func NewModel(opts Options) Model {
 	m := Model{
-		player:       opts.Player,
-		resolve:      opts.Resolver,
-		library:      append([]string(nil), opts.LibraryFiles...),
-		libraryRoot:  opts.LibraryRoot,
-		volume:       defaultVolume,
-		playingAlbum: -1,
-		playingTrack: -1,
-		playingLib:   -1,
-		width:        opts.Width,
-		height:       opts.Height,
-		status:       opts.PlayerNote,
-		palette:      resolvePalette(opts.Theme, opts.ThemeDark),
+		player:        opts.Player,
+		resolve:       opts.Resolver,
+		library:       append([]string(nil), opts.LibraryFiles...),
+		libraryRoot:   opts.LibraryRoot,
+		volume:        defaultVolume,
+		playingAlbum:  -1,
+		playingTrack:  -1,
+		playingLib:    -1,
+		width:         opts.Width,
+		height:        opts.Height,
+		status:        opts.PlayerNote,
+		settingsStore: opts.SettingsStore,
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
 	}
+	// Theme resolution: an unknown/empty id falls back to the default
+	// theme, so callers never need to pre-validate (S4).
+	if t, ok := theme.Lookup(opts.Theme); ok {
+		m.theme = t
+	} else {
+		m.theme = theme.Default
+	}
+	m.darkBackground = opts.ThemeDark
+	m.palette = theme.Resolve(m.theme, opts.ThemeDark)
+	m.configIndex = configIndexFor(m.theme)
 	if len(m.albums) == 0 {
 		m.status = joinStatus(m.status, "catalog is empty — run `streambeats refresh`")
 	}
 	return m
-}
-
-// resolvePalette maps a raw theme id onto its palette; an unknown or empty
-// id falls back to the default theme, so callers never need to pre-validate.
-func resolvePalette(id string, dark bool) theme.Palette {
-	t, ok := theme.Lookup(id)
-	if !ok {
-		t = theme.Default
-	}
-	return theme.Resolve(t, dark)
 }
 
 // Init starts the progress ticker when an audio backend is connected.
@@ -282,6 +297,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.prefetchSlug, m.prefetchURL = msg.slug, msg.url
 		}
 		return m, nil
+	case saveMsg:
+		// Persistence feedback (Phase A): the failure keeps working and
+		// never blocks the TUI (S4).
+		if msg.err != nil {
+			m.status = friendlyError("could not save settings", msg.err)
+		} else {
+			m.status = "theme saved"
+		}
+		return m, nil
 	case progressMsg:
 		if msg.err != nil {
 			m.progressMisses++
@@ -312,6 +336,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKey maps one keystroke to a pure state change plus optional command.
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// The settings screen owns the keyboard while open: only navigation,
+	// commit and return act (no playback, no queue mutations).
+	if m.mode == ModeConfig {
+		return m.configKey(msg)
+	}
 	switch {
 	case key.Matches(msg, keys.QueueNext):
 		return m.queueNext()
@@ -335,6 +364,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.back()
 	case key.Matches(msg, keys.Library):
 		m.toggleMode()
+	case key.Matches(msg, keys.Config):
+		m.openConfig()
 	case key.Matches(msg, keys.Pause):
 		return m.togglePause()
 	case key.Matches(msg, keys.Stop):
@@ -345,6 +376,25 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.changeVolume(-volumeStep)
 	}
 	return m, nil
+}
+
+// saveMsg closes the theme persistence cycle: the command ran outside the
+// update loop and reports either way.
+type saveMsg struct{ err error }
+
+// saveThemeCmd persists the chosen theme to the settings store.
+func saveThemeCmd(store settings.Store, chosen theme.Theme) tea.Cmd {
+	return func() tea.Msg {
+		return saveMsg{err: store.Save(settings.Settings{Theme: chosen.String()})}
+	}
+}
+
+// openConfig enters the settings screen, remembering where the user came
+// from so esc returns there.
+func (m *Model) openConfig() {
+	m.configReturn = m.mode
+	m.configIndex = configIndexFor(m.theme)
+	m.mode = ModeConfig
 }
 
 // moveCursor clamps and updates the cursor of whichever list is focused.
@@ -390,7 +440,71 @@ func (m *Model) toggleMode() {
 	}
 }
 
-// activateSelection is the enter key: open an album, or play the highlighted
+// Config screen data (Phase A): the ordered theme list the config
+// screen offers, imported from the theme registry so labels never fork.
+var configThemeIDs = []theme.Theme{theme.Claro, theme.Oscuro, theme.System}
+
+// configLabels is the display name for each configThemeIDs entry.
+var configLabels = map[theme.Theme]string{
+	theme.Claro:  "Claro",
+	theme.Oscuro: "Oscuro",
+	theme.System: "System",
+}
+
+// configIndexFor maps a resolved theme onto its config list position.
+func configIndexFor(t theme.Theme) int {
+	for i, id := range configThemeIDs {
+		if id == t {
+			return i
+		}
+	}
+	return configIndexFor(theme.Default)
+}
+
+// configTheme is the theme currently highlighted on the config screen.
+func (m Model) configTheme() theme.Theme {
+	return configThemeIDs[clampCursor(m.configIndex, len(configThemeIDs))]
+}
+
+// configKey runs the settings screen keyboard: navigation, commit and
+// return; every playback/browse binding is inert while it is open.
+func (m Model) configKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Up):
+		m.configIndex = clampCursor(m.configIndex-1, len(configThemeIDs))
+	case key.Matches(msg, keys.Down):
+		m.configIndex = clampCursor(m.configIndex+1, len(configThemeIDs))
+	case key.Matches(msg, keys.Enter):
+		return m.applyThemeSelection()
+	case key.Matches(msg, keys.Back):
+		m.mode = m.configReturn
+		if m.configReturn != ModeLibrary {
+			m.inTracks = false
+		}
+	}
+	return m, nil
+}
+
+// applyThemeSelection commits the highlighted theme: pure state switches
+// immediately; persistence runs in a command and reports via message.
+func (m Model) applyThemeSelection() (tea.Model, tea.Cmd) {
+	chosen := m.configTheme()
+	m.theme = chosen
+	// The background detection stays whatever the model was built with
+	// (darkBackground, set at construction): only the palette id changes.
+	m.palette = theme.Resolve(chosen, m.darkBackground)
+	m.mode = m.configReturn
+	if m.configReturn != ModeLibrary {
+		m.inTracks = false
+	}
+	if m.settingsStore == nil {
+		m.status = joinStatus(m.status, chosen.String()+" applied (not saved anywhere)")
+		return m, nil
+	}
+	return m, saveThemeCmd(*m.settingsStore, chosen)
+}
+
+// activateSelection is the enter key: open an album, or play the selected
 // track/file.
 func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 	if m.mode == ModeLibrary {

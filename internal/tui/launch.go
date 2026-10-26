@@ -13,6 +13,7 @@ import (
 
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
+	"streambeats/internal/settings"
 )
 
 // Launch boots the TUI with the given catalog and blocks until the user quits.
@@ -50,16 +51,22 @@ func Launch(cat *catalog.Catalog) error {
 		defer stopProcess(proc)
 	}
 
-	// Theme resolution (Phase A): System follows the terminal background;
-	// detection failure falls back to a dark panel (the shipped look).
-	// Settings wiring (persistence + Config screen) lands with T2/T3.
+	// Theme resolution (Phase A): the persisted choice wins; an absent or
+	// malformed settings file falls back to System on the detected
+	// background (S4: the TUI never crashes over settings).
+	theme := ""
+	if store, err := settings.DefaultStore(); err == nil {
+		if user, err := store.Load(); err == nil {
+			theme = user.Theme
+		}
+	}
 	opts := Options{
 		Catalog:      cat,
 		LibraryFiles: files,
 		LibraryRoot:  root,
 		PlayerNote:   playerNote,
 		Resolver:     catalog.NewClient(),
-		Theme:        "",
+		Theme:        theme,
 		ThemeDark:    lipgloss.HasDarkBackground(),
 	}
 	if client != nil {

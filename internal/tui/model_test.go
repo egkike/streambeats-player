@@ -11,8 +11,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"path/filepath"
 	"streambeats/internal/catalog"
+
 	"streambeats/internal/player"
+	"streambeats/internal/settings"
 	"streambeats/internal/theme"
 )
 
@@ -41,6 +44,131 @@ func TestNewModelResolvesTheme(t *testing.T) {
 	m = NewModel(Options{Theme: "system", ThemeDark: false})
 	if m.palette != theme.Resolve(theme.System, false) {
 		t.Errorf("system-light palette = %+v, want %+v", m.palette, theme.Resolve(theme.System, false))
+	}
+}
+
+// T3: a Config screen selects the theme and persists it to the settings
+// store; esc returns to the previous screen. Fakes keep it pure-update.
+func TestConfigScreenSelectsAndPersistsTheme(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := NewModel(Options{Theme: "oscuro", ThemeDark: true, SettingsStore: store})
+
+	// 'c' opens the config screen showing the three themes.
+	after, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	cm := after.(Model)
+	if cm.mode != ModeConfig {
+		t.Fatalf("mode = %v, want ModeConfig", cm.mode)
+	}
+	view := cm.View()
+	for _, want := range []string{"Claro", "Oscuro", "System"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("config view is missing theme %q:\n%s", want, view)
+		}
+	}
+
+	// Esc from the very start of the cycle: down/select first, esc after.
+	st, _ := cm.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if st.(Model).mode != ModeCatalog {
+		t.Errorf("esc closed config into mode %v, want ModeCatalog", st.(Model).mode)
+	}
+
+	// Re-open, move down from the current selection (oscuro index 1) to
+	// System and commit: returns a persistence cmd.
+	after, _ = cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	op := after.(Model)
+	if op.configTheme() != theme.Oscuro {
+		t.Fatalf("config opens on the current theme %q, want oscuro", op.configTheme())
+	}
+	op2, _ := op.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if got := op2.(Model).configTheme(); got != theme.System {
+		t.Fatalf("after down the selection is %q, want system", got)
+	}
+	// Enter via the public interface commits the selection (configKey owns
+	// the screen; activateSelection never sees config keys).
+	committed, persist := op2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if committed.(Model).mode == ModeConfig {
+		t.Errorf("enter must leave the config screen, still in config")
+	}
+	if committed.(Model).palette != theme.Resolve(theme.System, true) {
+		t.Errorf("palette did not switch to system: %+v", committed.(Model).palette)
+	}
+	if persist == nil {
+		t.Fatalf("enter returned no persistence cmd")
+	}
+
+	// The cmd writes settings.json with the selected theme.
+	msg := persist()
+	save, ok := msg.(saveMsg)
+	if ok && save.err != nil {
+		t.Fatalf("save failed: %v", save.err)
+	}
+	saved, err := store.Load()
+	if err != nil {
+		t.Fatalf("load after save: %v", err)
+	}
+	persisted, ok := theme.Lookup(saved.Theme)
+	if !ok || persisted != theme.System {
+		t.Errorf("persisted theme = %q, want system", saved.Theme)
+	}
+
+	// saveMsg completes the cycle in the status line (the screen already
+	// returned to browse mode when the persistence landed).
+	final, _ := committed.(Model).Update(save)
+	if final.(Model).mode == ModeConfig {
+		t.Errorf("save feedback must not navigate INTO config, mode = %v", final.(Model).mode)
+	}
+	if !strings.Contains(strings.ToLower(final.(Model).View()), "saved") {
+		t.Errorf("status after save lacks a confirmation:\n%s", final.(Model).View())
+	}
+}
+
+// T3/S4: a failed persistence surfaces a friendly status and keeps working.
+func TestConfigScreenSaveFailureIsFriendly(t *testing.T) {
+	// A path inside a non-directory makes every Save fail.
+	store := settings.NewStore("/proc/nonexistent-dir/settings.json")
+	m := NewModel(Options{Theme: "claro", SettingsStore: store})
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m3, _ := m2.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	committed, persist := m3.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if persist == nil {
+		t.Fatalf("enter returned no persistence cmd")
+	}
+	msg, ok := persist().(saveMsg)
+	if !ok {
+		t.Fatalf("persist() returned %T, want saveMsg", persist())
+	}
+	if msg.err == nil {
+		t.Fatal("save over an invalid path must error")
+	}
+	final, _ := committed.(Model).Update(msg)
+	f := final.(Model)
+	if !strings.Contains(strings.ToLower(f.View()), "could not save") {
+		t.Errorf("failed save lacks a friendly status:\n%s", f.View())
+	}
+	// The theme state still switched (pure feedback), the view still works.
+	if f.palette == theme.Resolve(theme.Claro, true) {
+		t.Errorf("selection did not apply after failed save")
+	}
+}
+
+// T3: playback bindings must not fire while the config screen is open.
+func TestConfigScreenIgnoresPlaybackKeys(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := NewModel(Options{Theme: "oscuro", ThemeDark: true, SettingsStore: store})
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	cm := m2.(Model)
+	// 's' is stop in browse mode; in config it must do nothing to playback
+	// state and stay in config.
+	next, _ := cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	nm := next.(Model)
+	if nm.mode != ModeConfig {
+		t.Errorf("'s' closed the config screen, mode = %v", nm.mode)
+	}
+	if nm.configTheme() != theme.Oscuro {
+		t.Errorf("'s' changed the selection to %q", nm.configTheme())
+	}
+	if nm.playing {
+		t.Errorf("'s' mutated playback state while in config")
 	}
 }
 
