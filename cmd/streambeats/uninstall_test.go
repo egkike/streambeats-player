@@ -180,6 +180,37 @@ func TestUninstallNothingToUninstallIsIdempotent(t *testing.T) {
 	}
 }
 
+// S3 (issue #35): the settings file is user data exactly like ~/Music/
+// StreamBeats — uninstall is manifest-driven and the config path is NEVER
+// on that list, so a settings.json left behind must survive any uninstall.
+func TestUninstallKeepsSettingsConfig(t *testing.T) {
+	stdout, stderr, deps, _ := testEnv(t)
+	installTree(t, nil)
+	configDir := filepath.Join(fakeRoot, "config", "streambeats")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sentinel := filepath.Join(configDir, "settings.json")
+	if err := os.WriteFile(sentinel, []byte(`{"theme":"oscuro"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code := runUninstall(stdout, stderr, uninstallRequest{Prefix: prefixBuilt, Deps: deps})
+	if code != 0 {
+		t.Fatalf("uninstall exit code = %d, want 0", code)
+	}
+	data, err := os.ReadFile(sentinel)
+	if err != nil {
+		t.Fatalf("settings.json must survive uninstall: %v", err)
+	}
+	if !strings.Contains(string(data), "oscuro") {
+		t.Errorf("settings.json content changed: %s", data)
+	}
+	if strings.Contains(stderr.String(), "settings.json") {
+		t.Errorf("uninstall must not advertise touching the settings file")
+	}
+}
+
 func TestUninstallKeepsUserDataByDefault(t *testing.T) {
 	stdout, stderr, deps, _ := testEnv(t)
 	installTree(t, nil)

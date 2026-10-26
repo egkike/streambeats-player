@@ -315,6 +315,20 @@ install_bundle() {
 	write_manifest "$prefix" "$share"
 }
 
+# ensure_config_dir ships the panel's config path (Phase A, issue #35 S3):
+# the settings file itself is USER DATA the TUI writes on the first theme
+# change — it is NEVER listed in the manifest and uninstall never deletes
+# it, so its creation degrades to a warning instead of failing the install.
+ensure_config_dir() {
+	local cfg_root="${XDG_CONFIG_HOME:-$HOME/.config}"
+	[ -n "$cfg_root" ] || return 0
+	if mkdir -p "$cfg_root/streambeats" 2>/dev/null; then
+		say "config:      $cfg_root/streambeats/settings.json (theme; user data — uninstall never removes it)"
+	else
+		warn "config dir skipped: cannot create $cfg_root/streambeats — the TUI still runs with defaults"
+	fi
+}
+
 # write_manifest: record the canonical installed paths for the `streambeats
 # uninstall` CLI (issue #9): uninstall is registry-driven and the manifest is
 # its registry. The six paths are stable by design (absent entries uninstall
@@ -529,6 +543,7 @@ main() {
 	environment_advisories "$PREFIX"
 
 	say "done — try:  $PREFIX/bin/streambeats-quick right"
+	ensure_config_dir
 	if [ "$OS_FLAVOR" = "darwin" ]; then
 		say "macOS: the floating panel is the native Ghostty experience — see docs/ghostty.md"
 	fi

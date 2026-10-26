@@ -15,14 +15,32 @@ import (
 	"streambeats/internal/catalog"
 )
 
-var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	playingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	statusStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	barStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-)
+// Theme styles (Phase A): the palette lives on the Model (resolved at
+// construction from the settings theme id), so theme switches are pure
+// state changes and the view never runs background detection.
+func (m Model) titleStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(m.palette.Title))
+}
+
+func (m Model) dimStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Dim))
+}
+
+func (m Model) selectedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(m.palette.Selected))
+}
+
+func (m Model) playingStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Playing))
+}
+
+func (m Model) statusStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Status))
+}
+
+func (m Model) barStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
+}
 
 const (
 	minListHeight = 3
@@ -50,7 +68,7 @@ func (m Model) View() string {
 	width := m.contentWidth()
 	lines := make([]string, 0, m.totalViewLines())
 	lines = append(lines,
-		titleStyle.Render("streambeats")+dimStyle.Render("  terminal music player"),
+		m.titleStyle().Render("streambeats")+m.dimStyle().Render("  terminal music player"),
 		"",
 		m.headerView(),
 	)
@@ -60,7 +78,7 @@ func (m Model) View() string {
 	// bottom block holds a fixed position.
 	lines = append(lines, m.statusLine())
 	for _, line := range helpLines() {
-		lines = append(lines, dimStyle.Render(truncate(line, width)))
+		lines = append(lines, m.dimStyle().Render(truncate(line, width)))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -79,32 +97,35 @@ func (m Model) statusLine() string {
 	if m.status == "" {
 		return ""
 	}
-	return statusStyle.Render("! " + m.status)
+	return m.statusStyle().Render("! " + m.status)
 }
 
 // headerView names the focused list.
 func (m Model) headerView() string {
 	switch {
+	case m.mode == ModeConfig:
+		return m.titleStyle().Render("Settings") +
+			m.dimStyle().Render("  theme: enter to apply  esc: back")
 	case m.mode == ModeLibrary:
 		root := m.libraryRoot
 		if root == "" {
 			root = "local library"
 		}
-		return titleStyle.Render(fmt.Sprintf("Local library (%d files)", len(m.library))) +
-			dimStyle.Render("  "+root)
+		return m.titleStyle().Render(fmt.Sprintf("Local library (%d files)", len(m.library))) +
+			m.dimStyle().Render("  "+root)
 	case m.inTracks:
 		album, ok := m.selectedAlbum()
 		if !ok {
-			return titleStyle.Render("Tracks")
+			return m.titleStyle().Render("Tracks")
 		}
 		label := album.Title
 		if album.Artist != "" {
 			label = album.Artist + " — " + label
 		}
-		return titleStyle.Render(fmt.Sprintf("%s (%d tracks)", label, len(album.Tracks))) +
-			dimStyle.Render("  esc: back")
+		return m.titleStyle().Render(fmt.Sprintf("%s (%d tracks)", label, len(album.Tracks))) +
+			m.dimStyle().Render("  esc: back")
 	default:
-		return titleStyle.Render(fmt.Sprintf("Albums (%d)", len(m.albums)))
+		return m.titleStyle().Render(fmt.Sprintf("Albums (%d)", len(m.albums)))
 	}
 }
 
@@ -117,9 +138,19 @@ func (m Model) listRows() []string {
 
 	rows := make([]string, 0, height)
 	switch {
+	case m.mode == ModeConfig:
+		for i, id := range configThemeIDs {
+			label := configLabels[id]
+			if id == m.theme {
+				label += "  (current)"
+			}
+			row := m.renderRow(i == m.configIndex, false, label, width)
+			rows = append(rows, row)
+		}
+		return padRows(rows, height)
 	case m.mode == ModeLibrary:
 		if len(m.library) == 0 {
-			rows = append(rows, dimStyle.Render("  no local files yet — run `streambeats sync`"))
+			rows = append(rows, m.dimStyle().Render("  no local files yet — run `streambeats sync`"))
 			return padRows(rows, height)
 		}
 		start, end := windowBounds(len(m.library), m.libraryCursor, height)
@@ -133,12 +164,12 @@ func (m Model) listRows() []string {
 	case m.inTracks:
 		album, ok := m.selectedAlbum()
 		if !ok {
-			rows = append(rows, dimStyle.Render("  no album selected"))
+			rows = append(rows, m.dimStyle().Render("  no album selected"))
 			return padRows(rows, height)
 		}
 		start, end := windowBounds(len(album.Tracks), m.trackCursor, height)
 		if len(album.Tracks) == 0 {
-			rows = append(rows, dimStyle.Render("  album has no tracks"))
+			rows = append(rows, m.dimStyle().Render("  album has no tracks"))
 			return padRows(rows, height)
 		}
 		for i := start; i < end; i++ {
@@ -154,7 +185,7 @@ func (m Model) listRows() []string {
 
 	default:
 		if len(m.albums) == 0 {
-			rows = append(rows, dimStyle.Render("  no albums cached — run `streambeats refresh`"))
+			rows = append(rows, m.dimStyle().Render("  no albums cached — run `streambeats refresh`"))
 			return padRows(rows, height)
 		}
 		start, end := windowBounds(len(m.albums), m.albumCursor, height)
@@ -191,9 +222,9 @@ func (m Model) renderRow(selected, playing bool, label string, width int) string
 	line := truncate(marker+label, width)
 	switch {
 	case selected:
-		return selectedStyle.Render(line)
+		return m.selectedStyle().Render(line)
 	case playing:
-		return playingStyle.Render(line)
+		return m.playingStyle().Render(line)
 	default:
 		return line
 	}
@@ -216,7 +247,7 @@ func (m Model) playerBarLines() []string {
 		title = "nothing playing — press enter on a track"
 	}
 	line := fmt.Sprintf("%s  %s", glyph, title)
-	line += dimStyle.Render(fmt.Sprintf("   vol %d%%", m.volume))
+	line += m.dimStyle().Render(fmt.Sprintf("   vol %d%%", m.volume))
 	line = truncate(line, width)
 
 	barWidth := width - 20
@@ -225,7 +256,7 @@ func (m Model) playerBarLines() []string {
 	}
 	progress := progressBar(m.position, m.duration, barWidth)
 	times := fmt.Sprintf("%s / %s", formatDuration(m.position), formatDuration(m.duration))
-	return []string{line, barStyle.Render(progress) + " " + dimStyle.Render(times)}
+	return []string{line, m.barStyle().Render(progress) + " " + m.dimStyle().Render(times)}
 }
 
 // listHeight is how many rows fit below the header.

@@ -9,8 +9,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
+	"streambeats/internal/settings"
 )
 
 // Launch boots the TUI with the given catalog and blocks until the user quits.
@@ -48,12 +51,28 @@ func Launch(cat *catalog.Catalog) error {
 		defer stopProcess(proc)
 	}
 
+	// Theme resolution (Phase A): the persisted choice wins; an absent or
+	// malformed settings file falls back to System on the detected
+	// background (S4: the TUI never crashes over settings). The store goes
+	// on Options so the Config screen can also persist (R3-config-not-
+	// persisted, review lineage review-d1aeb96ca49e64a5): loading without
+	// wiring the store back in breaks the write path at the junction point.
+	settingsStore, settingsErr := settings.DefaultStore()
+	theme := ""
+	if settingsErr == nil {
+		if user, err := settingsStore.Load(); err == nil {
+			theme = user.Theme
+		}
+	}
 	opts := Options{
-		Catalog:      cat,
-		LibraryFiles: files,
-		LibraryRoot:  root,
-		PlayerNote:   playerNote,
-		Resolver:     catalog.NewClient(),
+		Catalog:       cat,
+		LibraryFiles:  files,
+		LibraryRoot:   root,
+		PlayerNote:    playerNote,
+		Resolver:      catalog.NewClient(),
+		Theme:         theme,
+		ThemeDark:     lipgloss.HasDarkBackground(),
+		SettingsStore: settingsStore,
 	}
 	if client != nil {
 		opts.Player = client

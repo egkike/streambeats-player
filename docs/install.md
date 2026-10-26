@@ -30,6 +30,7 @@ Everything, user-level, under one `--prefix` (default `~/.local`):
 | `$PREFIX/share/applications/streambeats-panel.desktop` | generated KRunner/menu entry (4 side actions, absolute Exec/Icon) |
 | `$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg` | launcher icon |
 | `$PREFIX/share/streambeats/assets/kwin/window-rules.md` | KWin floating rules + keybind steps |
+| `$XDG_CONFIG_HOME/streambeats/` (default `~/.config/streambeats/`) | config dir created by the installer; the TUI writes `settings.json` (theme choice) there on first change |
 
 The shared tree mirrors the repository layout (`bin/` + `scripts/` +
 `assets/`) precisely so `streambeats-quick` keeps resolving its tree via
@@ -87,8 +88,9 @@ deletes the registry the installer records at
 streambeats uninstall          # add --cache to also clear the catalog cache
 ```
 
-Your `~/Music/StreamBeats` local library (downloaded albums) is user data:
-nothing above ever touches it.
+Your `~/Music/StreamBeats` local library (downloaded albums) and your
+`~/.config/streambeats/settings.json` (theme choice) are user data:
+nothing above ever touches them.
 
 Manual inventory for installs from a pre-CLI version (v1.2.x and older)
 — the same paths the installer used to echo:

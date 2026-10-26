@@ -16,6 +16,7 @@ var keys = struct {
 	Enter      key.Binding
 	Back       key.Binding
 	Library    key.Binding
+	Config     key.Binding
 	Pause      key.Binding
 	Stop       key.Binding
 	VolumeUp   key.Binding
@@ -29,6 +30,7 @@ var keys = struct {
 	Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open/play")),
 	Back:       key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	Library:    key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "library")),
+	Config:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "settings")),
 	Pause:      key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "pause/resume")),
 	Stop:       key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "stop")),
 	VolumeUp:   key.NewBinding(key.WithKeys("+", "="), key.WithHelp("+", "volume up")),
@@ -41,7 +43,7 @@ var keys = struct {
 // helpLines renders the footer hints, split in two short rows so they survive
 // narrow terminals.
 func helpLines() []string {
-	navigation := []key.Binding{keys.Up, keys.Down, keys.Enter, keys.Back, keys.Library}
+	navigation := []key.Binding{keys.Up, keys.Down, keys.Enter, keys.Back, keys.Library, keys.Config}
 	playback := []key.Binding{keys.Pause, keys.Stop, keys.QueueNext, keys.QueuePrev, keys.VolumeUp, keys.VolumeDown, keys.Quit}
 	return []string{formatHelp(navigation), formatHelp(playback)}
 }
