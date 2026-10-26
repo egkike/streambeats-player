@@ -98,11 +98,14 @@ EOF
 }
 
 # run_installer <prefix> [args...] — all overrides point at the staged tree.
+# XDG_CONFIG_HOME is staged too: the installer creates the config dir (Phase
+# A, issue #35); no scenario may ever touch the real user config.
 run_installer() {
 	local prefix="$1"; shift
 	STREAMBEATS_API_URL="file://$STAGE/api" \
 		STREAMBEATS_RAW_URL="file://$STAGE/raw" \
 		STREAMBEATS_INSTALL_PREFIX="$prefix" \
+		XDG_CONFIG_HOME="$Fx/user-config" \
 		"$SCRIPT_UNDER_TEST" --version v1.1.0 "$@"
 }
 
@@ -429,6 +432,50 @@ if grep -qxF "$SHARE9" "$SHARE9/manifest.txt"; then
 	pass "manifest still lists the share root"
 else
 	fail "manifest lost the share root entry"
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario 10: CONFIG DIR SHIPS (Phase A issue #35 S3) — the installer
+# creates the streambeats config dir and advertises the settings file as
+# user data; the manifest NEVER lists it (uninstall never deletes user
+# config; preservation itself is pinned in cmd/streambeats/uninstall_test.go).
+# ---------------------------------------------------------------------------
+STAGE="$Fx/stage10"
+PREFIX="$Fx/prefix10"
+mkdir -p "$STAGE/api/releases/tags"
+stage_fake_release "$STAGE/artifacts" 1
+cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
+say "scenario 10: config dir ships with the install (Phase A)"
+OUT10="$Fx/out10"
+ERR10="$Fx/err10"
+run_installer "$PREFIX" >"$OUT10" 2>"$ERR10" || {
+	fail "scenario 10 installer exited non-zero"
+	say "stderr: $(cat "$ERR10")"
+	exit 1
+}
+CFG10="$Fx/user-config/streambeats"
+if [ -d "$CFG10" ]; then
+	pass "config dir created at XDG_CONFIG_HOME/streambeats"
+else
+	fail "config dir not created ($CFG10 missing)"
+fi
+if grep -q "settings.json" "$OUT10"; then
+	pass "summary advertises the settings file path"
+else
+	fail "summary missing the settings.json advertisement"
+fi
+if grep -q "user data" "$OUT10" $Fx/err10 2>/dev/null; then
+	pass "settings advertised as user data (uninstall keeps it)"
+else
+	fail "settings not advertised as user data"
+fi
+# The manifest must NOT list the config dir: uninstall deletes manifest
+# paths only, and user config must never ride on that list.
+SHARE10="$PREFIX/share/streambeats"
+if grep -q "$CFG10" "$SHARE10/manifest.txt" 2>/dev/null; then
+	fail "manifest lists the config dir (uninstall would delete user data)"
+else
+	pass "manifest does not list the config dir"
 fi
 
 say "----------------------------------------"

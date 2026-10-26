@@ -56,8 +56,9 @@ rm -rf ~/.local/share/streambeats \
 rm -rf ~/.cache/streambeats
 ```
 
-Your `~/Music/StreamBeats` local library (downloaded albums) is user data:
-nothing above ever touches it.
+Your `~/Music/StreamBeats` local library (downloaded albums) and your
+`~/.config/streambeats/settings.json` (theme choice) are user data:
+nothing above ever touches them.
 
 ## Requirements
 
