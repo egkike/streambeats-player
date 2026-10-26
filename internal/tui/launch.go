@@ -5,9 +5,15 @@ package tui
 // binary (or its socket) is unavailable.
 
 import (
+	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	gterm "github.com/charmbracelet/x/term"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -15,6 +21,57 @@ import (
 	"streambeats/internal/player"
 	"streambeats/internal/settings"
 )
+
+// debugInputLog opens the diagnostic input log when STREAMBEATS_DEBUG_INPUT
+// is set: raw input bytes are appended there via the returned tee reader and
+// the same file receives one line per tea.Msg through the model hook.
+// Disabled by default; everything lives in the user's own cache dir.
+func debugInputLog() (*os.File, io.Reader, func(string)) {
+	if os.Getenv("STREAMBEATS_DEBUG_INPUT") == "" {
+		return nil, nil, nil
+	}
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return nil, nil, nil
+	}
+	path := filepath.Join(base, "streambeats", "input-debug.log")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return nil, nil, nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return nil, nil, nil
+	}
+	stamp := func() string { return time.Now().Format("15:04:05.000") }
+	logf := func(msg string) {
+		fmt.Fprintf(f, "%s MSG %s\n", stamp(), msg)
+	}
+	fmt.Fprintf(f, "%s === debug-input session ===\n", stamp())
+	return f, io.TeeReader(os.Stdin, &debugRawWriter{f: f}), logf
+}
+
+// rawStdinState puts the terminal in raw mode for the diagnostic kit (a
+// non-File reader hides the TTY from bubbletea, so we own it) and returns
+// the saved state for restore. nil when stdin is not a TTY (tests, units).
+func rawStdinState() *gterm.State {
+	state, err := gterm.MakeRaw(os.Stdin.Fd())
+	if err != nil {
+		return nil // not a TTY: canonical mode, the kit degrades gracefully
+	}
+	return state
+}
+
+// debugRawWriter logs every chunk of terminal input before bubbletea parses
+// it, so a real-device click shows the exact bytes.
+type debugRawWriter struct{ f *os.File }
+
+func (w *debugRawWriter) Write(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	fmt.Fprintf(w.f, "%s RAW % x\n", time.Now().Format("15:04:05.000"), b)
+	return len(b), nil
+}
 
 // Launch boots the TUI with the given catalog and blocks until the user quits.
 func Launch(cat *catalog.Catalog) error {
@@ -80,7 +137,22 @@ func Launch(cat *catalog.Catalog) error {
 
 	// Phase B (issue #37): cell-motion mouse enables the transport button
 	// clicks (S1); AllMotion is overkill here (no hover interactions).
-	program := tea.NewProgram(NewModel(opts), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	// Diagnostic input kit (STREAMBEATS_DEBUG_INPUT): never on by default.
+	debugFile, debugReader, debugLog := debugInputLog()
+	if debugFile != nil {
+		defer func() { _ = debugFile.Close() }()
+		opts.Debug = debugLog
+		if st := rawStdinState(); st != nil {
+			defer func() { _ = gterm.Restore(os.Stdin.Fd(), st) }()
+		}
+	}
+	programOpts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
+	if debugReader != nil {
+		// Tee the terminal input BEFORE bubbletea parses it: the log then
+		// holds the exact bytes the real terminal sent per click.
+		programOpts = append(programOpts, tea.WithInput(debugReader))
+	}
+	program := tea.NewProgram(NewModel(opts), programOpts...)
 	_, err = program.Run()
 	return err
 }
