@@ -47,10 +47,9 @@ const (
 	defaultWidth  = 80
 	// chromeLines is the vertical space OUTSIDE the list viewport, computed
 	// exactly: title(1) + separator(1) + header(1) + player bar(2) +
-	// reserved status slot(1) + help lines(2). The old value (9) overcounted
-	// the help block and left every panel one line short — the visible dead
-	// space at the bottom edge (issue #31).
-	chromeLines = 8
+	// buttons(1) + reserved status slot(1) + help lines(2). Phase B (issue
+	// #37) added the transport row between the bar and the status slot.
+	chromeLines = 9
 )
 
 // View renders the whole screen. It must stay side-effect free.
@@ -74,6 +73,9 @@ func (m Model) View() string {
 	)
 	lines = append(lines, m.listRows()...)
 	lines = append(lines, m.playerBarLines()...)
+	// Transport buttons (Phase B, issue #37 S1/S2): the SAME actions the
+	// keybinds offer, click-to-press. Between the bar and the status slot.
+	lines = append(lines, m.buttonsLine())
 	// Reserved status slot (S4): always one line, blank when empty, so the
 	// bottom block holds a fixed position.
 	lines = append(lines, m.statusLine())
@@ -98,6 +100,91 @@ func (m Model) statusLine() string {
 		return ""
 	}
 	return m.statusStyle().Render("! " + m.status)
+}
+
+// buttonKind names one clickable transport button (issue #37 S1).
+type buttonKind string
+
+const (
+	btnPrev   buttonKind = "prev"
+	btnToggle buttonKind = "toggle"
+	btnStop   buttonKind = "stop"
+	btnNext   buttonKind = "next"
+	btnVolume buttonKind = "volume"
+)
+
+// buttonSpan is one clickable area of the buttons row. Start/Width are
+// columns within the row (0-based), shared by the renderer and the mouse
+// hit-test so they can never drift apart.
+type buttonSpan struct {
+	Start, Width int
+	Kind         buttonKind
+}
+
+// buttonsRowY is the 0-based panel row of the transport buttons (bottom
+// block: player bar(2) + buttons(1) + status(1) + help(2)).
+func (m Model) buttonsRowY() int {
+	if m.height <= 0 {
+		return -1
+	}
+	return m.height - 4
+}
+
+// buttonLayout lays out the transport row for the CURRENT model state: the
+// glyph table lives here once, so the renderer and hit-test agree by
+// construction (S2: the row is the keybinds, not a second action path).
+func (m Model) buttonLayout() []buttonSpan {
+	labels := []struct {
+		Kind  buttonKind
+		Glyph string
+	}{
+		{btnPrev, "⏮"},
+		{btnToggle, toggleGlyph(m.playing, m.paused)},
+		{btnStop, "⏹"},
+		{btnNext, "⏭"},
+		{btnVolume, "🔊"},
+	}
+	spans := make([]buttonSpan, 0, len(labels))
+	col := 0
+	for i, b := range labels {
+		w := lipgloss.Width(b.Glyph)
+		spans = append(spans, buttonSpan{Start: col, Width: w, Kind: b.Kind})
+		col += w
+		if i < len(labels)-1 {
+			col += 2 // two-space gap; also part of the row text below
+		}
+	}
+	return spans
+}
+
+// toggleGlyph is the ⏯ label per playback state.
+func toggleGlyph(playing, paused bool) string {
+	if playing && !paused {
+		return "⏸"
+	}
+	return "▶"
+}
+
+// buttonsLine renders the row the layout table describes.
+func (m Model) buttonsLine() string {
+	if m.buttonsRowY() < 0 {
+		return ""
+	}
+	glyphs := []struct {
+		Kind  buttonKind
+		Glyph string
+	}{
+		{btnPrev, "⏮"},
+		{btnToggle, toggleGlyph(m.playing, m.paused)},
+		{btnStop, "⏹"},
+		{btnNext, "⏭"},
+		{btnVolume, "🔊"},
+	}
+	parts := make([]string, 0, len(glyphs))
+	for _, g := range glyphs {
+		parts = append(parts, g.Glyph)
+	}
+	return strings.Join(parts, "  ")
 }
 
 // headerView names the focused list.

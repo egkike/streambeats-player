@@ -227,6 +227,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case tea.MouseMsg:
+		// Transport clicks (Phase B): the buttons ROUTE to the same
+		// handlers as keybinds (S2); in config mode they are inert, like
+		// every playback binding (config owns the keyboard).
+		if m.mode == ModeConfig {
+			return m, nil
+		}
+		return m.handleMouseMsg(msg)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
@@ -609,6 +617,37 @@ func (m Model) changeVolume(delta int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, changeVolumeCmd(m.player, delta)
+}
+
+// handleMouseMsg dispatches one mouse event. Only plain left-presses on
+// the transport row act; every hit maps through buttonLayout spans onto the
+// SAME handlers the keybinds use (S2), so there is no second action path.
+func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return m, nil // motion/release/wheel: nothing (S6)
+	}
+	if row := m.buttonsRowY(); row < 0 || msg.Y != row {
+		return m, nil // clicks outside the transport row (S6)
+	}
+	x := msg.X
+	for _, span := range m.buttonLayout() {
+		if x < span.Start || x >= span.Start+span.Width {
+			continue
+		}
+		switch span.Kind {
+		case btnPrev:
+			return m.queuePrev()
+		case btnToggle:
+			return m.togglePause()
+		case btnStop:
+			return m.stopPlayback()
+		case btnNext:
+			return m.queueNext()
+		case btnVolume:
+			return m.changeVolume(volumeStep)
+		}
+	}
+	return m, nil // gaps between glyphs (S6)
 }
 
 // selectedAlbum returns the highlighted album, clamped to the list.

@@ -78,7 +78,9 @@ func Launch(cat *catalog.Catalog) error {
 		opts.Player = client
 	}
 
-	program := tea.NewProgram(NewModel(opts), tea.WithAltScreen())
+	// Phase B (issue #37): cell-motion mouse enables the transport button
+	// clicks (S1); AllMotion is overkill here (no hover interactions).
+	program := tea.NewProgram(NewModel(opts), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err = program.Run()
 	return err
 }

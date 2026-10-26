@@ -40,12 +40,17 @@ var keys = struct {
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }
 
-// helpLines renders the footer hints, split in two short rows so they survive
-// narrow terminals.
+// helpLines renders the footer hints. Phase B (issue #37 S3, owner quote:
+// "ambas lineas son más largas que el ancho de la ventana"): two compact
+// rows, each bounded well under the 52-col panel so the view never
+// truncates them. The BINDINGS above remain the only behavioral source of
+// truth: these rows only list them tersely; adding a binding means adding
+// it to a row too (TestHelpTextListsEveryAction pins the pairing).
 func helpLines() []string {
-	navigation := []key.Binding{keys.Up, keys.Down, keys.Enter, keys.Back, keys.Library, keys.Config}
-	playback := []key.Binding{keys.Pause, keys.Stop, keys.QueueNext, keys.QueuePrev, keys.VolumeUp, keys.VolumeDown, keys.Quit}
-	return []string{formatHelp(navigation), formatHelp(playback)}
+	return []string{
+		"k/↑  j/↓  enter open  esc back  l lib  c theme",
+		"space ⏯  s ⏹  < > ⏮⏭  +/- 🔊  q quit",
+	}
 }
 
 // helpText joins the hint rows (used by tests and docs).

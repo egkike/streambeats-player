@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"streambeats/internal/catalog"
 )
@@ -162,7 +163,7 @@ func TestTruncate(t *testing.T) {
 
 func TestHelpTextListsEveryAction(t *testing.T) {
 	help := helpText()
-	for _, want := range []string{"j/down", "k/up", "enter", "esc", "l", "space", "s", "+", "-", "next song", "prev song", "q"} {
+	for _, want := range []string{"k/↑", "j/↓", "enter", "esc", "l", "space", "s", "< >", "+/-", "q"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help text %q is missing %q", help, want)
 		}
@@ -266,5 +267,17 @@ func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
 	rendered := strings.Count(strings.TrimSuffix(m.View(), "\n"), "\n") + 1
 	if rendered != 24 {
 		t.Fatalf("rendered %d lines for a 24-row panel, want full-height paint", rendered)
+	}
+}
+
+// S3 (issue #37, owner verbatim): both help lines must fit the 52-column
+// floating panel WITHOUT truncation ("ambas lineas son más largas que el
+// ancho de la ventana"). Bounding the content here means the renderer's
+// truncate() never fires on the help block.
+func TestHelpLinesFitThePanelWidthR31B(t *testing.T) {
+	for i, line := range helpLines() {
+		if got := utf8.RuneCountInString(line); got > 52 {
+			t.Fatalf("help line %d is %d runes (>52, it truncates on the panel): %q", i, got, line)
+		}
 	}
 }
