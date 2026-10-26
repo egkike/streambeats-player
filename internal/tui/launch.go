@@ -38,7 +38,7 @@ func debugInputLog() (*os.File, io.Reader, func(string)) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, nil, nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) //nolint:gosec // G304: path is the user's own cache dir (os.UserCacheDir + fixed name); never attacker-supplied
 	if err != nil {
 		return nil, nil, nil
 	}
