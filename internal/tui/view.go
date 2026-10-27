@@ -108,25 +108,65 @@ func navHints() string {
 	return "↑↓ k/j  enter open  esc back  l lib  c theme  q quit"
 }
 
-// keycaps is the cap list of the transport row (Alt A, issue #60): one
-// icon+key pair per cap, rendered later by keycapsView. S6 width-safety: the
-// original ␣/± tokens are EAW-ambiguous and drifted the cap borders off the
-// frame in the owner's real panel; spc and +/- are unambiguous ASCII, and
-// together with the emoji+VS16 tokens are the only width-stable glyphs.
-var keycaps = []string{"⏮️ p", "⏯️ spc", "⏹️ s", "⏭️ n", "🔊 +/-"}
+// Solo Teclado width calibration (issue #60 S6/L8, CPR probe): ghostty
+// 1.3.1 with the panel preset (grapheme-width-method = legacy) paints the
+// transport emoji family at ONE cell — NOT the 2 cells lipgloss assumes —
+// while 🔊 paints 2. Border widths are built from this measured table so
+// the frame closes even where measured ≠ painted width (round-6 span
+// doctrine: hand-rolled spans calibrated on the real panel beat word-wide
+// rune measurement).
+var keycapIconWidths = map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
+
+// keycapSpec is one cap: an icon from the calibrated table plus an ASCII key.
+type keycapSpec struct {
+	icon, key string
+}
+
+var keycaps = []keycapSpec{
+	{"⏮️", "p"},
+	{"⏯️", "spc"},
+	{"⏹️", "s"},
+	{"⏭️", "n"},
+	{"🔊", "+/-"},
+}
+
+// keycapIconWidth is the calibrated painted width of an icon (CPR probe on
+// the panel preset): the transport family paints 1 cell, 🔊 2. Uncalibrated
+// icons fall back to the widest assumption so a new icon can't silently
+// shrink a frame.
+func keycapIconWidth(icon string) int {
+	if w, ok := keycapIconWidths[icon]; ok {
+		return w
+	}
+	return 2
+}
+
+// keycapInterior is the painted interior width of one cap: " icon key " —
+// icon via the calibrated table, key by ASCII rune count. Built from the
+// probe table, never from lipgloss's rune measurement (S6).
+func keycapInterior(c keycapSpec) int {
+	return 3 + keycapIconWidth(c.icon) + len([]rune(c.key))
+}
 
 // keycapsView renders the playback transport as rounded keycaps (Alt A):
-// one row per key + icon pair, visual only — the keyboard does the work.
+// one cap per icon+key pair, visual only — the keyboard does the work. The
+// borders are HAND-BUILT along the calibrated interior widths: the owner's
+// ghostty paints the transport icons one cell narrower than lipgloss
+// measures, so an auto-measured frame drifts off (issue #60 S6).
 func (m Model) keycapsView() string {
-	capStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.palette.Bar)).
-		Padding(0, 1)
-	caps := make([]string, 0, len(keycaps))
-	for _, k := range keycaps {
-		caps = append(caps, capStyle.Render(k))
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
+
+	tops := make([]string, 0, len(keycaps))
+	mids := make([]string, 0, len(keycaps))
+	bottoms := make([]string, 0, len(keycaps))
+	for _, c := range keycaps {
+		w := keycapInterior(c)
+		fill := w - (2 + keycapIconWidth(c.icon) + len([]rune(c.key))) // right pad space (always 1: keys are ASCII)
+		tops = append(tops, style.Render("╭"+strings.Repeat("─", w)+"╮"))
+		mids = append(mids, style.Render("│ "+c.icon+" "+c.key+strings.Repeat(" ", fill)+"│"))
+		bottoms = append(bottoms, style.Render("╰"+strings.Repeat("─", w)+"╯"))
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center, caps...)
+	return strings.Join(tops, "") + "\n" + strings.Join(mids, "") + "\n" + strings.Join(bottoms, "")
 }
 
 // headerView names the focused list.

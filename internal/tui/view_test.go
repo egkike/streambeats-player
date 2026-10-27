@@ -262,40 +262,53 @@ func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
 	}
 }
 
-// Solo Teclado width-safety (issue #60 S6, owner report "Las letras e iconos
-// no cuadran bien en los botones"): every cap token must have a width BOTH
-// of ghostty's grapheme-width-method choices agree on — emoji+VS16 (2 cells,
-// the tokens validated live by the v1.5.2 button row) and ASCII (1 cell).
-// EAW-ambiguous tokens (␣ U+2423, ± U+00B1, …) drift between the methods:
-// lipgloss measures one way, the terminal draws the other, and the inner
-// │ borders wander off the frame.
-func TestKeycapContentsAreWidthSafe(t *testing.T) {
-	for _, cap := range keycaps {
-		for _, r := range cap {
-			safe := r == 0xFE0F || // VS16: force emoji presentation
-				r == 0x1F50A || // 🔊 (non-BMP, wide in both methods)
-				r == 0x23EE || r == 0x23EF || r == 0x23F9 || r == 0x23ED || // ⏮⏯⏹⏭ (via VS16)
-				(r >= 0x20 && r < 0x7F) // printable ASCII
-			if !safe {
-				t.Fatalf("cap %q has width-ambiguous token %q (U+%04X): the caps must only use emoji+VS16 or ASCII", cap, r, r)
+// Solo Teclado width calibration (issue #60 S6/L8): the caps' borders must
+// close on the OWNER's panel, where ghostty 1.3.1 preset-only runs
+// grapheme-width-method = legacy and paints the transport emoji family at
+// ONE cell while lipgloss measures TWO (CPR probe: ESC[6n cursor reports —
+// every emoji base x20 lands on the same column as the ASCII baseline;
+// 🔊 lands 20 columns further, i.e. 2 cells). The guard pins the measured
+// table so the hand-built rows drift-proof; icons outside the table are a
+// test failure, not an auto-guess.
+func TestKeycapWidthsMatchTheCalibratedTable(t *testing.T) {
+	want := map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
+	if len(keycapIconWidths) != len(want) {
+		t.Fatalf("keycapIconWidths = %v, want the calibrated table %v (measured by the CPR probe)", keycapIconWidths, want)
+	}
+	for icon, width := range want {
+		if got := keycapIconWidth(icon); got != width {
+			t.Fatalf("keycapIconWidth(%q) = %d, calibrated %d (CPR probe)", icon, got, width)
+		}
+	}
+	for _, c := range keycaps {
+		if _, ok := keycapIconWidths[c.icon]; !ok {
+			t.Fatalf("cap icon %q is not in the calibrated width table", c.icon)
+		}
+		for _, r := range c.key {
+			if r < 0x20 || r >= 0x7f {
+				t.Fatalf("cap key %q must be plain ASCII (painted = counted), got %q", c.key, c.key)
 			}
+		}
+		if got := keycapInterior(c); got != 3+keycapIconWidth(c.icon)+len([]rune(c.key)) {
+			t.Fatalf("keycapInterior(%v) = %d, want 3 + calibrated icon width + key runes", c, got)
 		}
 	}
 }
 
-// Solo Teclado (issue #60 S3): the transport IS the keycap row now — rounded
-// borders, and exactly the five approved icon+key pairs. The keys shown are
-// real bindings from keys.go ('< p' prev, '> n' next), so the row can never
-// advertise a key the TUI doesn't handle.
+// Solo Teclado (issue #60 S3+S6): the keycap row renders the approved
+// icon+key pairs and the borders CLOSE along the calibrated widths: icons
+// ⏮️⏯️⏹️⏭️ = 1 cell, 🔊 = 2 (CPR probe) — so the interiors are 5/7/5/5/8 and
+// the frames are 7/9/7/7/10 wide end to end.
 func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
 	m := layoutModel("")
 	m.width, m.height = 52, 24
 	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
 	caps := strings.Join(rows[20:23], "\n")
-	if !strings.Contains(caps, "\u256d") || !strings.Contains(caps, "\u2570") {
-		t.Fatalf("keycaps missing rounded borders:\n%s", caps)
-	}
-	for _, want := range []string{"\u23ee\ufe0f p", "\u23ef\ufe0f spc", "\u23f9\ufe0f s", "\u23ed\ufe0f n", "\U0001f50a +/-"} {
+	for _, want := range []string{
+		"\u256d─────\u256e\u256d───────\u256e\u256d─────\u256e\u256d─────\u256e\u256d────────\u256e",
+		"│ \u23ee\ufe0f p │", "│ \u23ef\ufe0f spc │", "│ \u23f9\ufe0f s │", "│ \u23ed\ufe0f n │", "│ \U0001f50a +/- │",
+		"\u2570─────\u256f\u2570───────\u256f\u2570─────\u256f\u2570─────\u256f\u2570────────\u256f",
+	} {
 		if !strings.Contains(caps, want) {
 			t.Fatalf("keycaps missing %q:\n%s", want, caps)
 		}
