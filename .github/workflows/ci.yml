@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      installer: ${{ steps.filter.outputs.installer }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -50,6 +51,11 @@ jobs:
               - 'cmd/**'
               - 'scripts/**'
               - '.golangci.yml'
+              - '.github/workflows/ci.yml'
+            installer:
+              - 'scripts/**'
+              - 'go.mod'
+              - 'go.sum'
               - '.github/workflows/ci.yml'
 
   ci:
@@ -99,6 +105,19 @@ jobs:
         if: needs.changes.outputs.code == 'true'
         run: go build -o /dev/null ./...
 
+      # Issue #66: the Linux pipeline only builds for linux, so a darwin-only
+      # compilation break would otherwise surface at release time. The
+      # cross-builds cost seconds on this same runner and gate every Go PR;
+      # the NATIVE macOS smoke stays scoped to installer-relevant changes
+      # (its runner pool is small and starves under load).
+      - name: Cross-build darwin amd64
+        if: needs.changes.outputs.code == 'true'
+        run: GOOS=darwin GOARCH=amd64 go build -o /dev/null ./...
+
+      - name: Cross-build darwin arm64
+        if: needs.changes.outputs.code == 'true'
+        run: GOOS=darwin GOARCH=arm64 go build -o /dev/null ./...
+
       - name: Test (race enabled)
         if: needs.changes.outputs.code == 'true'
         run: go test -v -race -count=1 ./...
@@ -114,7 +133,12 @@ jobs:
   install-macos:
     name: Install macOS
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # Issue #66: the native smoke verifies the installer story (install.sh,
+    # deps, workflow) — narrowed from `code` so Go-only PRs skip the small,
+    # starvation-prone macOS runner pool. Darwin COMPILATION stays gated on
+    # every Go PR via the cross-builds above; a skipped instance here is
+    # still reported as a satisfying required check (#16 doctrine).
+    if: needs.changes.outputs.installer == 'true'
     runs-on: macos-14
     timeout-minutes: 20
     steps:
