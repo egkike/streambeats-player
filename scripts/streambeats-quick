@@ -109,15 +109,19 @@ printf '%s\n' \
 # config path. `--config=<path>` is NOT a real Ghostty option (see
 # ghostty discussions #9434/#10058): passing it makes the GTK runtime report
 # `config: unknown field` for a pseudo-config built from the CLI arguments.
+#
+# Round-7 (issue #57 follow-up): the panel runs PRESET-ONLY — the user's
+# personal ghostty config is deliberately NOT merged. Evidence: with the
+# user config merged, the owner's custom GLSL shader rescales the rendered
+# surface and ghostty's mouse pixel→cell mapping drifts linearly with the
+# row (clicks at painted rows 42/20/5 reported 3/19/5 on their install),
+# so every transport click landed on a different list row. The clean,
+# preset-only config was verified pixel-perfect on the same machine. The
+# panel is a utility window: fixed look, fixed behavior.
 confdir=$(mktemp -d "${TMPDIR:-/tmp}/streambeats-ghostty.XXXXXX") ||
 		die "cannot create temp config dir"
 mkdir "$confdir/ghostty"
-# Preserve the user's personal Ghostty settings (theme, fonts), then apply
-# the preset on top so its keys win.
-if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config" ]; then
-	cat "${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config" > "$confdir/ghostty/config"
-fi
-cat "$preset" >> "$confdir/ghostty/config"
+cp "$preset" "$confdir/ghostty/config"
 
 printf 'streambeats-quick: side=%s preset=%s player=%s\n' "$side" "$preset" "$player_bin" >&2
 printf '%s\n' \

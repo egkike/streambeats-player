@@ -686,6 +686,17 @@ func (m Model) handleZoneClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return m, nil // motion/release/wheel: nothing (S6)
 	}
+	// Kit telemetry (round-6 verification pass): dump every registered zone
+	// with its bounds, then which zone matched this click.
+	if m.debug != nil {
+		for _, id := range []string{"btn-prev", "btn-toggle", "btn-stop", "btn-next", "btn-volume", "alb-row-0", "lib-row-0", "cat-row-0"} {
+			if z := zone.Get(id); z != nil && !z.IsZero() {
+				m.debug(fmt.Sprintf("ZONE %s bounds=[%d,%d .. %d,%d] (click x=%d y=%d)", id, z.StartX, z.StartY, z.EndX, z.EndY, msg.X, msg.Y))
+			} else {
+				m.debug(fmt.Sprintf("ZONE %s UNREGISTERED (click x=%d y=%d)", id, msg.X, msg.Y))
+			}
+		}
+	}
 	if zone.Get("btn-prev").InBounds(msg) {
 		return m.jukePrev()
 	}
@@ -701,33 +712,41 @@ func (m Model) handleZoneClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if zone.Get("btn-volume").InBounds(msg) {
 		return m.changeVolume(volumeStep)
 	}
-	// Music rows: resolve against the focused list's typed row zones. The
-	// marks carry the ITEM index (the actual list position), so a windowed
-	// list dispatches the clicked item even when the window scrolls.
-	prefix := "alb-row"
-	count := len(m.albums)
-	switch {
-	case m.mode == ModeLibrary:
-		prefix, count = "lib-row", len(m.library)
-	case m.inTracks:
-		album, ok := m.selectedAlbum()
-		if !ok {
-			return m, nil
-		}
-		prefix, count = "cat-row", len(album.Tracks)
-	}
+	// Music rows: resolve against the focused list's typed row zones.
+	prefix, count := m.rowZoneSet()
 	for i := 0; i < count; i++ {
 		if z := zone.Get(fmt.Sprintf("%s-%d", prefix, i)); z != nil && z.InBounds(msg) {
+			if m.debug != nil {
+				m.debug(fmt.Sprintf("ROW-HIT %s-%d → select %d + play", prefix, i, i))
+			}
 			m.selectListRow(i)
 			return m.activateSelection()
 		}
 	}
+	if m.debug != nil {
+		m.debug("ZONE click resolved to nothing (x,y outside every zone)")
+	}
 	return m, nil
 }
 
+// rowZoneSet returns the row-zone prefix and item count of the focused list.
+func (m Model) rowZoneSet() (prefix string, count int) {
+	switch {
+	case m.mode == ModeLibrary:
+		return "lib-row", len(m.library)
+	case m.inTracks:
+		album, ok := m.selectedAlbum()
+		if !ok {
+			return "cat-row", 0
+		}
+		return "cat-row", len(album.Tracks)
+	default:
+		return "alb-row", len(m.albums)
+	}
+}
+
 // selectListRow moves the browsing cursor of the focused list to a row
-// WITHOUT changing playback (playing stays; Enter starts what it points
-// at). Config rows are not selectable because configKey owns that screen.
+// WITHOUT changing playback (playing stays; the dispatch decides playback).
 func (m *Model) selectListRow(idx int) {
 	switch {
 	case m.mode == ModeLibrary:
