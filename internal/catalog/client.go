@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,9 +18,21 @@ type Client struct {
 	HTTP    *http.Client
 }
 
-// NewClient returns a client with the default Bandcamp base URL.
+// NewClient returns a client with the default Bandcamp base URL. The dialer
+// bounds each TCP attempt at 5s: without it, a dropped SYN to one Fastly
+// edge IP stalls on kernel retransmissions (~7.5s observed) before the
+// next address is tried; the ResolveStream retry then recovers on a
+// healthy one (issue #62 evidence).
 func NewClient() *Client {
-	return &Client{HTTP: &http.Client{Timeout: 30 * time.Second}}
+	return &Client{HTTP: &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   5 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+		},
+	}}
 }
 
 func (c *Client) get(path string) (string, error) {

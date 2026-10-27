@@ -578,7 +578,7 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		}
 		m.inTracks = true
 		m.trackCursor = 0
-		return m, nil
+		return m, m.seedPrefetchCmd(album)
 	}
 
 	album, ok := m.selectedAlbum()
@@ -602,7 +602,18 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 	m.playingAlbum = m.albumCursor
 	m.playingTrack = clampCursor(m.trackCursor, len(album.Tracks))
 	m.playingLib = -1
-	return m, resolveAndPlayCmd(m.player, m.resolve, album, track)
+	// The fresh resolve takes a visible network roundtrip (Bandcamp tokens
+	// expire — invariant 2): state the wait instead of leaving the panel
+	// silent. loadedMsg clears it on success and replaces it on failure.
+	m.status = "resolving stream…"
+	// A prefetch seeded on album open (or on the previous advance) cuts the
+	// whole resolve out of this load when it matches the exact track; any
+	// mismatch or stale token falls back to a fresh resolve.
+	prefetch := ""
+	if m.prefetchSlug == track.Slug {
+		prefetch = m.prefetchURL
+	}
+	return m, advanceCatalogCmd(m.player, m.resolve, album, track, prefetch)
 }
 
 // togglePause flips the pause state through the player.
@@ -885,15 +896,18 @@ func (m Model) prefetchNextCmd() (tea.Cmd, bool) {
 	if next >= len(album.Tracks) {
 		return nil, false
 	}
-	track := album.Tracks[next]
-	cmd := func() tea.Msg {
-		url, err := m.resolve.ResolveStream(album.Slug, track.Slug)
+	return prefetchCmdFor(m.resolve, album, album.Tracks[next]), true
+}
+
+// prefetchCmdFor builds the background resolve for one catalog track.
+func prefetchCmdFor(r Resolver, album catalog.AlbumEntry, track catalog.Track) tea.Cmd {
+	return func() tea.Msg {
+		url, err := r.ResolveStream(album.Slug, track.Slug)
 		if err != nil {
 			return prefetchMsg{err: err}
 		}
 		return prefetchMsg{slug: track.Slug, url: url}
 	}
-	return cmd, true
 }
 
 // advanceCatalogCmd loads track via a prefetched URL when it matches, with
@@ -933,19 +947,20 @@ func changeVolumeCmd(p Player, delta int) tea.Cmd {
 	}
 }
 
-// strategy: resolve first, then load, so the player never sees a stale URL.
-func resolveAndPlayCmd(p Player, r Resolver, album catalog.AlbumEntry, track catalog.Track) tea.Cmd {
-	return func() tea.Msg {
-		url, err := r.ResolveStream(album.Slug, track.Slug)
-		if err != nil {
-			return loadedMsg{err: err}
-		}
-		title := trackTitle(track)
-		if err := playFile(p, url, title); err != nil {
-			return loadedMsg{title: title, err: err}
-		}
-		return loadedMsg{title: title}
+// seedPrefetchCmd resolves the first track of a just-opened album in the
+// background so the eventual first play needs no network wait (issue #62).
+// It fires once per album open — never on cursor movement (Bandcamp
+// courtesy: every fetch is a full album page) — and only when playback is
+// actually available. When the prefetch already matches, it does nothing.
+func (m Model) seedPrefetchCmd(album catalog.AlbumEntry) tea.Cmd {
+	if m.player == nil || m.resolve == nil || len(album.Tracks) == 0 {
+		return nil
 	}
+	track := album.Tracks[0]
+	if m.prefetchSlug == track.Slug {
+		return nil
+	}
+	return prefetchCmdFor(m.resolve, album, track)
 }
 
 // loadFileCmd plays a local file directly, without any stream resolution.

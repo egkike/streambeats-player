@@ -1011,6 +1011,161 @@ func TestPrefetchStaleFallsBackToFreshResolve(t *testing.T) {
 	}
 }
 
+// --- first play: seed prefetch on album open + resolving feedback (issue #62)
+
+// TestAlbumOpenSeedsFirstTrackPrefetch: opening an album's track list fires
+// one background resolve for its first track, so the eventual first play
+// needs no network wait. Exactly one fetch per album open.
+func TestAlbumOpenSeedsFirstTrackPrefetch(t *testing.T) {
+	fake := &fakePlayer{}
+	resolver := &fakeResolver{url: "https://prefetch.example/first"}
+	m := testModel(Options{Player: fake, Resolver: resolver})
+
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // open album one
+	if cmd == nil {
+		t.Fatal("album open should seed a prefetch resolve")
+	}
+	pm, ok := runCmd(t, cmd).(prefetchMsg)
+	if !ok {
+		t.Fatalf("seed command returned %T, want prefetchMsg", cmd)
+	}
+	if pm.slug != "first-song" || pm.url != "https://prefetch.example/first" || pm.err != nil {
+		t.Fatalf("seed msg = %+v, want first-song prefetched", pm)
+	}
+	if calls := resolver.calls; len(calls) != 1 || calls[0] != "album-one/first-song" {
+		t.Fatalf("resolver calls = %v, want one seed of album-one/first-song", calls)
+	}
+}
+
+// TestAlbumOpenSeedGuard: with no player (playback unavailable) or with the
+// matching prefetch already in place, the seed fetch is skipped.
+func TestAlbumOpenSeedGuard(t *testing.T) {
+	resolver := &fakeResolver{url: "https://x/stream"}
+	m := testModel(Options{Resolver: resolver}) // no player
+	if _, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		t.Fatal("seed must not fire without a player")
+	}
+
+	m = testModel(Options{Player: &fakePlayer{}, Resolver: resolver})
+	m.prefetchSlug = "first-song"
+	m.prefetchURL = "https://prefetch.example/first"
+	if _, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		t.Fatal("seed must not refetch when the prefetch already matches")
+	}
+	if len(resolver.calls) != 0 {
+		t.Fatalf("guard path resolved anyway: %v", resolver.calls)
+	}
+}
+
+// TestCursorMoveDoesNotSeedPrefetch: moving through the album list never
+// fetches anything (Bandcamp courtesy — one fetch per album open, never per
+// cursor step).
+func TestCursorMoveDoesNotSeedPrefetch(t *testing.T) {
+	resolver := &fakeResolver{url: "https://x/stream"}
+	m := testModel(Options{Player: &fakePlayer{}, Resolver: resolver})
+	m, cmd := press(t, m, 'j')
+	if cmd != nil {
+		t.Fatal("cursor movement emitted a command")
+	}
+	m, cmd = press(t, m, 'k')
+	if cmd != nil {
+		t.Fatal("cursor movement emitted a command")
+	}
+	if len(resolver.calls) != 0 {
+		t.Fatalf("cursor movement resolved: %v", resolver.calls)
+	}
+}
+
+// TestDirectPlayUsesMatchingPrefetch: the enter/space play path uses a valid
+// prefetch for the exact track, skipping the resolver entirely.
+func TestDirectPlayUsesMatchingPrefetch(t *testing.T) {
+	fake := &fakePlayer{}
+	resolver := &fakeResolver{url: "https://fresh.example/stream"}
+	m := testModel(Options{Player: fake, Resolver: resolver})
+	m.prefetchSlug = "first-song"
+	m.prefetchURL = "https://prefetch.example/first"
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // open album one
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	msg := runCmd(t, cmd)
+	loaded, ok := msg.(loadedMsg)
+	if !ok || loaded.err != nil {
+		t.Fatalf("play returned %T (%v), want loadedMsg", msg, loaded.err)
+	}
+	if len(fake.loaded) != 1 || fake.loaded[0] != "https://prefetch.example/first" {
+		t.Fatalf("loaded = %v, want the prefetched URL", fake.loaded)
+	}
+	if len(resolver.calls) != 0 {
+		t.Fatalf("resolver was re-asked despite a valid prefetch: %v", resolver.calls)
+	}
+}
+
+// TestDirectPlayFallsBackWhenPrefetchMismatch: a prefetch for another track
+// never leaks into this load — the play path resolves fresh.
+func TestDirectPlayFallsBackWhenPrefetchMismatch(t *testing.T) {
+	fake := &fakePlayer{}
+	resolver := &fakeResolver{url: "https://fresh.example/stream"}
+	m := testModel(Options{Player: fake, Resolver: resolver})
+	m.prefetchSlug = "second-song"
+	m.prefetchURL = "https://prefetch.example/wrong"
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	msg := runCmd(t, cmd)
+	if loaded, ok := msg.(loadedMsg); !ok || loaded.err != nil {
+		t.Fatalf("play returned %v, want successful loadedMsg", msg)
+	}
+	if len(fake.loaded) != 1 || fake.loaded[0] != "https://fresh.example/stream" {
+		t.Fatalf("loaded = %v, want the freshly resolved URL", fake.loaded)
+	}
+}
+
+// TestPlayShowsResolvingStatus: a user-initiated play surfaces an immediate
+// "resolving stream…" status so the fresh-resolve wait is visible, and the
+// existing loadedMsg handling clears or replaces it.
+func TestPlayShowsResolvingStatus(t *testing.T) {
+	fake := &fakePlayer{}
+	resolver := &fakeResolver{url: "https://x/stream"}
+	m := testModel(Options{Player: fake, Resolver: resolver})
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // open album one
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if !strings.Contains(m.status, "resolving stream") {
+		t.Fatalf("status during resolve = %q, want the resolving note", m.status)
+	}
+	msg := runCmd(t, cmd)
+	m, _ = update(t, m, msg)
+	if m.status != "" {
+		t.Fatalf("status after success = %q, want empty", m.status)
+	}
+}
+
+// TestSpaceStartsFirstTrackFromAlbumList pins the round-3 parity behavior
+// (issue #42): on a fresh session with nothing playing, space replays the
+// Enter flow — opens the album and starts the first track.
+func TestSpaceStartsFirstTrackFromAlbumList(t *testing.T) {
+	fake := &fakePlayer{}
+	resolver := &fakeResolver{url: "https://x/stream"}
+	m := testModel(Options{Player: fake, Resolver: resolver})
+
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeySpace})
+	if cmd == nil {
+		t.Fatal("space with nothing playing emitted no command")
+	}
+	msg := runCmd(t, cmd)
+	loaded, ok := msg.(loadedMsg)
+	if !ok || loaded.err != nil {
+		t.Fatalf("space replay returned %T (%v), want loadedMsg", msg, loaded.err)
+	}
+	if len(resolver.calls) == 0 {
+		t.Fatal("space replay did not resolve the first track's stream")
+	}
+	m, _ = update(t, m, msg)
+	if m.nowPlaying != "First Song" || !m.playing {
+		t.Fatalf("space replay state: nowPlaying=%q playing=%v", m.nowPlaying, m.playing)
+	}
+}
+
 // --- the doc contract: idle-active drives everything (L29) -------------------
 
 // Regression for the machine-gun (user report: enter alone jumped the whole
