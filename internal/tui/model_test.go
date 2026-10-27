@@ -770,7 +770,7 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 	// Solo Teclado (issue #60): the playback hints live in the keycap row
 	// ("⏯️ ␣"), the nav hints in the dual-status slot — the old help lines
 	// are gone.
-	for _, want := range []string{"streambeats", "First Song", "▶", "0:05 / 0:10", "\u23ef\ufe0f \u2423", "enter open"} {
+	for _, want := range []string{"streambeats", "First Song", "▶", "0:05 / 0:10", "\u23ef\ufe0f spc", "enter open"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("catalog view is missing %q:\n%s", want, out)
 		}

@@ -108,6 +108,13 @@ func navHints() string {
 	return "↑↓ k/j  enter open  esc back  l lib  c theme  q quit"
 }
 
+// keycaps is the cap list of the transport row (Alt A, issue #60): one
+// icon+key pair per cap, rendered later by keycapsView. S6 width-safety: the
+// original ␣/± tokens are EAW-ambiguous and drifted the cap borders off the
+// frame in the owner's real panel; spc and +/- are unambiguous ASCII, and
+// together with the emoji+VS16 tokens are the only width-stable glyphs.
+var keycaps = []string{"⏮️ p", "⏯️ spc", "⏹️ s", "⏭️ n", "🔊 +/-"}
+
 // keycapsView renders the playback transport as rounded keycaps (Alt A):
 // one row per key + icon pair, visual only — the keyboard does the work.
 func (m Model) keycapsView() string {
@@ -115,9 +122,8 @@ func (m Model) keycapsView() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(m.palette.Bar)).
 		Padding(0, 1)
-	keys := []string{"⏮️ p", "⏯️ ␣", "⏹️ s", "⏭️ n", "🔊 ±"}
-	caps := make([]string, 0, len(keys))
-	for _, k := range keys {
+	caps := make([]string, 0, len(keycaps))
+	for _, k := range keycaps {
 		caps = append(caps, capStyle.Render(k))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Center, caps...)

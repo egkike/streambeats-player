@@ -262,6 +262,27 @@ func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
 	}
 }
 
+// Solo Teclado width-safety (issue #60 S6, owner report "Las letras e iconos
+// no cuadran bien en los botones"): every cap token must have a width BOTH
+// of ghostty's grapheme-width-method choices agree on — emoji+VS16 (2 cells,
+// the tokens validated live by the v1.5.2 button row) and ASCII (1 cell).
+// EAW-ambiguous tokens (␣ U+2423, ± U+00B1, …) drift between the methods:
+// lipgloss measures one way, the terminal draws the other, and the inner
+// │ borders wander off the frame.
+func TestKeycapContentsAreWidthSafe(t *testing.T) {
+	for _, cap := range keycaps {
+		for _, r := range cap {
+			safe := r == 0xFE0F || // VS16: force emoji presentation
+				r == 0x1F50A || // 🔊 (non-BMP, wide in both methods)
+				r == 0x23EE || r == 0x23EF || r == 0x23F9 || r == 0x23ED || // ⏮⏯⏹⏭ (via VS16)
+				(r >= 0x20 && r < 0x7F) // printable ASCII
+			if !safe {
+				t.Fatalf("cap %q has width-ambiguous token %q (U+%04X): the caps must only use emoji+VS16 or ASCII", cap, r, r)
+			}
+		}
+	}
+}
+
 // Solo Teclado (issue #60 S3): the transport IS the keycap row now — rounded
 // borders, and exactly the five approved icon+key pairs. The keys shown are
 // real bindings from keys.go ('< p' prev, '> n' next), so the row can never
@@ -274,7 +295,7 @@ func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
 	if !strings.Contains(caps, "\u256d") || !strings.Contains(caps, "\u2570") {
 		t.Fatalf("keycaps missing rounded borders:\n%s", caps)
 	}
-	for _, want := range []string{"\u23ee\ufe0f p", "\u23ef\ufe0f \u2423", "\u23f9\ufe0f s", "\u23ed\ufe0f n", "\U0001f50a \u00b1"} {
+	for _, want := range []string{"\u23ee\ufe0f p", "\u23ef\ufe0f spc", "\u23f9\ufe0f s", "\u23ed\ufe0f n", "\U0001f50a +/-"} {
 		if !strings.Contains(caps, want) {
 			t.Fatalf("keycaps missing %q:\n%s", want, caps)
 		}
