@@ -117,6 +117,27 @@ func navHints() string {
 // rune measurement).
 var keycapIconWidths = map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
 
+// Terminal-adaptive transport (issue #64): the calibrated emoji keycaps only
+// close their frames on ghostty 1.3.1 with the panel preset (legacy
+// grapheme-width method). Everywhere else the row renders pure-ASCII tokens:
+// printable ASCII only, so the painted width equals the rune count on every
+// terminal — the same doctrine as the pre-VS16 rounds.
+var asciiTokens = map[string]string{
+	"⏮️": "|<",
+	"⏯️": "||",
+	"⏭️": ">|",
+	"⏹️": "[]",
+	"🔊":  "vol",
+}
+
+// isGhosttyTerminal fails closed (issue #64 S7): only the exact env value
+// "ghostty" selects the calibrated emoji keycaps; anything else — unset,
+// empty, foreign — selects the ASCII tokens. Read ONCE in Launch; never
+// inside the render path.
+func isGhosttyTerminal(value string) bool {
+	return value == "ghostty"
+}
+
 // keycapSpec is one cap: an icon from the calibrated table plus an ASCII key.
 type keycapSpec struct {
 	icon, key string
@@ -148,6 +169,29 @@ func keycapInterior(c keycapSpec) int {
 	return 3 + keycapIconWidth(c.icon) + len([]rune(c.key))
 }
 
+// capWidth is the mode-aware painted width of the cap token (issue #64 S3):
+// the calibrated probe table on ghostty — the single width source there —
+// the rune count of the ASCII token anywhere else (stable by construction).
+func (m Model) capWidth(c keycapSpec) int {
+	if m.asciiTransport {
+		return len([]rune(asciiTokens[c.icon]))
+	}
+	return keycapIconWidth(c.icon)
+}
+
+// capToken is the mode-aware painted token for one cap.
+func (m Model) capToken(c keycapSpec) string {
+	if m.asciiTransport {
+		return asciiTokens[c.icon]
+	}
+	return c.icon
+}
+
+// capInterior is the mode-aware painted interior width: " token key ".
+func (m Model) capInterior(c keycapSpec) int {
+	return 3 + m.capWidth(c) + len([]rune(c.key))
+}
+
 // keycapsView renders the playback transport as rounded keycaps (Alt A):
 // one cap per icon+key pair, visual only — the keyboard does the work. The
 // borders are HAND-BUILT along the calibrated interior widths (S6). A2
@@ -164,12 +208,14 @@ func (m Model) keycapsView() string {
 	mids := make([]string, 0, len(keycaps))
 	bottoms := make([]string, 0, len(keycaps))
 	for _, c := range keycaps {
-		w := keycapInterior(c)
+		w := m.capInterior(c)
+		icon := m.capToken(c)
+		iconW := m.capWidth(c)
 		tops = append(tops, border.Render("╭"+strings.Repeat("─", w)+"╮"))
-		// Interior: border bar + plain spaces around the styled icon and
+		// Interior: border bar + plain spaces around the styled token and
 		// key — fill-free by owner decision (S8).
-		mids = append(mids, border.Render("│")+" "+accent.Render(c.icon)+" "+
-			hint.Render(c.key)+strings.Repeat(" ", w-(2+keycapIconWidth(c.icon)+len([]rune(c.key))))+border.Render("│"))
+		mids = append(mids, border.Render("│")+" "+accent.Render(icon)+" "+
+			hint.Render(c.key)+strings.Repeat(" ", w-(2+iconW+len([]rune(c.key))))+border.Render("│"))
 		bottoms = append(bottoms, border.Render("╰"+strings.Repeat("─", w)+"╯"))
 	}
 	return strings.Join(tops, "") + "\n" + strings.Join(mids, "") + "\n" + strings.Join(bottoms, "")

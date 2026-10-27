@@ -130,6 +130,10 @@ func Launch(cat *catalog.Catalog) error {
 		Theme:         theme,
 		ThemeDark:     lipgloss.HasDarkBackground(),
 		SettingsStore: settingsStore,
+		// Terminal-adaptive transport (issue #64): read ONCE here — only the
+		// exact "ghostty" keeps the calibrated keycaps; anything else fails
+		// closed to the ASCII tokens.
+		AsciiTransport: !isGhosttyTerminal(os.Getenv("TERM_PROGRAM")),
 	}
 	if client != nil {
 		opts.Player = client
