@@ -125,8 +125,8 @@ type keycapSpec struct {
 var keycaps = []keycapSpec{
 	{"⏮️", "p"},
 	{"⏯️", "spc"},
-	{"⏹️", "s"},
 	{"⏭️", "n"},
+	{"⏹️", "s"},
 	{"🔊", "+/-"},
 }
 
@@ -150,21 +150,29 @@ func keycapInterior(c keycapSpec) int {
 
 // keycapsView renders the playback transport as rounded keycaps (Alt A):
 // one cap per icon+key pair, visual only — the keyboard does the work. The
-// borders are HAND-BUILT along the calibrated interior widths: the owner's
-// ghostty paints the transport icons one cell narrower than lipgloss
-// measures, so an auto-measured frame drifts off (issue #60 S6).
+// borders are HAND-BUILT along the calibrated interior widths (S6). O2+R2
+// (issue #60 S7/S8, owner choice "Estilo Spotify+stop" + "Fondo relleno"):
+// the interior paints a filled button look — background fill behind all
+// interior cells, the icon bold as the accent, the key dim — with zero
+// cell-width change (SGR paints behind the glyphs, the calibrated table
+// stays the single width source).
 func (m Model) keycapsView() string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
+	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
+	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Bar))
+	accent := fill.Foreground(lipgloss.Color(m.palette.Playing)).Bold(true)
+	hint := fill.Foreground(lipgloss.Color(m.palette.Dim))
 
 	tops := make([]string, 0, len(keycaps))
 	mids := make([]string, 0, len(keycaps))
 	bottoms := make([]string, 0, len(keycaps))
 	for _, c := range keycaps {
 		w := keycapInterior(c)
-		fill := w - (2 + keycapIconWidth(c.icon) + len([]rune(c.key))) // right pad space (always 1: keys are ASCII)
-		tops = append(tops, style.Render("╭"+strings.Repeat("─", w)+"╮"))
-		mids = append(mids, style.Render("│ "+c.icon+" "+c.key+strings.Repeat(" ", fill)+"│"))
-		bottoms = append(bottoms, style.Render("╰"+strings.Repeat("─", w)+"╯"))
+		tops = append(tops, border.Render("╭"+strings.Repeat("─", w)+"╮"))
+		// Interior cells: pad · icon · space · key · pad — each run carries
+		// the fill's background so the whole button reads as one surface.
+		mids = append(mids, "│"+fill.Render(" ")+accent.Render(c.icon)+fill.Render(" ")+
+			hint.Render(c.key)+fill.Render(strings.Repeat(" ", w-(2+keycapIconWidth(c.icon)+len([]rune(c.key)))))+"│")
+		bottoms = append(bottoms, border.Render("╰"+strings.Repeat("─", w)+"╯"))
 	}
 	return strings.Join(tops, "") + "\n" + strings.Join(mids, "") + "\n" + strings.Join(bottoms, "")
 }

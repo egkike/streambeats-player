@@ -4,8 +4,12 @@ package tui
 
 import (
 	"math"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"streambeats/internal/catalog"
 )
@@ -300,20 +304,46 @@ func TestKeycapWidthsMatchTheCalibratedTable(t *testing.T) {
 // ⏮️⏯️⏹️⏭️ = 1 cell, 🔊 = 2 (CPR probe) — so the interiors are 5/7/5/5/8 and
 // the frames are 7/9/7/7/10 wide end to end.
 func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
+	// lipgloss downgrades to NONE outside a TTY and drops every SGR run:
+	// the button-look pins need real ANSI, so force the profile for this
+	// test only (restored afterwards; the renderer never detects profiles).
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
 	m := layoutModel("")
 	m.width, m.height = 52, 24
 	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
-	caps := strings.Join(rows[20:23], "\n")
+	caps := stripANSI(strings.Join(rows[20:23], "\n"))
+	// O2 (issue #60 S7): the owner-approved Spotify+stop order — prev, play, next, stop, volume.
 	for _, want := range []string{
 		"\u256d─────\u256e\u256d───────\u256e\u256d─────\u256e\u256d─────\u256e\u256d────────\u256e",
-		"│ \u23ee\ufe0f p │", "│ \u23ef\ufe0f spc │", "│ \u23f9\ufe0f s │", "│ \u23ed\ufe0f n │", "│ \U0001f50a +/- │",
+		"│ \u23ee\ufe0f p ││ \u23ef\ufe0f spc ││ \u23ed\ufe0f n ││ \u23f9\ufe0f s ││ \U0001f50a +/- │",
 		"\u2570─────\u256f\u2570───────\u256f\u2570─────\u256f\u2570─────\u256f\u2570────────\u256f",
 	} {
 		if !strings.Contains(caps, want) {
 			t.Fatalf("keycaps missing %q:\n%s", want, caps)
 		}
 	}
+	// R2 (issue #60 S8): filled button look — the MID row must carry a
+	// background fill and a bold accent on the icon (the border rows stay
+	// plain). Cells are unchanged: stripANSI still shows the widths above.
+	raw := strings.Join(rows[20:23], "\n")
+	if !strings.Contains(raw, "\x1b[48") {
+		t.Fatalf("button-look fill missing (no background SGR) in mid row:\n%q", raw)
+	}
+	if !strings.Contains(raw, "\x1b[1;") {
+		t.Fatalf("accent bold missing on the icons:\n%q", raw)
+	}
 }
+
+// stripANSI removes SGR sequences so tests can compare the painted text
+// layout without caring where lipgloss injected styling runs.
+func stripANSI(s string) string {
+	return ansiPattern.ReplaceAllString(s, "")
+}
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // Solo Teclado (issue #60 S4): the keycap row owns the playback keys, so the
 // nav hints advertise ONLY what the caps don't show — they never repeat a
