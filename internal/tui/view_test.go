@@ -6,7 +6,6 @@ import (
 	"math"
 	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"streambeats/internal/catalog"
 )
@@ -161,15 +160,6 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-func TestHelpTextListsEveryAction(t *testing.T) {
-	help := helpText()
-	for _, want := range []string{"k/↑", "j/↓", "enter", "esc", "l", "space", "s", "< >", "+/-", "q"} {
-		if !strings.Contains(help, want) {
-			t.Fatalf("help text %q is missing %q", help, want)
-		}
-	}
-}
-
 func TestMPVArgs(t *testing.T) {
 	args := mpvArgs("/run/user/1000/streambeats-mpv.sock")
 	joined := strings.Join(args, " ")
@@ -210,14 +200,14 @@ func TestViewAnchorsBottomBlockToTheBottomPanelRight(t *testing.T) {
 	if barAt < 0 {
 		t.Fatalf("player bar missing:\n%s", out)
 	}
-	// The bottom block (player bar 2 lines + reserved status 1 + help 3)
+	// The bottom block (player bar 2 lines + keycaps 3 + reserved status 1)
 	// occupies the last 6 lines; nothing after it but the trailing newline.
 	if got := strings.Join(lines[total-6:], "\n"); !strings.Contains(got, "nothing playing") {
 		t.Fatalf("player bar not inside the last 6 lines:\n%s", got)
 	}
-	// The list viewport is fully padded: help lines are the last 3, so the
-	// gap between the last list row ("Beta") and the bottom block must be
-	// listHeight-2 blank rows (listHeight = 24-9 = 15).
+	// The list viewport is fully padded: the keycap+status rows are the last
+	// 4 lines, so the gap between the last list row ("Beta") and the bottom
+	// block must be listHeight-2 blank rows (listHeight = 24-9 = 15).
 	wantGap := 15 - 2
 	gap := 0
 	for i := total - 7; i >= 0; i-- {
@@ -235,10 +225,13 @@ func TestViewAnchorsBottomBlockToTheBottomPanelRight(t *testing.T) {
 	}
 }
 
-// S4: the status slot is reserved — with or without a message the View has
-// the same line count, so the controls never jump vertically.
+// S4/S5 (issue #60): the status slot is reserved — with or without a message
+// the View has the same line count, so the controls never jump vertically —
+// and DUAL-PURPOSE (Alt 3, owner decision): a message renders as-is; an empty
+// status renders the navigation hints. It is the panel's last line, under the
+// keycap row.
 func TestViewReservesTheStatusSlotR31(t *testing.T) {
-	withStatus := layoutModel("something broke")
+	withStatus := layoutModel("theme saved")
 	withStatus.width, withStatus.height = 60, 24
 	without := layoutModel("")
 	without.width, without.height = 60, 24
@@ -248,14 +241,13 @@ func TestViewReservesTheStatusSlotR31(t *testing.T) {
 	if len(a) != len(b) {
 		t.Fatalf("line count changed with status: %d vs %d (slot must be reserved)", len(a), len(b))
 	}
-	// The reserved line is the 3rd from the bottom: player bar(2) + status(1)
-	// + help(2) block, so status sits exactly one help row above the bottom.
-	statusAt := len(a) - 3
-	if strings.TrimSpace(a[statusAt]) == "" {
-		t.Fatalf("status slot did not render the message:\n%q", a[statusAt])
+	// The slot is the last painted line: player bar(2) + keycaps(3) + status(1).
+	statusAt := len(a) - 1
+	if got := strings.TrimSpace(a[statusAt]); got != "theme saved" {
+		t.Fatalf("status slot must render the message as-is, got %q", got)
 	}
-	if strings.TrimSpace(b[statusAt]) != "" {
-		t.Fatalf("slot must be blank without a message:\n%q", b[statusAt])
+	if strings.Contains(b[statusAt], "theme saved") || !strings.Contains(b[statusAt], "enter open") {
+		t.Fatalf("empty status slot must show the nav hints, got %q", b[statusAt])
 	}
 }
 
@@ -270,28 +262,36 @@ func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
 	}
 }
 
-// S3 (issue #37, owner verbatim): both help lines must fit the 52-column
-// floating panel WITHOUT truncation ("ambas lineas son más largas que el
-// ancho de la ventana"). Bounding the content here means the renderer's
-// truncate() never fires on the help block.
-func TestHelpLinesFitThePanelWidthR31B(t *testing.T) {
-	for i, line := range helpLines() {
-		if got := utf8.RuneCountInString(line); got > 52 {
-			t.Fatalf("help line %d is %d runes (>52, it truncates on the panel): %q", i, got, line)
+// Solo Teclado (issue #60 S3): the transport IS the keycap row now — rounded
+// borders, and exactly the five approved icon+key pairs. The keys shown are
+// real bindings from keys.go ('< p' prev, '> n' next), so the row can never
+// advertise a key the TUI doesn't handle.
+func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
+	m := layoutModel("")
+	m.width, m.height = 52, 24
+	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
+	caps := strings.Join(rows[20:23], "\n")
+	if !strings.Contains(caps, "\u256d") || !strings.Contains(caps, "\u2570") {
+		t.Fatalf("keycaps missing rounded borders:\n%s", caps)
+	}
+	for _, want := range []string{"\u23ee\ufe0f p", "\u23ef\ufe0f \u2423", "\u23f9\ufe0f s", "\u23ed\ufe0f n", "\U0001f50a \u00b1"} {
+		if !strings.Contains(caps, want) {
+			t.Fatalf("keycaps missing %q:\n%s", want, caps)
 		}
 	}
 }
 
-// Round-6 (#54): buttons are bubblezone MARKS resolved by the manager —
-// the painted row keeps the emoji-presentation tokens, but no manual span
-// computation remains anywhere.
-func TestTransportRowUsesEmojiPresentationTokens(t *testing.T) {
-	m := layoutModel("")
-	m.width, m.height = 52, 24
-	row := strings.Join(strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")[20:21], "\n")
-	for _, want := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a"} {
-		if !strings.Contains(row, want) {
-			t.Fatalf("transport row missing token %q:\n%s", want, row)
+// Solo Teclado (issue #60 S4): the keycap row owns the playback keys, so the
+// nav hints advertise ONLY what the caps don't show — they never repeat a
+// playback action or its key.
+func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
+	hints := navHints()
+	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c theme  q quit" {
+		t.Fatalf("nav hints = %q, want the approved Alt 3 line", hints)
+	}
+	for _, repeated := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a", "\u2423", "\u00b1", "\u2795", "\u2796"} {
+		if strings.Contains(hints, repeated) {
+			t.Fatalf("nav hints repeat the keycap token %q: %q", repeated, hints)
 		}
 	}
 }

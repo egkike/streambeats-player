@@ -9,10 +9,8 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	zone "github.com/lrstanley/bubblezone"
 
 	"path/filepath"
 
@@ -176,13 +174,10 @@ func TestConfigScreenIgnoresPlaybackKeys(t *testing.T) {
 	}
 }
 
-// TestMain arms the bubblezone global manager for the whole package: every
-// View() scan needs it, and the mouse tests resolve zones against it.
+// TestMain keeps the standard package exit path; the bubblezone manager the
+// mouse tests armed here was removed with the keyboard-only panel (issue #60).
 func TestMain(m *testing.M) {
-	zone.NewGlobal()
-	code := m.Run()
-	zone.Close()
-	os.Exit(code)
+	os.Exit(m.Run())
 }
 
 // fakePlayer records playback calls instead of talking to mpv.
@@ -772,7 +767,10 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 	m.playing = true
 	m.nowPlaying = "First Song"
 	out := m.View()
-	for _, want := range []string{"streambeats", "First Song", "▶", "0:05 / 0:10", "space ⏯"} {
+	// Solo Teclado (issue #60): the playback hints live in the keycap row
+	// ("⏯️ ␣"), the nav hints in the dual-status slot — the old help lines
+	// are gone.
+	for _, want := range []string{"streambeats", "First Song", "▶", "0:05 / 0:10", "\u23ef\ufe0f \u2423", "enter open"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("catalog view is missing %q:\n%s", want, out)
 		}
@@ -1199,241 +1197,75 @@ func TestPrevKeyAtAlbumStartShowsNote(t *testing.T) {
 	}
 }
 
-// T1 (issue #37 S1): the transport buttons row renders on the panel and is
-// mouse-clickable; every click routes through the SAME commands as the
-// keybinds (S2: no duplicate action logic), and invalid hits change nothing
-// (S6). The row Y comes from the bottom block layout (0-based index).
-// runClick runs a mouse hit like the tea runtime would: Update returns a
-// command; the side effect lands when the command executes.
-func runClick(m Model, msg tea.Msg) (Model, tea.Cmd) {
-	next, cmd := m.Update(msg)
-	if cmd != nil {
-		cmd()
-	}
-	return next.(Model), cmd
-}
-
-func clickModel(t *testing.T) (Model, *fakePlayer) {
+// playingFakeModel returns a fake-backed model marked as playing, for tests
+// that assert playback side effects and status feedback through the keyboard.
+func playingFakeModel(t *testing.T) (Model, *fakePlayer) {
 	t.Helper()
-	fp := &fakePlayer{}
-	m := NewModel(Options{Player: fp})
-	m.width, m.height = 52, 24
-	return m, fp
-}
-
-// zoneClickBody polls the zone manager for a registered zone and returns a
-// left-press positioned inside its painted bounds. Requires a prior root
-// View render (zones register asynchronously).
-func zoneClickBody(m Model, id string, d time.Duration) (tea.MouseMsg, bool) {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		if z := zone.Get(id); z != nil && !z.IsZero() {
-			return tea.MouseMsg{
-				X:      z.StartX + 1,
-				Y:      z.StartY,
-				Button: tea.MouseButtonLeft,
-				Action: tea.MouseActionPress,
-			}, true
-		}
-		time.Sleep(15 * time.Millisecond)
-	}
-	return tea.MouseMsg{}, false
-}
-
-func zoneClick(t *testing.T, m Model, id string) tea.MouseMsg {
-	t.Helper()
-	_ = m.View()
-	msg, ok := zoneClickBody(m, id, 2*time.Second)
-	if !ok {
-		t.Fatalf("zone %q never registered", id)
-	}
-	return msg
-}
-
-func zoneClickRun(t *testing.T, m Model, id string) (Model, tea.Cmd) {
-	t.Helper()
-	next, cmd := m.Update(zoneClick(t, m, id))
-	if cmd != nil {
-		cmd()
-	}
-	return next.(Model), cmd
-}
-
-func TestTransportButtonsRowIsRendered(t *testing.T) {
-	m, _ := clickModel(t)
-	m.width, m.height = 52, 24
-	out := m.View()
-	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	row := strings.Join(lines[m.height-4:m.height-3], "\n")
-	for _, want := range []string{"⏮️", "⏯️", "⏹️", "⏭️", "🔊"} {
-		if !strings.Contains(row, want) {
-			t.Fatalf("buttons row %q is missing %q", row, want)
-		}
-	}
-	// The toggle is a steady 2-cell token; its SEMANTICS carry the
-	// play/pause switch (jukebox) instead of the glyph.
-	if !strings.Contains(row, "⏯️") {
-		t.Fatalf("toggle token missing:\n%s", row)
-	}
-}
-
-func TestMouseClickPaintsPausePathLikeTheKey(t *testing.T) {
-	mKey, fakeKey := clickModel(t)
-	mBtn, fakeBtn := clickModel(t)
-	for _, m := range []*Model{&mKey, &mBtn} {
-		m.playing = true
-		m.nowPlaying, m.volume = "song", 50
-	}
-	// Same action, two transports: key 'space' vs zone click on ⏯.
-	am, _ := runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	bm, _ := zoneClickRun(t, mBtn, "btn-toggle")
-	if am.paused != true || bm.paused != true {
-		t.Fatalf("pause state: space=%v click=%v", am.paused, bm.paused)
-	}
-	if fakeKey.pauseCalls == 0 || fakeKey.pauseCalls != fakeBtn.pauseCalls {
-		t.Fatalf("pause calls: key=%d button=%d", fakeKey.pauseCalls, fakeBtn.pauseCalls)
-	}
-	// Second trigger resumes (Play path), same as a second space.
-	am, _ = runClick(am, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	bm, _ = zoneClickRun(t, bm, "btn-toggle")
-	if !am.playing || !bm.playing {
-		t.Fatalf("resume: space=%v click=%v", am.playing, bm.playing)
-	}
-}
-
-func TestMouseClickStopNextPrevVolMatchTheirKeys(t *testing.T) {
-	// stop: zone click on ⏹ stops and clears the bar.
-	mKey, fakeKey := clickModel(t)
-	mBtn, fakeBtn := clickModel(t)
-	for _, m := range []*Model{&mKey, &mBtn} {
-		m.playing, m.paused = true, true
-	}
-	ak, _ := runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	ab, _ := zoneClickRun(t, mBtn, "btn-stop")
-	if fakeKey.stopCalls != 1 || fakeBtn.stopCalls != 1 {
-		t.Fatalf("stop calls: key=%d button=%d", fakeKey.stopCalls, fakeBtn.stopCalls)
-	}
-	if ak.playing || ab.playing {
-		t.Fatalf("bar must clear: key=%v button=%v", ak.playing, ab.playing)
-	}
-
-	// volume: click 🔊 same step as '+' with a connected player.
-	mKey, fakeKey = clickModel(t)
-	mBtn, fakeBtn = clickModel(t)
-	runClick(mKey, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'+'}})
-	ab, _ = zoneClickRun(t, mBtn, "btn-volume")
-	if fakeKey.volumes == nil || fakeBtn.volumes == nil || fakeKey.volumes[0] != fakeBtn.volumes[0] {
-		t.Fatalf("volume steps differ: key=%v button=%v", fakeKey.volumes, fakeBtn.volumes)
-	}
-}
-
-func TestZoneClickOutsideEveryZoneDoesNothing(t *testing.T) {
-	m, fake := clickModel(t)
+	m := testModel(Options{Player: &fakePlayer{}})
+	fake := m.player.(*fakePlayer)
 	m.playing = true
-	before := fake.pauseCalls + fake.playCalls + fake.stopCalls + len(fake.volumes)
-	// A click on the title row (y=0) is not inside any marked zone.
-	rsp, _ := m.Update(tea.MouseMsg{X: 10, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
-	nm := rsp.(Model)
-	if after := fake.pauseCalls + fake.playCalls + fake.stopCalls + len(fake.volumes); after != before {
-		t.Fatalf("title click mutated playback state")
-	}
-	if nm.playing != true {
-		t.Fatalf("title click cleared the playing state")
-	}
+	return m, fake
 }
 
-func TestMouseWithoutPlayerIsFriendly(t *testing.T) {
-	m := NewModel(Options{})
-	m.width, m.height = 52, 24
-	msg := zoneClick(t, m, "btn-toggle")
-	next, _ := m.Update(msg)
-	nm := next.(Model)
-	if nm.status == "" || !strings.Contains(nm.status, "playback unavailable") {
-		t.Fatalf("no mpv panel must disclose the reason, status: %q", nm.status)
+// Solo Teclado (issue #60 S1): the keyboard is the sole input. Every mouse
+// message is inert EVERYWHERE — over the keycaps, over a music row, even in
+// config mode: no playback call, no state mutation, no command.
+func TestMouseMessagesDoNothing(t *testing.T) {
+	scenarios := []struct {
+		name    string
+		arrange func(*Model)
+		msg     tea.MouseMsg
+	}{
+		{
+			name: "press over the keycap row",
+			msg:  tea.MouseMsg{X: 10, Y: 21, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+		},
+		{
+			name: "press over a music row",
+			msg:  tea.MouseMsg{X: 10, Y: 6, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+		},
+		{
+			name:    "press while the config screen is open",
+			arrange: func(m *Model) { m.mode = ModeConfig; m.configIndex = 1 },
+			msg:     tea.MouseMsg{X: 10, Y: 6, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+		},
+		{
+			name: "wheel motion",
+			msg:  tea.MouseMsg{X: 10, Y: 6, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress},
+		},
 	}
-}
+	for _, tc := range scenarios {
+		t.Run(tc.name, func(t *testing.T) {
+			m, fake := playingFakeModel(t)
+			m.paused = false
+			before := fake.pauseCalls + fake.playCalls + fake.stopCalls + len(fake.volumes)
+			if tc.arrange != nil {
+				tc.arrange(&m)
+			}
+			wantAlbum, wantTrack := m.albumCursor, m.trackCursor
+			next, cmd := update(t, m, tc.msg)
+			if cmd != nil {
+				t.Fatalf("mouse press produced a command")
+			}
+			if got := fake.pauseCalls + fake.playCalls + fake.stopCalls + len(fake.volumes); got != before {
+				t.Fatalf("mouse press mutated playback calls")
+			}
+			if next.albumCursor != wantAlbum || next.trackCursor != wantTrack {
+				t.Fatalf("mouse press moved the browsing cursor")
+			}
+			if next.status != m.status {
+				t.Fatalf("mouse press painted a status (%q)", next.status)
+			}
+		})
+	}
 
-// Jukebox semantics stay pinned: from ANY state, next/prev advance and
-// auto-play; at the ends the base item restarts (round-4 wrap).
-func TestMouseNextPrevAdvanceAndAutoPlayFromIdle(t *testing.T) {
-	m, fake := clickModel(t)
-	m.mode = ModeLibrary
-	m.library = []string{"01 - a/01 - first.mp3", "01 - a/02 - second.mp3"}
-	m.libraryCursor = 0
-	ab, _ := zoneClickRun(t, m, "btn-next")
-	if len(fake.loaded) != 1 || !strings.Contains(fake.loaded[0], "second") {
-		t.Fatalf("juke next from idle did not play the NEXT item: %v", fake.loaded)
-	}
-	if ab.playing != true {
-		t.Fatalf("juke next must auto-play (armed load state): %v", ab.playing)
-	}
-	ab, _ = zoneClickRun(t, ab, "btn-prev")
-	if !strings.Contains(fake.loaded[len(fake.loaded)-1], "first") {
-		t.Fatalf("juke prev did not rewind: %v", fake.loaded)
-	}
-}
-
-func TestMouseNextAtLastRestartsTheBase(t *testing.T) {
-	m, fake := clickModel(t)
-	m.mode = ModeLibrary
-	m.library = []string{"01 - a/01 - only.mp3"}
-	ab, _ := zoneClickRun(t, m, "btn-next")
-	if len(fake.loaded) != 1 || !strings.Contains(fake.loaded[0], "only") {
-		t.Fatalf("juke next at the last must restart the base: %v", fake.loaded)
-	}
-	_ = ab
-}
-
-// Round-6 main guard: EVERY transport button dispatches through its own
-// zone (no coordinates anywhere in the model).
-func TestZoneClickButtonsDispatchPerZone(t *testing.T) {
-	for _, tc := range []struct {
-		id      string
-		playing bool
-	}{{"btn-stop", true}, {"btn-next", false}, {"btn-prev", false}, {"btn-toggle", true}} {
-		m, fake := clickModel(t)
-		m.width, m.height = 52, 24
-		m.playing = tc.playing
-		m.mode = ModeLibrary
-		m.library = []string{"01 - a/01 - first.mp3", "01 - a/02 - second.mp3"}
-		ab, cmd := zoneClickRun(t, m, tc.id)
-		_ = ab
-		if cmd == nil {
-			t.Fatalf("zone %s returned no cmd", tc.id)
-		}
-		_ = fake
-	}
-}
-
-// List-click (jukebox): clicking a MUSIC row selects it and plays the
-// clicked item.
-func TestZoneClickListRowPlaysRow(t *testing.T) {
-	m, fake := clickModel(t)
-	m.mode = ModeLibrary
-	m.library = []string{"01 - a/01 - aa.mp3", "01 - a/02 - bb.mp3", "01 - a/03 - cc.mp3"}
-	m.width, m.height = 52, 24
-	msg := zoneClick(t, m, "lib-row-1")
-	rsp, cmd := m.Update(msg)
-	if cmd != nil {
-		cmd()
-	}
-	nm := rsp.(Model)
-	_ = fake
-	if nm.libraryCursor != 1 {
-		t.Fatalf("list click moved cursor to %d, want 1 (zone id lib-row-1)", nm.libraryCursor)
-	}
-	// The click must fire the SAME activate path as Enter: the resolve cmd
-	// for the clicked item (the fake resolver is absent → the play command
-	// surfaces a status; the dispatch itself must NOT be a cheat).
-	// (the actual load is resolver-dependent; assert via status/cmds here)
-	if nm.nowPlaying == "" && nm.playing && nm.status == "" {
-		t.Fatalf("list row click without resolver must disclose the codec")
-	}
+	// The honest-keycap rule (S2): the keycap letters are bound aliases —
+	// 'p'/'n' must do the same the displayed icon claims (queue prev/next).
 }
 
 func TestTransportFeedbackStatuses(t *testing.T) {
 	// pause with a live player says "paused"; resume says "resumed".
-	m, fake := clickModel(t)
+	m, fake := playingFakeModel(t)
 	m.playing = true
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	nm := next.(Model)
@@ -1451,7 +1283,7 @@ func TestTransportFeedbackStatuses(t *testing.T) {
 	}
 
 	// stop while playing says "stopped" and keeps the player calls.
-	m, fake = clickModel(t)
+	m, fake = playingFakeModel(t)
 	m.playing, m.paused, m.nowPlaying = true, true, "song"
 	a, stopCmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if stopCmd != nil {
@@ -1475,7 +1307,7 @@ func TestTransportFeedbackStatuses(t *testing.T) {
 // and any feedback statuses expire by themselves (tick-count based, ~4s at
 // the 1s cadence).
 func TestFeedbackSurvivesProgressAndExpiresByTicks(t *testing.T) {
-	m, fake := clickModel(t)
+	m, fake := playingFakeModel(t)
 	m.playing = true
 	a, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	nm := a.(Model)
@@ -1518,14 +1350,3 @@ func TestDebugInputHookLogsMessages(t *testing.T) {
 		t.Fatal("unreachable")
 	}
 }
-
-// Tolerant hit-test (issue #40 follow-up): some terminals report mouse rows
-// mirrored (counted from the bottom edge — observed on the owner's install:
-// a click on the visually bottom button row arrived as y=3 on a 46-row
-// Semantics follow-up (issue #42 round-3): the owner's mental model — a play
-// button that starts the highlighted item, and clicking a music row plays it
-// (not just cursor moves). Both route through the SAME activateSelection
-// Jukebox semantics (issue #45 follow-up, owner decision A): the transport
-// buttons are STATE-INDEPENDENT — next/prev advance the queue from the
-// browsing/playing base and AUTO-PLAY, even with playback stopped. At the
-// ends the base item restarts (that is what "wrap" means here), never

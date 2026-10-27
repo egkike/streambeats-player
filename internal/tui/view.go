@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	zone "github.com/lrstanley/bubblezone"
 
 	"streambeats/internal/catalog"
 )
@@ -48,44 +47,11 @@ const (
 	defaultWidth  = 80
 	// chromeLines is the vertical space OUTSIDE the list viewport, computed
 	// exactly: title(1) + separator(1) + header(1) + player bar(2) +
-	// buttons(1) + reserved status slot(1) + help lines(2). Phase B (issue
-	// #37) added the transport row between the bar and the status slot.
+	// keycaps(3, incl. borders) + reserved status slot(1). The keyboard-only
+	// cycle (issue #60) replaced the button row + help lines with this block
+	// at the same budget (panel stays 24 rows at the standard size).
 	chromeLines = 9
 )
-
-// View renders the whole screen. It must stay side-effect free.
-//
-// Layout contract (issue #31): the top block is title+header, the flexible
-// middle is the list viewport padded to its full height, and the bottom block
-// (player bar, buttons, reserved status slot, help) is anchored to the bottom
-// edge. The root output is wrapped in zone.Scan so bubblezone can resolve
-// mouse clicks against the real painted frame (issue round-6, #54):
-// our code never computes click coordinates again.
-func (m Model) View() string {
-	if m.quitting {
-		return ""
-	}
-
-	width := m.contentWidth()
-	lines := make([]string, 0, m.totalViewLines())
-	lines = append(lines,
-		m.titleStyle().Render("streambeats")+m.dimStyle().Render("  terminal music player"),
-		"",
-		m.headerView(),
-	)
-	lines = append(lines, m.listRows()...)
-	lines = append(lines, m.playerBarLines()...)
-	// Transport buttons (Phase B, issue #37 S1/S2): the SAME actions the
-	// keybinds offer, click-to-press. Between the bar and the status slot.
-	lines = append(lines, m.buttonsLine())
-	// Reserved status slot (S4): always one line, blank when empty, so the
-	// bottom block holds a fixed position.
-	lines = append(lines, m.statusLine())
-	for _, line := range helpLines() {
-		lines = append(lines, m.dimStyle().Render(truncate(line, width)))
-	}
-	return zone.Scan(strings.Join(lines, "\n") + "\n")
-}
 
 // totalViewLines is the full-height paint budget: the terminal height when
 // known, else title+header+list+chrome with the default list height.
@@ -96,34 +62,65 @@ func (m Model) totalViewLines() int {
 	return m.height
 }
 
-// statusLine renders the reserved status row: blank when there is no message.
-func (m Model) statusLine() string {
-	if m.status == "" {
+// View renders the whole screen. It must stay side-effect free.
+//
+// Layout contract (issue #31): the top block is title+header, the flexible
+// middle is the list viewport padded to its full height, and the bottom block
+// (player bar, keycaps, reserved status slot) is anchored to the bottom edge.
+// Solo Teclado (issue #60): no zone scan — the render is plain text, the
+// keyboard is the sole input.
+func (m Model) View() string {
+	if m.quitting {
 		return ""
 	}
-	return m.statusStyle().Render("! " + m.status)
+
+	lines := make([]string, 0, m.totalViewLines())
+	lines = append(lines,
+		m.titleStyle().Render("streambeats")+m.dimStyle().Render("  terminal music player"),
+		"",
+		m.headerView(),
+	)
+	lines = append(lines, m.listRows()...)
+	lines = append(lines, m.playerBarLines()...)
+	// Keycaps row (Alt A, issue #60): the playback transport as rounded
+	// keycaps — visual only, the keyboard does the work.
+	lines = append(lines, m.keycapsView())
+	// Reserved status slot (Alt 3, issue #60): feedback when there's a
+	// message; navigation hints when empty. One line, always present.
+	lines = append(lines, m.statusOrNavLine())
+	return strings.Join(lines, "\n") + "\n"
 }
 
-// buttonsLine renders the row the layout table describes.
-func (m Model) buttonsLine() string {
-	// Each button is its OWN zone (issue round-6, #54): bubblezone resolves
-	// the press against the real painted frame, so the click-to-action
-	// mapping needs no coordinate math in our code.
-	buttons := []struct {
-		ID    string
-		Glyph string
-	}{
-		{"btn-prev", "\u23ee\ufe0f"},
-		{"btn-toggle", "\u23ef\ufe0f"},
-		{"btn-stop", "\u23f9\ufe0f"},
-		{"btn-next", "\u23ed\ufe0f"},
-		{"btn-volume", "\U0001f50a"},
+// statusOrNavLine is the dual-purpose slot (Alt 3, issue #60): when there's
+// a feedback message it shows it verbatim; when empty it shows the navigation
+// hints. The nav hints use the dim style so they read as ambient, not as a
+// message.
+func (m Model) statusOrNavLine() string {
+	if m.status != "" {
+		return m.statusStyle().Render(m.status)
 	}
-	parts := make([]string, 0, len(buttons))
-	for _, b := range buttons {
-		parts = append(parts, zone.Mark(b.ID, b.Glyph))
+	return m.dimStyle().Render(navHints())
+}
+
+// navHints is the compact navigation reference shown when the status slot
+// is empty. Only keys NOT shown in the keycaps row (no playback repeats).
+func navHints() string {
+	return "↑↓ k/j  enter open  esc back  l lib  c theme  q quit"
+}
+
+// keycapsView renders the playback transport as rounded keycaps (Alt A):
+// one row per key + icon pair, visual only — the keyboard does the work.
+func (m Model) keycapsView() string {
+	capStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(m.palette.Bar)).
+		Padding(0, 1)
+	keys := []string{"⏮️ p", "⏯️ ␣", "⏹️ s", "⏭️ n", "🔊 ±"}
+	caps := make([]string, 0, len(keys))
+	for _, k := range keys {
+		caps = append(caps, capStyle.Render(k))
 	}
-	return strings.Join(parts, "  ")
+	return lipgloss.JoinHorizontal(lipgloss.Center, caps...)
 }
 
 // headerView names the focused list.
@@ -183,7 +180,7 @@ func (m Model) listRows() []string {
 		for i := start; i < end; i++ {
 			path := m.library[i]
 			title := libraryEntryTitle(path)
-			rows = append(rows, zone.Mark(fmt.Sprintf("lib-row-%d", i), m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width)))
+			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width))
 		}
 		return padRows(rows, height)
 
@@ -205,7 +202,7 @@ func (m Model) listRows() []string {
 				label += "  " + formatDuration(track.DurationSeconds)
 			}
 			playing := m.nowPlaying != "" && m.nowPlaying == trackTitle(track)
-			rows = append(rows, zone.Mark(fmt.Sprintf("cat-row-%d", i), m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width)))
+			rows = append(rows, m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width))
 		}
 		return padRows(rows, height)
 
@@ -222,7 +219,7 @@ func (m Model) listRows() []string {
 				label += "  " + album.Artist
 			}
 			label += fmt.Sprintf("  (%d tracks)", len(album.Tracks))
-			rows = append(rows, zone.Mark(fmt.Sprintf("alb-row-%d", i), m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width)))
+			rows = append(rows, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width))
 		}
 		return padRows(rows, height)
 	}
