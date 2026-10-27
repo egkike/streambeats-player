@@ -51,3 +51,8 @@ Specs quote issue #66 verbatim. Branch: `feat/ci-macos-scope`.
   first draft) and `install-macos` now triggers on
   `needs.changes.outputs.installer == 'true'` (S2) — smoke content untouched
   (S4). actionlint clean. Commit 58b67c5.
+- L3 (2026-10-27): RDD native review receipt — lineage
+  review-1db4e7449447e64a (HIGH tier, 2 model runs owner-authorized: risk
+  order 0 + reliability order 1), outcome APPROVED with zero corrections;
+  authority burned (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:1760cd63…). Delivery follows ordinary repository policy.
