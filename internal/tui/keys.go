@@ -1,11 +1,10 @@
 package tui
 
-// Keyboard bindings for the TUI. Keeping them in one place lets the footer
-// help line and the update loop stay in sync.
+// Keyboard bindings for the TUI. Keeping them in one place lets the keycap
+// row, the status-dual nav hints and the update loop stay in sync (issue #60):
+// the visual rows advertise only keys from this table.
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/bubbles/key"
 )
 
@@ -39,19 +38,3 @@ var keys = struct {
 	VolumeDown: key.NewBinding(key.WithKeys("-", "_"), key.WithHelp("-", "volume down")),
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }
-
-// helpLines renders the footer hints. Phase B (issue #37 S3, owner quote:
-// "ambas lineas son más largas que el ancho de la ventana"): two compact
-// rows, each bounded well under the 52-col panel so the view never
-// truncates them. The BINDINGS above remain the only behavioral source of
-// truth: these rows only list them tersely; adding a binding means adding
-// it to a row too (TestHelpTextListsEveryAction pins the pairing).
-func helpLines() []string {
-	return []string{
-		"k/↑  j/↓  enter open  esc back  l lib  c theme",
-		"space ⏯  s ⏹  < > ⏮⏭  +/- 🔊  q quit",
-	}
-}
-
-// helpText joins the hint rows (used by tests and docs).
-func helpText() string { return strings.Join(helpLines(), "\n") }

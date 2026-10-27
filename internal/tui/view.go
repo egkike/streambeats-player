@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	zone "github.com/lrstanley/bubblezone"
 
 	"streambeats/internal/catalog"
 )
@@ -48,44 +47,11 @@ const (
 	defaultWidth  = 80
 	// chromeLines is the vertical space OUTSIDE the list viewport, computed
 	// exactly: title(1) + separator(1) + header(1) + player bar(2) +
-	// buttons(1) + reserved status slot(1) + help lines(2). Phase B (issue
-	// #37) added the transport row between the bar and the status slot.
+	// keycaps(3, incl. borders) + reserved status slot(1). The keyboard-only
+	// cycle (issue #60) replaced the button row + help lines with this block
+	// at the same budget (panel stays 24 rows at the standard size).
 	chromeLines = 9
 )
-
-// View renders the whole screen. It must stay side-effect free.
-//
-// Layout contract (issue #31): the top block is title+header, the flexible
-// middle is the list viewport padded to its full height, and the bottom block
-// (player bar, buttons, reserved status slot, help) is anchored to the bottom
-// edge. The root output is wrapped in zone.Scan so bubblezone can resolve
-// mouse clicks against the real painted frame (issue round-6, #54):
-// our code never computes click coordinates again.
-func (m Model) View() string {
-	if m.quitting {
-		return ""
-	}
-
-	width := m.contentWidth()
-	lines := make([]string, 0, m.totalViewLines())
-	lines = append(lines,
-		m.titleStyle().Render("streambeats")+m.dimStyle().Render("  terminal music player"),
-		"",
-		m.headerView(),
-	)
-	lines = append(lines, m.listRows()...)
-	lines = append(lines, m.playerBarLines()...)
-	// Transport buttons (Phase B, issue #37 S1/S2): the SAME actions the
-	// keybinds offer, click-to-press. Between the bar and the status slot.
-	lines = append(lines, m.buttonsLine())
-	// Reserved status slot (S4): always one line, blank when empty, so the
-	// bottom block holds a fixed position.
-	lines = append(lines, m.statusLine())
-	for _, line := range helpLines() {
-		lines = append(lines, m.dimStyle().Render(truncate(line, width)))
-	}
-	return zone.Scan(strings.Join(lines, "\n") + "\n")
-}
 
 // totalViewLines is the full-height paint budget: the terminal height when
 // known, else title+header+list+chrome with the default list height.
@@ -96,34 +62,117 @@ func (m Model) totalViewLines() int {
 	return m.height
 }
 
-// statusLine renders the reserved status row: blank when there is no message.
-func (m Model) statusLine() string {
-	if m.status == "" {
+// View renders the whole screen. It must stay side-effect free.
+//
+// Layout contract (issue #31): the top block is title+header, the flexible
+// middle is the list viewport padded to its full height, and the bottom block
+// (player bar, keycaps, reserved status slot) is anchored to the bottom edge.
+// Solo Teclado (issue #60): no zone scan — the render is plain text, the
+// keyboard is the sole input.
+func (m Model) View() string {
+	if m.quitting {
 		return ""
 	}
-	return m.statusStyle().Render("! " + m.status)
+
+	lines := make([]string, 0, m.totalViewLines())
+	lines = append(lines,
+		m.titleStyle().Render("streambeats")+m.dimStyle().Render("  terminal music player"),
+		"",
+		m.headerView(),
+	)
+	lines = append(lines, m.listRows()...)
+	lines = append(lines, m.playerBarLines()...)
+	// Keycaps row (Alt A, issue #60): the playback transport as rounded
+	// keycaps — visual only, the keyboard does the work.
+	lines = append(lines, m.keycapsView())
+	// Reserved status slot (Alt 3, issue #60): feedback when there's a
+	// message; navigation hints when empty. One line, always present.
+	lines = append(lines, m.statusOrNavLine())
+	return strings.Join(lines, "\n") + "\n"
 }
 
-// buttonsLine renders the row the layout table describes.
-func (m Model) buttonsLine() string {
-	// Each button is its OWN zone (issue round-6, #54): bubblezone resolves
-	// the press against the real painted frame, so the click-to-action
-	// mapping needs no coordinate math in our code.
-	buttons := []struct {
-		ID    string
-		Glyph string
-	}{
-		{"btn-prev", "\u23ee\ufe0f"},
-		{"btn-toggle", "\u23ef\ufe0f"},
-		{"btn-stop", "\u23f9\ufe0f"},
-		{"btn-next", "\u23ed\ufe0f"},
-		{"btn-volume", "\U0001f50a"},
+// statusOrNavLine is the dual-purpose slot (Alt 3, issue #60): when there's
+// a feedback message it shows it verbatim; when empty it shows the navigation
+// hints. The nav hints use the dim style so they read as ambient, not as a
+// message.
+func (m Model) statusOrNavLine() string {
+	if m.status != "" {
+		return m.statusStyle().Render(m.status)
 	}
-	parts := make([]string, 0, len(buttons))
-	for _, b := range buttons {
-		parts = append(parts, zone.Mark(b.ID, b.Glyph))
+	return m.dimStyle().Render(navHints())
+}
+
+// navHints is the compact navigation reference shown when the status slot
+// is empty. Only keys NOT shown in the keycaps row (no playback repeats).
+func navHints() string {
+	return "↑↓ k/j  enter open  esc back  l lib  c theme  q quit"
+}
+
+// Solo Teclado width calibration (issue #60 S6/L8, CPR probe): ghostty
+// 1.3.1 with the panel preset (grapheme-width-method = legacy) paints the
+// transport emoji family at ONE cell — NOT the 2 cells lipgloss assumes —
+// while 🔊 paints 2. Border widths are built from this measured table so
+// the frame closes even where measured ≠ painted width (round-6 span
+// doctrine: hand-rolled spans calibrated on the real panel beat word-wide
+// rune measurement).
+var keycapIconWidths = map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
+
+// keycapSpec is one cap: an icon from the calibrated table plus an ASCII key.
+type keycapSpec struct {
+	icon, key string
+}
+
+var keycaps = []keycapSpec{
+	{"⏮️", "p"},
+	{"⏯️", "spc"},
+	{"⏭️", "n"},
+	{"⏹️", "s"},
+	{"🔊", "+/-"},
+}
+
+// keycapIconWidth is the calibrated painted width of an icon (CPR probe on
+// the panel preset): the transport family paints 1 cell, 🔊 2. Uncalibrated
+// icons fall back to the widest assumption so a new icon can't silently
+// shrink a frame.
+func keycapIconWidth(icon string) int {
+	if w, ok := keycapIconWidths[icon]; ok {
+		return w
 	}
-	return strings.Join(parts, "  ")
+	return 2
+}
+
+// keycapInterior is the painted interior width of one cap: " icon key " —
+// icon via the calibrated table, key by ASCII rune count. Built from the
+// probe table, never from lipgloss's rune measurement (S6).
+func keycapInterior(c keycapSpec) int {
+	return 3 + keycapIconWidth(c.icon) + len([]rune(c.key))
+}
+
+// keycapsView renders the playback transport as rounded keycaps (Alt A):
+// one cap per icon+key pair, visual only — the keyboard does the work. The
+// borders are HAND-BUILT along the calibrated interior widths (S6). A2
+// (issue #60 S8/L11, owner pick after rejecting the filled look): the ICON
+// is the accent — bold over the plain panel background; the key stays dim;
+// NO fill. SGR carries no background: zero cell-width change, the
+// calibrated table stays the single width source.
+func (m Model) keycapsView() string {
+	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
+	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Playing)).Bold(true)
+	hint := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Dim))
+
+	tops := make([]string, 0, len(keycaps))
+	mids := make([]string, 0, len(keycaps))
+	bottoms := make([]string, 0, len(keycaps))
+	for _, c := range keycaps {
+		w := keycapInterior(c)
+		tops = append(tops, border.Render("╭"+strings.Repeat("─", w)+"╮"))
+		// Interior: border bar + plain spaces around the styled icon and
+		// key — fill-free by owner decision (S8).
+		mids = append(mids, border.Render("│")+" "+accent.Render(c.icon)+" "+
+			hint.Render(c.key)+strings.Repeat(" ", w-(2+keycapIconWidth(c.icon)+len([]rune(c.key))))+border.Render("│"))
+		bottoms = append(bottoms, border.Render("╰"+strings.Repeat("─", w)+"╯"))
+	}
+	return strings.Join(tops, "") + "\n" + strings.Join(mids, "") + "\n" + strings.Join(bottoms, "")
 }
 
 // headerView names the focused list.
@@ -183,7 +232,7 @@ func (m Model) listRows() []string {
 		for i := start; i < end; i++ {
 			path := m.library[i]
 			title := libraryEntryTitle(path)
-			rows = append(rows, zone.Mark(fmt.Sprintf("lib-row-%d", i), m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width)))
+			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width))
 		}
 		return padRows(rows, height)
 
@@ -205,7 +254,7 @@ func (m Model) listRows() []string {
 				label += "  " + formatDuration(track.DurationSeconds)
 			}
 			playing := m.nowPlaying != "" && m.nowPlaying == trackTitle(track)
-			rows = append(rows, zone.Mark(fmt.Sprintf("cat-row-%d", i), m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width)))
+			rows = append(rows, m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width))
 		}
 		return padRows(rows, height)
 
@@ -222,7 +271,7 @@ func (m Model) listRows() []string {
 				label += "  " + album.Artist
 			}
 			label += fmt.Sprintf("  (%d tracks)", len(album.Tracks))
-			rows = append(rows, zone.Mark(fmt.Sprintf("alb-row-%d", i), m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width)))
+			rows = append(rows, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width))
 		}
 		return padRows(rows, height)
 	}

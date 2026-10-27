@@ -4,9 +4,12 @@ package tui
 
 import (
 	"math"
+	"regexp"
 	"strings"
 	"testing"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"streambeats/internal/catalog"
 )
@@ -161,15 +164,6 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-func TestHelpTextListsEveryAction(t *testing.T) {
-	help := helpText()
-	for _, want := range []string{"k/↑", "j/↓", "enter", "esc", "l", "space", "s", "< >", "+/-", "q"} {
-		if !strings.Contains(help, want) {
-			t.Fatalf("help text %q is missing %q", help, want)
-		}
-	}
-}
-
 func TestMPVArgs(t *testing.T) {
 	args := mpvArgs("/run/user/1000/streambeats-mpv.sock")
 	joined := strings.Join(args, " ")
@@ -210,14 +204,14 @@ func TestViewAnchorsBottomBlockToTheBottomPanelRight(t *testing.T) {
 	if barAt < 0 {
 		t.Fatalf("player bar missing:\n%s", out)
 	}
-	// The bottom block (player bar 2 lines + reserved status 1 + help 3)
+	// The bottom block (player bar 2 lines + keycaps 3 + reserved status 1)
 	// occupies the last 6 lines; nothing after it but the trailing newline.
 	if got := strings.Join(lines[total-6:], "\n"); !strings.Contains(got, "nothing playing") {
 		t.Fatalf("player bar not inside the last 6 lines:\n%s", got)
 	}
-	// The list viewport is fully padded: help lines are the last 3, so the
-	// gap between the last list row ("Beta") and the bottom block must be
-	// listHeight-2 blank rows (listHeight = 24-9 = 15).
+	// The list viewport is fully padded: the keycap+status rows are the last
+	// 4 lines, so the gap between the last list row ("Beta") and the bottom
+	// block must be listHeight-2 blank rows (listHeight = 24-9 = 15).
 	wantGap := 15 - 2
 	gap := 0
 	for i := total - 7; i >= 0; i-- {
@@ -235,10 +229,13 @@ func TestViewAnchorsBottomBlockToTheBottomPanelRight(t *testing.T) {
 	}
 }
 
-// S4: the status slot is reserved — with or without a message the View has
-// the same line count, so the controls never jump vertically.
+// S4/S5 (issue #60): the status slot is reserved — with or without a message
+// the View has the same line count, so the controls never jump vertically —
+// and DUAL-PURPOSE (Alt 3, owner decision): a message renders as-is; an empty
+// status renders the navigation hints. It is the panel's last line, under the
+// keycap row.
 func TestViewReservesTheStatusSlotR31(t *testing.T) {
-	withStatus := layoutModel("something broke")
+	withStatus := layoutModel("theme saved")
 	withStatus.width, withStatus.height = 60, 24
 	without := layoutModel("")
 	without.width, without.height = 60, 24
@@ -248,14 +245,13 @@ func TestViewReservesTheStatusSlotR31(t *testing.T) {
 	if len(a) != len(b) {
 		t.Fatalf("line count changed with status: %d vs %d (slot must be reserved)", len(a), len(b))
 	}
-	// The reserved line is the 3rd from the bottom: player bar(2) + status(1)
-	// + help(2) block, so status sits exactly one help row above the bottom.
-	statusAt := len(a) - 3
-	if strings.TrimSpace(a[statusAt]) == "" {
-		t.Fatalf("status slot did not render the message:\n%q", a[statusAt])
+	// The slot is the last painted line: player bar(2) + keycaps(3) + status(1).
+	statusAt := len(a) - 1
+	if got := strings.TrimSpace(a[statusAt]); got != "theme saved" {
+		t.Fatalf("status slot must render the message as-is, got %q", got)
 	}
-	if strings.TrimSpace(b[statusAt]) != "" {
-		t.Fatalf("slot must be blank without a message:\n%q", b[statusAt])
+	if strings.Contains(b[statusAt], "theme saved") || !strings.Contains(b[statusAt], "enter open") {
+		t.Fatalf("empty status slot must show the nav hints, got %q", b[statusAt])
 	}
 }
 
@@ -270,28 +266,96 @@ func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
 	}
 }
 
-// S3 (issue #37, owner verbatim): both help lines must fit the 52-column
-// floating panel WITHOUT truncation ("ambas lineas son más largas que el
-// ancho de la ventana"). Bounding the content here means the renderer's
-// truncate() never fires on the help block.
-func TestHelpLinesFitThePanelWidthR31B(t *testing.T) {
-	for i, line := range helpLines() {
-		if got := utf8.RuneCountInString(line); got > 52 {
-			t.Fatalf("help line %d is %d runes (>52, it truncates on the panel): %q", i, got, line)
+// Solo Teclado width calibration (issue #60 S6/L8): the caps' borders must
+// close on the OWNER's panel, where ghostty 1.3.1 preset-only runs
+// grapheme-width-method = legacy and paints the transport emoji family at
+// ONE cell while lipgloss measures TWO (CPR probe: ESC[6n cursor reports —
+// every emoji base x20 lands on the same column as the ASCII baseline;
+// 🔊 lands 20 columns further, i.e. 2 cells). The guard pins the measured
+// table so the hand-built rows drift-proof; icons outside the table are a
+// test failure, not an auto-guess.
+func TestKeycapWidthsMatchTheCalibratedTable(t *testing.T) {
+	want := map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
+	if len(keycapIconWidths) != len(want) {
+		t.Fatalf("keycapIconWidths = %v, want the calibrated table %v (measured by the CPR probe)", keycapIconWidths, want)
+	}
+	for icon, width := range want {
+		if got := keycapIconWidth(icon); got != width {
+			t.Fatalf("keycapIconWidth(%q) = %d, calibrated %d (CPR probe)", icon, got, width)
+		}
+	}
+	for _, c := range keycaps {
+		if _, ok := keycapIconWidths[c.icon]; !ok {
+			t.Fatalf("cap icon %q is not in the calibrated width table", c.icon)
+		}
+		for _, r := range c.key {
+			if r < 0x20 || r >= 0x7f {
+				t.Fatalf("cap key %q must be plain ASCII (painted = counted), got %q", c.key, c.key)
+			}
+		}
+		if got := keycapInterior(c); got != 3+keycapIconWidth(c.icon)+len([]rune(c.key)) {
+			t.Fatalf("keycapInterior(%v) = %d, want 3 + calibrated icon width + key runes", c, got)
 		}
 	}
 }
 
-// Round-6 (#54): buttons are bubblezone MARKS resolved by the manager —
-// the painted row keeps the emoji-presentation tokens, but no manual span
-// computation remains anywhere.
-func TestTransportRowUsesEmojiPresentationTokens(t *testing.T) {
+// Solo Teclado (issue #60 S3+S6): the keycap row renders the approved
+// icon+key pairs and the borders CLOSE along the calibrated widths: icons
+// ⏮️⏯️⏹️⏭️ = 1 cell, 🔊 = 2 (CPR probe) — so the interiors are 5/7/5/5/8 and
+// the frames are 7/9/7/7/10 wide end to end.
+func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
+	// lipgloss downgrades to NONE outside a TTY and drops every SGR run:
+	// the A2 accent pins need real ANSI, so force the profile for this test
+	// only (restored afterwards).
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
 	m := layoutModel("")
 	m.width, m.height = 52, 24
-	row := strings.Join(strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")[20:21], "\n")
-	for _, want := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a"} {
-		if !strings.Contains(row, want) {
-			t.Fatalf("transport row missing token %q:\n%s", want, row)
+	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
+	caps := stripANSI(strings.Join(rows[20:23], "\n"))
+	// O2 (issue #60 S7): the owner-approved Spotify+stop order — prev, play, next, stop, volume.
+	for _, want := range []string{
+		"\u256d─────\u256e\u256d───────\u256e\u256d─────\u256e\u256d─────\u256e\u256d────────\u256e",
+		"│ \u23ee\ufe0f p ││ \u23ef\ufe0f spc ││ \u23ed\ufe0f n ││ \u23f9\ufe0f s ││ \U0001f50a +/- │",
+		"\u2570─────\u256f\u2570───────\u256f\u2570─────\u256f\u2570─────\u256f\u2570────────\u256f",
+	} {
+		if !strings.Contains(caps, want) {
+			t.Fatalf("keycaps missing %q:\n%s", want, caps)
+		}
+	}
+	// A2 (S8/L11, owner pick): icons are the accent — BOLD over the panel
+	// background, NO fill (the owner rejected the filled look on-device);
+	// widths unchanged (stripANSI above still passes).
+	raw := strings.Join(rows[20:23], "\n")
+	if !strings.Contains(raw, "\x1b[1;") {
+		t.Fatalf("accent bold missing on the icons:\n%q", raw)
+	}
+	if strings.Contains(raw, "\x1b[48") {
+		t.Fatalf("caps must render WITHOUT the fill background:\n%q", raw)
+	}
+}
+
+// stripANSI removes SGR sequences so tests can compare the painted text
+// layout without caring where lipgloss injected styling runs.
+func stripANSI(s string) string {
+	return ansiPattern.ReplaceAllString(s, "")
+}
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// Solo Teclado (issue #60 S4): the keycap row owns the playback keys, so the
+// nav hints advertise ONLY what the caps don't show — they never repeat a
+// playback action or its key.
+func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
+	hints := navHints()
+	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c theme  q quit" {
+		t.Fatalf("nav hints = %q, want the approved Alt 3 line", hints)
+	}
+	for _, repeated := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a", "\u2423", "\u00b1", "\u2795", "\u2796"} {
+		if strings.Contains(hints, repeated) {
+			t.Fatalf("nav hints repeat the keycap token %q: %q", repeated, hints)
 		}
 	}
 }

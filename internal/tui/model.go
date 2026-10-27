@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 
 	tea "github.com/charmbracelet/bubbletea"
-	zone "github.com/lrstanley/bubblezone"
 
 	"streambeats/internal/catalog"
 	"streambeats/internal/player"
@@ -245,13 +244,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case tea.MouseMsg:
-		// Zone clicks (round-6, #54): bubblezone Maps the press against the
-		// real painted frame, so the dispatch is by MARKED ZONE, not by
-		// coordinate math. Config rows own their keyboard flow (inert here).
-		if m.mode == ModeConfig {
-			return m, nil
-		}
-		return m.handleZoneClick(msg)
+		// Mouse dispatch OFF (owner decision: keyboard-only panel). The
+		// transport row is a visual indicator; the keybinds do the work.
+		_ = msg
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
@@ -676,193 +672,6 @@ func (m Model) changeVolume(delta int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, changeVolumeCmd(m.player, delta)
-}
-
-// handleZoneClick dispatches one left-press through bubblezone's painted
-// regions (round-6, #54): the marked zones carry the mapping; our code only
-// switches on the zone ID. Every action is the SAME command the keybinds
-// use (S2), and list rows select + play like a music app (jukebox).
-func (m Model) handleZoneClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
-		return m, nil // motion/release/wheel: nothing (S6)
-	}
-	// Kit telemetry (round-6 verification pass): dump every registered zone
-	// with its bounds, then which zone matched this click.
-	if m.debug != nil {
-		for _, id := range []string{"btn-prev", "btn-toggle", "btn-stop", "btn-next", "btn-volume", "alb-row-0", "lib-row-0", "cat-row-0"} {
-			if z := zone.Get(id); z != nil && !z.IsZero() {
-				m.debug(fmt.Sprintf("ZONE %s bounds=[%d,%d .. %d,%d] (click x=%d y=%d)", id, z.StartX, z.StartY, z.EndX, z.EndY, msg.X, msg.Y))
-			} else {
-				m.debug(fmt.Sprintf("ZONE %s UNREGISTERED (click x=%d y=%d)", id, msg.X, msg.Y))
-			}
-		}
-	}
-	if zone.Get("btn-prev").InBounds(msg) {
-		return m.jukePrev()
-	}
-	if zone.Get("btn-toggle").InBounds(msg) {
-		return m.togglePause()
-	}
-	if zone.Get("btn-stop").InBounds(msg) {
-		return m.stopPlayback()
-	}
-	if zone.Get("btn-next").InBounds(msg) {
-		return m.jukeNext()
-	}
-	if zone.Get("btn-volume").InBounds(msg) {
-		return m.changeVolume(volumeStep)
-	}
-	// Music rows: resolve against the focused list's typed row zones.
-	prefix, count := m.rowZoneSet()
-	for i := 0; i < count; i++ {
-		if z := zone.Get(fmt.Sprintf("%s-%d", prefix, i)); z != nil && z.InBounds(msg) {
-			if m.debug != nil {
-				m.debug(fmt.Sprintf("ROW-HIT %s-%d → select %d + play", prefix, i, i))
-			}
-			m.selectListRow(i)
-			return m.activateSelection()
-		}
-	}
-	if m.debug != nil {
-		m.debug("ZONE click resolved to nothing (x,y outside every zone)")
-	}
-	return m, nil
-}
-
-// rowZoneSet returns the row-zone prefix and item count of the focused list.
-func (m Model) rowZoneSet() (prefix string, count int) {
-	switch {
-	case m.mode == ModeLibrary:
-		return "lib-row", len(m.library)
-	case m.inTracks:
-		album, ok := m.selectedAlbum()
-		if !ok {
-			return "cat-row", 0
-		}
-		return "cat-row", len(album.Tracks)
-	default:
-		return "alb-row", len(m.albums)
-	}
-}
-
-// selectListRow moves the browsing cursor of the focused list to a row
-// WITHOUT changing playback (playing stays; the dispatch decides playback).
-func (m *Model) selectListRow(idx int) {
-	switch {
-	case m.mode == ModeLibrary:
-		m.libraryCursor = clampCursor(idx, len(m.library))
-	case m.inTracks:
-		album, ok := m.albumAt(m.albumCursor)
-		if !ok {
-			return
-		}
-		m.trackCursor = clampCursor(idx, len(album.Tracks))
-	default:
-		m.albumCursor = clampCursor(idx, len(m.albums))
-	}
-}
-
-// --- jukebox transport (issue #45 round-4, owner-approved) -------------
-// The transport buttons act STATE-INDEPENDENTLY: with playback stopped, a
-// next/prev click still advances the queue and auto-plays, arming a base
-// position from the browsing cursor. At the ends the base item restarts
-// (that is the documented "wrap" for the buttons). The keybinds keep the
-// classic queue semantics — the muscle memory is the owner's own.
-
-func (m Model) jukeArm() Model {
-	if m.player == nil {
-		return m // nothing to arm: the handlers disclose the reason
-	}
-	next := m
-	next.playingLib, next.playingAlbum, next.playingTrack = -1, -1, -1
-	switch {
-	case m.mode == ModeLibrary:
-		next.mode, next.inTracks = ModeLibrary, false
-		next.playingLib = clampCursor(m.libraryCursor, len(m.library))
-	case m.inTracks:
-		next.inTracks, next.mode = true, ModeCatalog
-		next.playingAlbum = clampCursor(m.albumCursor, len(m.albums))
-		if album, ok := next.albumAt(next.playingAlbum); ok {
-			next.playingTrack = clampCursor(m.trackCursor, len(album.Tracks))
-		}
-	default:
-		next.playingAlbum = clampCursor(m.albumCursor, len(m.albums))
-		next.playingTrack = 0 // the album's first track is the jukebox base
-	}
-	next.playing = true
-	next.paused = false
-	return next
-}
-
-func (m Model) albumAt(idx int) (catalog.AlbumEntry, bool) {
-	if idx < 0 || idx >= len(m.albums) {
-		return catalog.AlbumEntry{}, false
-	}
-	return m.albums[idx], true
-}
-
-func (m Model) jukeNext() (tea.Model, tea.Cmd) {
-	if m.player == nil {
-		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
-		return m, nil
-	}
-	armed := m.jukeArm()
-	// Wrap rule: clicking next at the LAST item restarts the base.
-	switch {
-	case armed.playingLib >= 0:
-		if armed.playingLib >= len(armed.library)-1 {
-			return armed.jukeRestartLibrary(armed.playingLib)
-		}
-	default:
-		album, ok := armed.albumAt(armed.playingAlbum)
-		if ok && armed.playingAlbum >= len(armed.albums)-1 && armed.playingTrack >= len(album.Tracks)-1 {
-			return armed.jukeRestartCatalog(armed.playingAlbum, armed.playingTrack)
-		}
-	}
-	return armed.queueNext()
-}
-
-func (m Model) jukePrev() (tea.Model, tea.Cmd) {
-	if m.player == nil {
-		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
-		return m, nil
-	}
-	armed := m.jukeArm()
-	// Wrap rule: clicking prev at the FIRST item restarts the base.
-	switch {
-	case armed.playingLib >= 0:
-		if armed.playingLib <= 0 {
-			return armed.jukeRestartLibrary(armed.playingLib)
-		}
-	default:
-		if armed.playingAlbum <= 0 && armed.playingTrack <= 0 {
-			return armed.jukeRestartCatalog(armed.playingAlbum, armed.playingTrack)
-		}
-	}
-	return armed.queuePrev()
-}
-
-func (m Model) jukeRestartLibrary(idx int) (tea.Model, tea.Cmd) {
-	next := m
-	next.playingLib = idx
-	next.playingAlbum, next.playingTrack = -1, -1
-	next.playing, next.paused = false, false
-	next.setStatus("restarting — " + libraryEntryTitle(m.library[idx]))
-	return next, loadFileCmd(m.player, m.library[idx], libraryEntryTitle(m.library[idx]))
-}
-
-func (m Model) jukeRestartCatalog(a, t int) (tea.Model, tea.Cmd) {
-	album, ok := m.albumAt(a)
-	if !ok || t < 0 || t >= len(album.Tracks) {
-		m.setStatus("nothing is playing — press enter on a track")
-		return m, nil
-	}
-	next := m
-	next.playingAlbum, next.playingTrack, next.playingLib = a, t, -1
-	next.playing, next.paused = false, false
-	track := album.Tracks[t]
-	next.setStatus("restarting — " + trackTitle(track))
-	return next, resolveAndPlayCmd(m.player, m.resolve, album, track)
 }
 
 // selectedAlbum returns the highlighted album, clamped to the list.
