@@ -59,3 +59,9 @@ Specs quote issue #64 verbatim. Branch: `feat/terminal-adaptive-transport`.
   ghostty's single width source (S3). Existing calibrated pins pass
   unmodified (S5 byte-identical). Pipeline: gofmt clean, build ok, vet ok,
   full suite ok. Commits: f6df93b (feat, code+tests), 3b27d3f (docs odd).
+- L3 (2026-10-27): RDD native review receipt — lineage
+  review-b77fe430119bd2ef (medium tier, 2 model runs owner-authorized:
+  readability order 0 + reliability order 1), outcome APPROVED with zero
+  corrections; authority burned (gentle-ai.review-acknowledged/v1,
+  consumed_revision sha256:1553ef39…). Delivery follows ordinary
+  repository policy.
