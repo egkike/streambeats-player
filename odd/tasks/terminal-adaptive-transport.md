@@ -50,3 +50,12 @@ Specs quote issue #64 verbatim. Branch: `feat/terminal-adaptive-transport`.
   proposed and authorized this cycle in conversation 2026-10-27).
 - L1b (2026-10-27): previous session crashed before any write; cycle restarted
   from a clean `main` (4e7825f) with no residual branch or commits.
+
+- L2 (2026-10-27): cycle implemented RED→GREEN. Tokens: |<, ||, >|, [], vol
+  (rune-count widths 2/2/2/2/3; interiors 6/8/6/6/9, frames 8/10/8/8/11).
+  `isGhosttyTerminal` fails closed (exact "ghostty"); env read once in
+  `Launch` into `Options.AsciiTransport` → `Model.asciiTransport`; the
+  render path never reads the env (S8). `keycapIconWidths` untouched —
+  ghostty's single width source (S3). Existing calibrated pins pass
+  unmodified (S5 byte-identical). Pipeline: gofmt clean, build ok, vet ok,
+  full suite ok. Commits: f6df93b (feat, code+tests), 3b27d3f (docs odd).
