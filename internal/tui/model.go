@@ -94,6 +94,10 @@ type Options struct {
 	Theme         string          // raw theme id from settings; "" = default
 	ThemeDark     bool            // resolved background detection result
 	SettingsStore *settings.Store // nil disables persistence (tests, alt runtimes)
+	// AsciiTransport (issue #64): true when TERM_PROGRAM is not exactly
+	// "ghostty" — the keycap row then renders pure-ASCII tokens whose widths
+	// are stable by rune count. Zero value keeps the calibrated ghostty path.
+	AsciiTransport bool
 	// Debug, when set, records every received tea.Msg for diagnostic
 	// sessions (STREAMBEATS_DEBUG_INPUT; never active in normal runs).
 	Debug func(msg string)
@@ -152,6 +156,10 @@ type Model struct {
 	// debug records received messages when the diagnostic kit is on.
 	// resolved with, so theme switches keep System's contrast pairing.
 	darkBackground bool
+	// asciiTransport (issue #64): the keycap row renders pure-ASCII tokens
+	// instead of the ghostty-calibrated emoji (set once at launch; the
+	// render path never reads the env).
+	asciiTransport bool
 
 	status          string
 	statusClearTick int
@@ -164,19 +172,20 @@ type Model struct {
 // NewModel builds a model from already-loaded data. No I/O happens here.
 func NewModel(opts Options) Model {
 	m := Model{
-		player:        opts.Player,
-		resolve:       opts.Resolver,
-		library:       append([]string(nil), opts.LibraryFiles...),
-		libraryRoot:   opts.LibraryRoot,
-		volume:        defaultVolume,
-		playingAlbum:  -1,
-		playingTrack:  -1,
-		playingLib:    -1,
-		width:         opts.Width,
-		height:        opts.Height,
-		status:        opts.PlayerNote,
-		settingsStore: opts.SettingsStore,
-		debug:         opts.Debug,
+		player:         opts.Player,
+		resolve:        opts.Resolver,
+		library:        append([]string(nil), opts.LibraryFiles...),
+		libraryRoot:    opts.LibraryRoot,
+		volume:         defaultVolume,
+		playingAlbum:   -1,
+		playingTrack:   -1,
+		playingLib:     -1,
+		width:          opts.Width,
+		height:         opts.Height,
+		status:         opts.PlayerNote,
+		settingsStore:  opts.SettingsStore,
+		debug:          opts.Debug,
+		asciiTransport: opts.AsciiTransport,
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
