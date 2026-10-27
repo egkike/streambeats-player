@@ -45,3 +45,9 @@ Specs quote issue #66 verbatim. Branch: `feat/ci-macos-scope`.
 - L1 (owner, 2026-10-27): authorized the cycle ("Vamos con el 2") after the
   macOS runner queue starved three times in the PR #65 cycle; issue #66
   opened with `status:approved` + `type:chore` per the standing grant.
+- L2 (2026-10-27): implemented. Cross-builds darwin amd64+arm64 added to the
+  Linux `ci` job after Build (S1); `installer` filter output declared on the
+  `changes` job (actionlint caught the missing output declaration in the
+  first draft) and `install-macos` now triggers on
+  `needs.changes.outputs.installer == 'true'` (S2) — smoke content untouched
+  (S4). actionlint clean. Commit 58b67c5.
