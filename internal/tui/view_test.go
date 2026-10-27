@@ -305,8 +305,8 @@ func TestKeycapWidthsMatchTheCalibratedTable(t *testing.T) {
 // the frames are 7/9/7/7/10 wide end to end.
 func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
 	// lipgloss downgrades to NONE outside a TTY and drops every SGR run:
-	// the button-look pins need real ANSI, so force the profile for this
-	// test only (restored afterwards; the renderer never detects profiles).
+	// the A2 accent pins need real ANSI, so force the profile for this test
+	// only (restored afterwards).
 	prev := lipgloss.ColorProfile()
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	defer lipgloss.SetColorProfile(prev)
@@ -325,15 +325,15 @@ func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
 			t.Fatalf("keycaps missing %q:\n%s", want, caps)
 		}
 	}
-	// R2 (issue #60 S8): filled button look — the MID row must carry a
-	// background fill and a bold accent on the icon (the border rows stay
-	// plain). Cells are unchanged: stripANSI still shows the widths above.
+	// A2 (S8/L11, owner pick): icons are the accent — BOLD over the panel
+	// background, NO fill (the owner rejected the filled look on-device);
+	// widths unchanged (stripANSI above still passes).
 	raw := strings.Join(rows[20:23], "\n")
-	if !strings.Contains(raw, "\x1b[48") {
-		t.Fatalf("button-look fill missing (no background SGR) in mid row:\n%q", raw)
-	}
 	if !strings.Contains(raw, "\x1b[1;") {
 		t.Fatalf("accent bold missing on the icons:\n%q", raw)
+	}
+	if strings.Contains(raw, "\x1b[48") {
+		t.Fatalf("caps must render WITHOUT the fill background:\n%q", raw)
 	}
 }
 

@@ -150,17 +150,15 @@ func keycapInterior(c keycapSpec) int {
 
 // keycapsView renders the playback transport as rounded keycaps (Alt A):
 // one cap per icon+key pair, visual only — the keyboard does the work. The
-// borders are HAND-BUILT along the calibrated interior widths (S6). O2+R2
-// (issue #60 S7/S8, owner choice "Estilo Spotify+stop" + "Fondo relleno"):
-// the interior paints a filled button look — background fill behind all
-// interior cells, the icon bold as the accent, the key dim — with zero
-// cell-width change (SGR paints behind the glyphs, the calibrated table
-// stays the single width source).
+// borders are HAND-BUILT along the calibrated interior widths (S6). A2
+// (issue #60 S8/L11, owner pick after rejecting the filled look): the ICON
+// is the accent — bold over the plain panel background; the key stays dim;
+// NO fill. SGR carries no background: zero cell-width change, the
+// calibrated table stays the single width source.
 func (m Model) keycapsView() string {
 	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
-	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Bar))
-	accent := fill.Foreground(lipgloss.Color(m.palette.Playing)).Bold(true)
-	hint := fill.Foreground(lipgloss.Color(m.palette.Dim))
+	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Playing)).Bold(true)
+	hint := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Dim))
 
 	tops := make([]string, 0, len(keycaps))
 	mids := make([]string, 0, len(keycaps))
@@ -168,10 +166,10 @@ func (m Model) keycapsView() string {
 	for _, c := range keycaps {
 		w := keycapInterior(c)
 		tops = append(tops, border.Render("╭"+strings.Repeat("─", w)+"╮"))
-		// Interior cells: pad · icon · space · key · pad — each run carries
-		// the fill's background so the whole button reads as one surface.
-		mids = append(mids, "│"+fill.Render(" ")+accent.Render(c.icon)+fill.Render(" ")+
-			hint.Render(c.key)+fill.Render(strings.Repeat(" ", w-(2+keycapIconWidth(c.icon)+len([]rune(c.key)))))+"│")
+		// Interior: border bar + plain spaces around the styled icon and
+		// key — fill-free by owner decision (S8).
+		mids = append(mids, border.Render("│")+" "+accent.Render(c.icon)+" "+
+			hint.Render(c.key)+strings.Repeat(" ", w-(2+keycapIconWidth(c.icon)+len([]rune(c.key))))+border.Render("│"))
 		bottoms = append(bottoms, border.Render("╰"+strings.Repeat("─", w)+"╯"))
 	}
 	return strings.Join(tops, "") + "\n" + strings.Join(mids, "") + "\n" + strings.Join(bottoms, "")
