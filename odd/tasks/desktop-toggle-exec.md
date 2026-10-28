@@ -37,3 +37,10 @@ factory. Branch: `feat/desktop-toggle-exec`.
   `[services][streambeats-panel.desktop] _launch=Ctrl+Alt+M`); root cause
   is the Exec, not the toggle code (live kdotool measurement proved
   `toggle right` minimizes/restores). Owner: "Dale al ciclo".
+- L2 (2026-10-28): cycle implemented — T2/T3 commit 6f97735 (Exec=toggle
+  RED→GREEN, scenario 6e spawn pin, scenario 3 determinism fix, 33/33 ×5
+  stable), T4 commit b2acb0d (docs). Native review review-907fc91678570fa4
+  (tier HIGH, lenses risk + reliability, committed-only base 9806b50):
+  2 lens reviewers admitted, no refuter required, APPROVED with authority
+  burned (gentle-ai.review-acknowledged/v1). 2 authorized model runs,
+  correction budget 51 unused.
