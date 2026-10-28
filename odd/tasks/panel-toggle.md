@@ -79,3 +79,15 @@ Specs quote the design agreed in conversation 2026-10-28. Branch:
   KROTOOL_STUB_FAIL_MINIMIZE, RED 2 fails → GREEN 30/30) → targeted
   validator resolved R3-001 → APPROVED, authority burned
   (gentle-ai.review-acknowledged/v1). Total 4 authorized model runs.
+- L5 (2026-10-28): owner live validation of v1.7.1 — restore direction
+  works (minimized → Ctrl+Alt+M brings it front); hide direction failed:
+  ROOT CAUSE was the keybind still bound to plain `streambeats-panel right`
+  (guard path: try_focus + "already running"), NOT the toggle code — live
+  measurement showed the active-window comparison matches (UUID format
+  {…}) and `toggle right` minimized + restored correctly on the real
+  desktop. Owner fix: rebind the shortcut to
+  `streambeats-panel toggle right`. Docs defect fixed: window-rules.md
+  section 1 now recommends the `toggle` command for the keybind (it
+  previously told users to bind the plain command — every new user would
+  hit the same one-direction behavior). First-run "no cached catalog yet"
+  is expected fresh-install behavior.
