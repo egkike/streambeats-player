@@ -42,3 +42,10 @@ Branch: `feat/library-navigator`.
   folder is $HOME/Música; owner asked for a navigable root defaulting to
   $HOME. Agreed design: lazy navigation + XDG default + settings
   persistence. Owner: "Dale a los 2 ciclos".
+- L2 (2026-10-28): cycle implemented — T2/T3 commit 77e6e7a (XDG music
+  dir + lazy ListDir + navigator + settings persistence + sync
+  destination + docs). Slice boundary: one behavior unit of 644 authored
+  lines (44 doc + ~600 code+tests) — declared size:exception on the PR
+  (single cohesive feature; splitting the navigator from its catalog
+  layer would strand the first PR without a consumer).
+  Pipeline: full suite + race green; shellcheck clean.
