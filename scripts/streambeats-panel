@@ -108,8 +108,12 @@ if systemd_ok && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
 		active_win="$(kdotool getactivewindow 2>/dev/null)" || active_win=""
 		for panel_win in $panel_wins; do
 			if [ "$active_win" = "$panel_win" ]; then
-				kdotool windowminimize "$panel_win" && notify "panel minimized (music keeps playing)"
-				exit 0
+				if kdotool windowminimize "$panel_win"; then
+					notify "panel minimized (music keeps playing)"
+					exit 0
+				fi
+				notify "could not minimize the panel window — it stays visible"
+				exit 1
 			fi
 		done
 		for panel_win in $panel_wins; do

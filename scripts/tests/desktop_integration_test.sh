@@ -87,7 +87,8 @@ for arg in "\$@"; do
 	case "\$arg" in
 		search) [ -n "\${KROTOOL_STUB_WINDOW:-}" ] && printf '%s\n' "\$KROTOOL_STUB_WINDOW" || exit 1; exit 0 ;;
 		getactivewindow) [ -n "\${KROTOOL_STUB_ACTIVE_WINDOW:-}" ] && printf '%s\n' "\$KROTOOL_STUB_ACTIVE_WINDOW" || exit 1; exit 0 ;;
-		windowactivate|windowminimize|windowstate) ;;
+		windowactivate|windowstate) ;;
+		windowminimize) [ -n "\${KROTOOL_STUB_FAIL_MINIMIZE:-}" ] && exit 1 || exit 0 ;;
 	esac
 done
 exit 0
@@ -327,6 +328,23 @@ if grep -q "no window found" "$NOTIFY_LOG"; then
 	pass "toggle (no window) explains the ghost state"
 else
 	fail "toggle (no window) message wrong (notify log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
+fi
+
+# 6d: minimize command fails -> tell the caller, never fake success (R3-001)
+: >"$KROTOOL_LOG"
+rc_fail=0
+OUT6D=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+	KROTOOL_STUB_ACTIVE_WINDOW=W-TEST KROTOOL_STUB_FAIL_MINIMIZE=1 \
+	"$PANEL_UNDER_TEST" toggle right 2>&1) || rc_fail=$?
+if [ "$rc_fail" -ne 0 ]; then
+	pass "toggle (minimize fails) exits nonzero, not faking success"
+else
+	fail "toggle (minimize fails) exited 0 with the toggle unapplied"
+fi
+if grep -q "could not minimize" "$NOTIFY_LOG"; then
+	pass "toggle (minimize fails) notifies the failure"
+else
+	fail "toggle (minimize fails) is silent (notify log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
 fi
 
 say "----------------------------------------"
