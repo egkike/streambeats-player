@@ -51,6 +51,7 @@ trap 'rm -rf "$Fx"' EXIT
 STUB_BIN="$Fx/stub-bin"
 mkdir -p "$STUB_BIN"
 SYSTEMD_RUN_LOG="$Fx/systemd-run.log"
+KROTOOL_LOG="$Fx/kdotool.log"
 
 cat >"$STUB_BIN/systemctl" <<'EOF'
 #!/bin/bash
@@ -74,7 +75,37 @@ printf '%s\n' "\$*" >>"$SYSTEMD_RUN_LOG"
 exit 0
 EOF
 
-chmod +x "$STUB_BIN/systemctl" "$STUB_BIN/systemd-run"
+# kdotool stub: hermetic replacement for the REAL binary the owner now has
+# at ~/.local/bin (a PATH-leading stub keeps every scenario desktop-safe).
+# - search: prints KROTOOL_STUB_WINDOW (window id) when set; else exit 1.
+# - getactivewindow: prints KROTOOL_STUB_ACTIVE_WINDOW when set; else exit 1.
+# - windowactivate/windowminimize/windowstate: record and succeed.
+cat >"$STUB_BIN/kdotool" <<EOF
+#!/bin/bash
+for arg in "\$@"; do
+	printf '%s\n' "\$arg" >>"$KROTOOL_LOG"
+	case "\$arg" in
+		search) [ -n "\${KROTOOL_STUB_WINDOW:-}" ] && printf '%s\n' "\$KROTOOL_STUB_WINDOW" || exit 1; exit 0 ;;
+		getactivewindow) [ -n "\${KROTOOL_STUB_ACTIVE_WINDOW:-}" ] && printf '%s\n' "\$KROTOOL_STUB_ACTIVE_WINDOW" || exit 1; exit 0 ;;
+		windowactivate|windowminimize|windowstate) ;;
+	esac
+done
+exit 0
+EOF
+
+# notify-send stub: hermetic desktop notifications. With STUB_BIN leading
+# PATH, notify() in streambeats-panel routes through it, so message
+# assertions target NOTIFY_LOG and never depend on (or leak to) a real
+# desktop daemon on the test machine.
+NOTIFY_LOG="$Fx/notify.log"
+cat >"$STUB_BIN/notify-send" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$NOTIFY_LOG"
+exit 0
+EOF
+
+chmod +x "$STUB_BIN/systemctl" "$STUB_BIN/systemd-run" "$STUB_BIN/kdotool" \
+	"$STUB_BIN/notify-send"
 
 # --- scenario 1: guard — second launch of the same side must not spawn ------
 say "scenario 1: single-instance guard (unit active)"
@@ -83,10 +114,10 @@ OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right \
 	"$PANEL_UNDER_TEST" right 2>&1)
 rc1=$?
 assert_eq "$rc1" "0" "guard path exits 0"
-if printf '%s' "$OUT" | grep -q "already running"; then
+if grep -q "already running" "$NOTIFY_LOG"; then
 	pass "guard notifies instead of duplicating"
 else
-	fail "guard output missing 'already running' (got: $OUT)"
+	fail "guard never notified 'already running' (notify log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
 fi
 if [ -s "$SYSTEMD_RUN_LOG" ]; then
 	fail "guard path INVOKED systemd-run — the unit lock did not block"
@@ -242,6 +273,60 @@ if command -v desktop-file-validate >/dev/null 2>&1; then
 	fi
 else
 	say "SKIP: desktop-file-validate unavailable in this environment (excluded, not counted as pass)"
+fi
+
+# --- scenario 6: toggle mode (two-press doctrine) ----------------------------
+# toggle <side> keeps the unit guard: inactive unit -> spawn; active unit ->
+# resolve by ACTIVE window: panel focused = visible -> minimize (audio kept);
+# otherwise -> activate (restores minimized, raises visible-unfocused).
+say "scenario 6: toggle mode"
+: >"$KROTOOL_LOG"
+
+# 6a: unit active, panel window exists, focus elsewhere -> windowactivate
+OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+	"$PANEL_UNDER_TEST" toggle right 2>&1)
+rc_toggle=$?
+assert_eq "$rc_toggle" "0" "toggle (unfocused) exits 0"
+if grep -q 'windowactivate' "$KROTOOL_LOG"; then
+	pass "toggle (unfocused) activated the panel"
+else
+	fail "toggle (unfocused) never activated the panel (log: $(cat "$KROTOOL_LOG" 2>/dev/null))"
+fi
+if grep -qE '^windowminimize' "$KROTOOL_LOG"; then
+	fail "toggle (unfocused) wrongly minimized the visible panel"
+fi
+
+# 6b: focus ON the panel -> minimize
+: >"$KROTOOL_LOG"
+OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+	KROTOOL_STUB_ACTIVE_WINDOW=W-TEST \
+	"$PANEL_UNDER_TEST" toggle right 2>&1)
+rc_focus=$?
+assert_eq "$rc_focus" "0" "toggle (focused) exits 0"
+if grep -qE '^windowminimize' "$KROTOOL_LOG"; then
+	pass "toggle (focused) minimized the panel"
+else
+	fail "toggle (focused) never minimized the panel (log: $(cat "$KROTOOL_LOG" 2>/dev/null))"
+fi
+if grep -q 'windowactivate' "$KROTOOL_LOG"; then
+	fail "toggle (focused) wrongly activated"
+fi
+if grep -q "panel minimized" "$NOTIFY_LOG"; then
+	pass "toggle (focused) explains music keeps playing"
+else
+	fail "toggle (focused) missing 'panel minimized' notification (log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
+fi
+
+# 6c: unit active but no panel window anywhere -> explain, never fatal
+: >"$KROTOOL_LOG"
+OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW= \
+	"$PANEL_UNDER_TEST" toggle right 2>&1)
+rc_ghost=$?
+assert_eq "$rc_ghost" "0" "toggle (no window) exits 0"
+if grep -q "no window found" "$NOTIFY_LOG"; then
+	pass "toggle (no window) explains the ghost state"
+else
+	fail "toggle (no window) message wrong (notify log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
 fi
 
 say "----------------------------------------"
