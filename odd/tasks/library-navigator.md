@@ -63,3 +63,8 @@ Branch: `feat/library-navigator`.
   passthrough both ways (41/41). Installed script patched in place as
   immediate relief (repo copy restored byte-exact after a botched in-
   place edit — empty-file incident, repaired from the repo copy).
+- L4 (2026-10-28, issue #84): the navigator accepts common audio formats
+  (flac/ogg/oga/opus/m4a/aac/wav/wma + mp3, case-insensitive) — the
+  owner's HiFi folder holds non-mp3 audio and showed empty. sync stays
+  mp3-only. Owner approved: "Si quiero que reproduzca otros formatos
+  también".

@@ -3,6 +3,7 @@ package catalog
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -83,6 +84,36 @@ func TestListDirIsLazyAndSorted(t *testing.T) {
 	}
 	if len(files) != 2 || files[0] != filepath.Join(root, "a-track.mp3") || files[1] != filepath.Join(root, "z-track.mp3") {
 		t.Fatalf("files = %v, want only the root-level mp3s sorted", files)
+	}
+}
+
+func TestListDirAcceptsCommonAudioFormats(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{
+		"a.flac", "b.ogg", "c.oga", "d.opus", "e.m4a", "f.aac", "g.wav", "h.wma",
+		"i.MP3",                            // case-insensitive like today
+		"j.jpg", "k.txt", "l.cue", "m.mp4", // not audio for the navigator
+	} {
+		if err := os.WriteFile(filepath.Join(root, f), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, files, err := ListDir(root)
+	if err != nil {
+		t.Fatalf("ListDir: %v", err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[filepath.Ext(strings.ToLower(f))] = true
+	}
+	for _, ext := range []string{".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac", ".wav", ".wma", ".mp3"} {
+		if !got[ext] {
+			t.Fatalf("format %s missing from the listing: %v", ext, files)
+		}
+	}
+	if len(files) != 9 {
+		t.Fatalf("listing = %d files, want 9 (audio only): %v", len(files), files)
 	}
 }
 

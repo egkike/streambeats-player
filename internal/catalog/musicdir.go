@@ -55,8 +55,15 @@ func XDGMusicDir(configPath, home string) (string, error) {
 	return filepath.Join(home, "Music"), nil
 }
 
+// audioExts (issue #84): the formats the navigator lists and plays. mpv
+// handles all of them; `sync` stays mp3-only (its own contract).
+var audioExts = map[string]bool{
+	".mp3": true, ".flac": true, ".ogg": true, ".oga": true, ".opus": true,
+	".m4a": true, ".aac": true, ".wav": true, ".wma": true,
+}
+
 // ListDir returns the DIRECT children of dir: subdirectories first (sorted),
-// then .mp3 files (sorted). It is deliberately lazy — no recursion — so a
+// then audio files (sorted). It is deliberately lazy — no recursion — so a
 // $HOME-sized root lists instantly and descent stays explicit (issue #76 S3).
 func ListDir(dir string) (dirs []string, files []string, err error) {
 	entries, err := os.ReadDir(dir)
@@ -68,7 +75,7 @@ func ListDir(dir string) (dirs []string, files []string, err error) {
 			dirs = append(dirs, filepath.Join(dir, e.Name()))
 			continue
 		}
-		if strings.EqualFold(filepath.Ext(e.Name()), ".mp3") {
+		if audioExts[strings.ToLower(filepath.Ext(e.Name()))] {
 			files = append(files, filepath.Join(dir, e.Name()))
 		}
 	}
