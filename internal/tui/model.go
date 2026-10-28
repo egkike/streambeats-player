@@ -368,9 +368,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = ""
 		return m, nil
 	case loadedMsg:
-		// The manual-load window closes as soon as the load resolves (#80).
-		m.loadingTrack = false
+		// The manual-load window closes when a real progress reading proves
+		// the new source is live (progressMsg), NOT here — the load command
+		// returns before mpv finishes switching files, and the replaced
+		// stream's idle-active arrives after this point (#80 follow-up).
+		// A failed load closes the window immediately (nothing to wait for).
 		if msg.err != nil {
+			m.loadingTrack = false
 			m.playing = false
 			m.paused = false
 			m.status = friendlyError("playback failed", msg.err)
@@ -409,6 +413,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		// Re-arm the listener regardless of outcome.
 		rearm := []tea.Cmd{waitEventsCmd(m.player)}
+		// mpv's own load-complete signal closes the manual-load window faster
+		// than the next progress poll (issue #80 follow-up).
+		if msg.event.Name == "playback-restart" || msg.event.Name == "file-loaded" {
+			m.loadingTrack = false
+		}
 		// The single queue-advance trigger (per DOCS/man/ipc.rst:
 		// observe_property + idle-active). Neither buffering underruns nor
 		// the loadfile transition can flip idle-active, so this never fires
@@ -835,6 +844,7 @@ func (m Model) stopPlayback() (tea.Model, tea.Cmd) {
 	p := m.player
 	m.playing = false
 	m.paused = false
+	m.loadingTrack = false // stop also closes the manual-load window (#80)
 	m.nowPlaying = ""
 	m.position, m.duration = 0, 0
 	m.setStatus("stopped")
