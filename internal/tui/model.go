@@ -94,6 +94,10 @@ type Options struct {
 	Theme         string          // raw theme id from settings; "" = default
 	ThemeDark     bool            // resolved background detection result
 	SettingsStore *settings.Store // nil disables persistence (tests, alt runtimes)
+	// ScrapeCmd (issue #75): cmd that performs a live catalog scrape and
+	// returns CatalogScrapedMsg. Non-nil only on a fresh cache: the TUI
+	// boots immediately with a scraping status and populates in place.
+	ScrapeCmd tea.Cmd
 	// AsciiTransport (issue #64): true when TERM_PROGRAM is not exactly
 	// "ghostty" — the keycap row then renders pure-ASCII tokens whose widths
 	// are stable by rune count. Zero value keeps the calibrated ghostty path.
@@ -127,6 +131,10 @@ type Model struct {
 	volume     int
 	position   float64
 	duration   float64
+	// Live-scrape state (issue #75): non-nil while a catalog scrape is
+	// pending (first boot) or failed and retryable via `r`. While set, the
+	// status line never auto-expires and the scrape notice stays visible.
+	scrapeCmd tea.Cmd
 	// Bookkeeping for end-of-track auto-advance: which album/track/library
 	// item is currently playing (-1 when none). The basis is the played
 	// source itself, not the browsed list, so navigation while playing
@@ -201,17 +209,34 @@ func NewModel(opts Options) Model {
 	m.palette = theme.Resolve(m.theme, opts.ThemeDark)
 	m.configIndex = configIndexFor(m.theme)
 	if len(m.albums) == 0 {
-		m.status = joinStatus(m.status, "catalog is empty — run `streambeats refresh`")
+		if opts.ScrapeCmd != nil {
+			// Fresh install (issue #75): the scrape runs as a cmd inside the
+			// running TUI — the boot is never blocked.
+			m.scrapeCmd = opts.ScrapeCmd
+			m.status = joinStatus(m.status, "scraping catalog…")
+		} else {
+			m.status = joinStatus(m.status, "catalog is empty — run `streambeats refresh`")
+		}
 	}
 	return m
 }
 
-// Init starts the progress ticker when an audio backend is connected.
+// Init starts the progress ticker when an audio backend is connected, and
+// kicks off the pending catalog scrape (issue #75) regardless of the player:
+// a machine without mpv still gets its catalog.
 func (m Model) Init() tea.Cmd {
-	if m.player == nil {
-		return nil
+	var cmds []tea.Cmd
+	if m.scrapeCmd != nil {
+		cmds = append(cmds, m.scrapeCmd)
 	}
-	return tea.Batch(tickCmd(), waitEventsCmd(m.player))
+	if m.player == nil {
+		if len(cmds) == 0 {
+			return nil
+		}
+		return tea.Batch(cmds...)
+	}
+	cmds = append(cmds, tickCmd(), waitEventsCmd(m.player))
+	return tea.Batch(cmds...)
 }
 
 // Cronological messages produced by side-effect commands.
@@ -220,6 +245,12 @@ type (
 	loadedMsg struct {
 		title string
 		err   error
+	}
+	// CatalogScrapedMsg (issue #75): the result of the live-scrape cmd the
+	// fresh-install boot issues. Err non-nil keeps the retry cmd alive.
+	CatalogScrapedMsg struct {
+		Cat *catalog.Catalog
+		Err error
 	}
 	actionMsg struct {
 		err error
@@ -262,8 +293,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tickMsg:
 		m.tick++
-		if m.status != "" && m.tick >= m.statusClearTick {
-			m.status = "" // feedback expired (T3)
+		if m.status != "" && m.tick >= m.statusClearTick && m.scrapeCmd == nil {
+			m.status = "" // feedback expired (T3); scrape notices stay up (#75)
 			m.statusClearTick = 0
 		}
 		if m.player == nil {
@@ -274,6 +305,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, pollCmd(m.player))
 		}
 		return m, tea.Batch(cmds...)
+	case CatalogScrapedMsg:
+		// Live-scrape resolution (issue #75): populate in place on success;
+		// keep the retry cmd alive on failure so `r` can re-issue the scrape.
+		if msg.Err != nil || msg.Cat == nil {
+			err := msg.Err
+			if err == nil {
+				err = errors.New("scrape returned no catalog")
+			}
+			m.status = fmt.Sprintf("scrape failed (%v) — press r to retry", err)
+			if m.scrapeCmd == nil {
+				// a retry-less failure cannot be retried; drop to the static note
+				m.status = joinStatus(m.status, "catalog is empty — run `streambeats refresh`")
+			}
+			return m, nil
+		}
+		m.albums = append([]catalog.AlbumEntry(nil), msg.Cat.Albums...)
+		m.scrapeCmd = nil
+		m.status = ""
+		return m, nil
 	case loadedMsg:
 		if msg.err != nil {
 			m.playing = false
@@ -397,6 +447,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Stop playback and let mpv exit BEFORE the program tears down, so
 		// audio never outlives the panel.
 		return m, tea.Sequence(quitPlayerCmd(m.player), tea.Quit)
+	case msg.String() == "r" && m.scrapeCmd != nil:
+		// Live-scrape retry (issue #75): `r` has no other binding, and this
+		// branch only exists while a scrape is pending or failed.
+		m.status = joinStatus(m.status, "scraping catalog…")
+		return m, m.scrapeCmd
 	case key.Matches(msg, keys.Up):
 		m.moveCursor(-1)
 	case key.Matches(msg, keys.Down):

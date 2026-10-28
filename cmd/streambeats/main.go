@@ -16,6 +16,8 @@ import (
 	"io"
 	"os"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"streambeats/internal/catalog"
 	"streambeats/internal/tui"
 )
@@ -196,7 +198,7 @@ func runSync(stdout, stderr io.Writer) int {
 type tuiDeps struct {
 	store   *catalog.Store
 	refresh func() (*catalog.Catalog, error)
-	launch  func(*catalog.Catalog) error
+	launch  func(cat *catalog.Catalog, scrape tea.Cmd) error
 }
 
 // newTUIDeps wires the real environment collaborators.
@@ -208,10 +210,29 @@ func newTUIDeps() *tuiDeps {
 	}
 }
 
+// tuiScrapeCmd wraps the live scrape as a bubbletea cmd (issue #75): it runs
+// inside the running TUI, saves the cache after a successful scrape and
+// reports the outcome as CatalogScrapedMsg. A cache-write failure is not
+// fatal — the catalog is already usable in memory — so it is swallowed here.
+func tuiScrapeCmd(refresh func() (*catalog.Catalog, error), save func(*catalog.Catalog) error) tea.Cmd {
+	return func() tea.Msg {
+		cat, err := refresh()
+		if err != nil {
+			return tui.CatalogScrapedMsg{Err: err}
+		}
+		if saveErr := save(cat); saveErr != nil {
+			// The cache write failing must not blank the freshly scraped
+			// catalog; the next run re-scrapes (and never stores tokens).
+			_ = saveErr
+		}
+		return tui.CatalogScrapedMsg{Cat: cat}
+	}
+}
+
 // runTUI loads the cached catalog and launches the Bubbletea player. On a
-// fresh install (issue #17) the same fallback as runSync applies: the cache
-// is missing → scrape live, save, launch. launch is a function so tests
-// never spawn the terminal fugitive in production either — single clear call.
+// fresh install (issue #75) the TUI boots at once and scrapes live from
+// inside the running program; launch is a function so tests never spawn the
+// terminal fugitive in production either — single clear call.
 func runTUI(stdout, stderr io.Writer, deps *tuiDeps) int {
 	if deps == nil {
 		deps = newTUIDeps()
@@ -228,19 +249,19 @@ func runTUI(stdout, stderr io.Writer, deps *tuiDeps) int {
 	}
 	cat, err := store.Load()
 	if errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintln(stdout, "no cached catalog yet; scraping it now...")
-		cat, err = deps.refresh()
-		if err != nil {
-			return fail(stderr, fmt.Errorf("refresh catalog: %w", err))
+		// Fresh install (issue #75): boot the TUI immediately with an empty
+		// list and a live-scrape status; the cmd runs inside the TUI and
+		// populates in place. No pre-TUI message, no blocking startup.
+		save := func(c *catalog.Catalog) error { return store.Save(c) }
+		if launchErr := deps.launch(nil, tuiScrapeCmd(deps.refresh, save)); launchErr != nil {
+			return fail(stderr, fmt.Errorf("run tui: %w", launchErr))
 		}
-		if saveErr := store.Save(cat); saveErr != nil {
-			fmt.Fprintf(stderr, "warning: catalog cache not saved: %v\n", saveErr)
-		}
+		return 0
 	}
 	if err != nil {
 		return fail(stderr, fmt.Errorf("load catalog: %w", err))
 	}
-	if err := deps.launch(cat); err != nil {
+	if err := deps.launch(cat, nil); err != nil {
 		return fail(stderr, fmt.Errorf("run tui: %w", err))
 	}
 	return 0
