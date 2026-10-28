@@ -74,7 +74,9 @@ func (w *debugRawWriter) Write(b []byte) (int, error) {
 }
 
 // Launch boots the TUI with the given catalog and blocks until the user quits.
-func Launch(cat *catalog.Catalog) error {
+// scrapeCmd is non-nil only on a fresh cache (issue #75): the TUI boots with
+// an empty list and a live-scrape status; the cmd populates it in place.
+func Launch(cat *catalog.Catalog, scrapeCmd tea.Cmd) error {
 	root, rootErr := catalog.DefaultLibraryPath()
 
 	var files []string
@@ -123,6 +125,7 @@ func Launch(cat *catalog.Catalog) error {
 	}
 	opts := Options{
 		Catalog:       cat,
+		ScrapeCmd:     scrapeCmd,
 		LibraryFiles:  files,
 		LibraryRoot:   root,
 		PlayerNote:    playerNote,

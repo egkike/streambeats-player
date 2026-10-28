@@ -12,7 +12,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"streambeats/internal/catalog"
+	"streambeats/internal/tui"
 )
 
 func fixtureCatalog() *catalog.Catalog {
@@ -22,6 +25,8 @@ func fixtureCatalog() *catalog.Catalog {
 }
 
 // newTUIDeps builds an isolated dependency set for one test store path.
+// The launch stub records what the TUI received: cat (nil on the fresh
+// path, issue #75) and the scrape cmd (nil when a cache already exists).
 func newFakeTUIDeps(t *testing.T, catalogOut *catalog.Catalog, refreshErr error, launched *int) *tuiDeps {
 	t.Helper()
 	return &tuiDeps{
@@ -29,30 +34,61 @@ func newFakeTUIDeps(t *testing.T, catalogOut *catalog.Catalog, refreshErr error,
 		refresh: func() (*catalog.Catalog, error) {
 			return catalogOut, refreshErr
 		},
-		launch: func(cat *catalog.Catalog) error {
+		launch: func(cat *catalog.Catalog, scrape tea.Cmd) error {
 			*launched++
+			lastLaunchCat = cat
+			lastLaunchScrape = scrape
 			return nil
 		},
 	}
 }
 
-func TestFreshTUIScrapesWhenCacheMissing(t *testing.T) {
+// lastLaunchCat/lastLaunchScrape capture what runTUI handed to launch.
+var (
+	lastLaunchCat    *catalog.Catalog
+	lastLaunchScrape tea.Cmd
+)
+
+func TestFreshTUILaunchesImmediatelyWithScrapeCmd(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	launched := 0
+	refreshed := 0
 	deps := newFakeTUIDeps(t, fixtureCatalog(), nil, &launched)
+	deps.refresh = func() (*catalog.Catalog, error) {
+		refreshed++
+		return fixtureCatalog(), nil
+	}
 
 	code := runTUI(&stdout, &stderr, deps)
 	if code != 0 {
 		t.Fatalf("fresh-install TUI exit = %d, want 0 (stderr: %s)", code, stderr.String())
 	}
-	if !contains(stdout.String(), "scraping it now") {
-		t.Fatalf("stdout missing the friendly scrape note:\n%s", stdout.String())
-	}
-	if _, err := os.Stat(deps.store.Path); err != nil {
-		t.Fatalf("scraped catalog was not saved to the cache: %v", err)
-	}
+	// issue #75: the TUI boots BEFORE the scrape runs — no blocking startup,
+	// no pre-TUI terminal message. The scrape only runs inside the TUI loop.
 	if launched != 1 {
 		t.Fatalf("TUI launch calls = %d, want 1", launched)
+	}
+	if lastLaunchCat != nil {
+		t.Fatal("fresh launch must hand the TUI a nil catalog (populate in place)")
+	}
+	if lastLaunchScrape == nil {
+		t.Fatal("fresh launch must wire the scrape cmd")
+	}
+	if refreshed != 0 {
+		t.Fatalf("scrape ran %d times synchronously; it must only run as a cmd", refreshed)
+	}
+	if contains(stdout.String(), "scraping it now") {
+		t.Fatal("the pre-TUI terminal message is gone (issue #75): the status lives inside the TUI")
+	}
+
+	// Running the cmd performs the scrape AND persists the cache (S3).
+	msg := lastLaunchScrape()
+	scraped, ok := msg.(tui.CatalogScrapedMsg)
+	if !ok || scraped.Err != nil || scraped.Cat == nil {
+		t.Fatalf("scrape cmd returned %+v, want a populated CatalogScrapedMsg", msg)
+	}
+	if _, err := os.Stat(deps.store.Path); err != nil {
+		t.Fatalf("scrape cmd did not save the cache: %v", err)
 	}
 }
 
@@ -74,23 +110,39 @@ func TestTUIWithCacheSkipsScrape(t *testing.T) {
 	if launched != 1 {
 		t.Fatalf("launch calls = %d, want 1", launched)
 	}
+	if lastLaunchCat == nil {
+		t.Fatal("cached launch must hand the TUI the cached catalog")
+	}
+	if lastLaunchScrape != nil {
+		t.Fatal("cached launch must NOT wire a scrape cmd")
+	}
 }
 
 func TestFreshTUIScrapeFailureIsFriendly(t *testing.T) {
+	// issue #75: the scrape no longer runs (or fails) before the TUI boots —
+	// a refresh error surfaces inside the TUI as a retryable status. runTUI
+	// itself must still boot the TUI with the scrape cmd wired.
 	var stdout, stderr bytes.Buffer
 	launched := 0
 	deps := newFakeTUIDeps(t, nil, errors.New("network unreachable"), &launched)
 
 	code := runTUI(&stdout, &stderr, deps)
-	if code == 0 {
-		t.Fatal("refresh failure must keep the TUI out")
+	if code != 0 {
+		t.Fatalf("fresh TUI must boot even when the scrape will fail (error surfaces in-TUI), got exit %d (stderr: %s)", code, stderr.String())
 	}
-	out := stderr.String()
-	if !contains(out, "refresh catalog") || contains(out, "goroutine") {
-		t.Fatalf("stderr not friendly:\n%s", out)
+	if launched != 1 {
+		t.Fatalf("launch calls = %d, want 1", launched)
 	}
-	if launched != 0 {
-		t.Fatal("TUI must not launch on refresh failure")
+	if lastLaunchScrape == nil {
+		t.Fatal("scrape cmd must be wired so the failure lands in the TUI status")
+	}
+	msg := lastLaunchScrape()
+	scraped, ok := msg.(tui.CatalogScrapedMsg)
+	if !ok || scraped.Err == nil {
+		t.Fatalf("scrape cmd must carry the failure, got %+v", msg)
+	}
+	if _, err := os.Stat(deps.store.Path); !os.IsNotExist(err) {
+		t.Fatal("a failed scrape must not write the cache")
 	}
 }
 
