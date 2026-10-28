@@ -1,0 +1,39 @@
+# Desktop entry launches the toggle (issue #73, v1.7.2)
+
+Binding Ctrl+Alt+M (or KRunner) to the APP — the natural user move — runs
+the .desktop Exec, which still spawns plain `streambeats-panel <side>`:
+toggle works in one direction only. Owner live-validated on v1.7.1
+(2026-10-28). This cycle changes the generated Exec to
+`streambeats-panel toggle <side>` so binding the app works out of the
+factory. Branch: `feat/desktop-toggle-exec`.
+
+## Specs
+
+- S1: "cambiar el Exec del template del .desktop a streambeats-panel
+  toggle <side>" — default entry + the four side Actions use `toggle`;
+  generated file must pass desktop-file-validate.
+- S2: the toggle block only runs when the per-side unit is ACTIVE; with
+  no unit, `toggle <side>` spawns exactly like plain `<side>` (v1.7.1,
+  review-f0ae204a30b17e8b approved). First press spawns, later presses
+  show/hide.
+- S3: scripts/streambeats-panel logic untouched (S4 of panel-toggle: old
+  behavior preserved); plain command keeps spawn/guard semantics.
+- S4: install_test pins the generated Exec lines (default + 4 side
+  actions contain `toggle`); desktop_integration_test stays 30/30.
+- S5: docs that describe the desktop entry match the new behavior.
+
+## Tasks
+
+- T1: branch + this doc + Engram mirror.
+- T2 (S4): RED — install_test asserts `toggle` in generated Exec.
+- T3 (S1): GREEN — template Exec → toggle (default + actions).
+- T4 (S5): docs alignment (README/docs/kde-panel-integration.md).
+- T5: full pipeline + native review + PR + release v1.7.2.
+
+## Log
+
+- L1 (owner, 2026-10-28): v1.7.1 live validation — app-bound Ctrl+Alt+M
+  toggles only one direction (kglobalshortcutsrc shows
+  `[services][streambeats-panel.desktop] _launch=Ctrl+Alt+M`); root cause
+  is the Exec, not the toggle code (live kdotool measurement proved
+  `toggle right` minimizes/restores). Owner: "Dale al ciclo".
