@@ -27,7 +27,7 @@ Everything, user-level, under one `--prefix` (default `~/.local`):
 | `$PREFIX/bin/streambeats` | wrapper → shared binary |
 | `$PREFIX/bin/streambeats-quick` | wrapper → shared launcher |
 | `$PREFIX/bin/streambeats-panel` | wrapper → panel spawn (systemd detached, per-side lock) |
-| `$PREFIX/share/applications/streambeats-panel.desktop` | generated KRunner/menu entry (4 side actions, absolute Exec/Icon) |
+| `$PREFIX/share/applications/streambeats-panel.desktop` | generated KRunner/menu entry (toggle Exec + 4 side actions, absolute Exec/Icon) |
 | `$PREFIX/share/icons/hicolor/scalable/apps/streambeats-panel.svg` | launcher icon |
 | `$PREFIX/share/streambeats/assets/kwin/window-rules.md` | KWin floating rules + keybind steps |
 | `$XDG_CONFIG_HOME/streambeats/` (default `~/.config/streambeats/`) | config dir created by the installer; the TUI writes `settings.json` (theme choice) there on first change |
