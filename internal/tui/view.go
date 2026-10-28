@@ -296,9 +296,14 @@ func (m Model) listRows() []string {
 				rows = append(rows, m.renderRow(i == m.libraryCursor, false, name, width))
 				continue
 			}
-			path := m.library[i-len(m.libDirs)]
+			fileIdx := i - len(m.libDirs)
+			path := m.library[fileIdx]
 			title := libraryEntryTitle(path)
-			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, total), m.nowPlaying == title, title, width))
+			// Playing is matched BY INDEX (#84): titles repeat across formats
+			// (Song.mp3 / Song.flac) and a title match would mark every row
+			// with the same name at once.
+			playing := m.playing && m.playingLib == fileIdx
+			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, total), playing, title, width))
 		}
 		return padRows(rows, height)
 

@@ -909,6 +909,9 @@ func TestLibraryEndAdvancesAndEnds(t *testing.T) {
 	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	runCmd(t, cmd)
 	m, _ = update(t, m, loadedMsg{title: "a1"})
+	// the real sequence: mpv fires playback-restart when the load completes,
+	// closing the manual-load window before any track end (issue #80)
+	m, _ = update(t, m, eventMsg{event: player.Event{Name: "playback-restart"}})
 	m, nextCmd := update(t, m, eofIdle())
 	if nextCmd == nil {
 		t.Fatal("library playlist should advance to the next file")
