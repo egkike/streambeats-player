@@ -232,8 +232,16 @@ func (m Model) headerView() string {
 		if root == "" {
 			root = "local library"
 		}
-		return m.titleStyle().Render(fmt.Sprintf("Local library (%d files)", len(m.library))) +
-			m.dimStyle().Render("  "+root)
+		base := m.libraryDir
+		if base == "" {
+			base = root
+		}
+		label := "Local library"
+		if base != "" && base != "local library" {
+			label = "Local library — " + filepath.Base(base)
+		}
+		return m.titleStyle().Render(fmt.Sprintf("%s (%d songs, %d folders)", label, len(m.library), len(m.libDirs))) +
+			m.dimStyle().Render("  "+root+"  u: up")
 	case m.inTracks:
 		album, ok := m.selectedAlbum()
 		if !ok {
@@ -268,17 +276,29 @@ func (m Model) listRows() []string {
 			row := m.renderRow(i == m.configIndex, false, label, width)
 			rows = append(rows, row)
 		}
+		// Library root (issue #76): read-only here — edit settings.json
+		// (libraryRoot) to point the navigator elsewhere.
+		if m.libraryRoot != "" {
+			rows = append(rows, m.dimStyle().Render(fmt.Sprintf("  library root: %s (settings.json)", m.libraryRoot)))
+		}
 		return padRows(rows, height)
 	case m.mode == ModeLibrary:
-		if len(m.library) == 0 {
-			rows = append(rows, m.dimStyle().Render("  no local files yet — run `streambeats sync`"))
+		total := m.libEntryCount()
+		if total == 0 {
+			rows = append(rows, m.dimStyle().Render("  this folder has no music — u: up, streambeats sync to fill"))
 			return padRows(rows, height)
 		}
-		start, end := windowBounds(len(m.library), m.libraryCursor, height)
+		start, end := windowBounds(total, m.libraryCursor, height)
 		for i := start; i < end; i++ {
-			path := m.library[i]
+			if i < len(m.libDirs) {
+				// subdirectories first, with a trailing slash marker (#76)
+				name := filepath.Base(m.libDirs[i]) + "/"
+				rows = append(rows, m.renderRow(i == m.libraryCursor, false, name, width))
+				continue
+			}
+			path := m.library[i-len(m.libDirs)]
 			title := libraryEntryTitle(path)
-			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, len(m.library)), m.nowPlaying == title, title, width))
+			rows = append(rows, m.renderRow(i == clampCursor(m.libraryCursor, total), m.nowPlaying == title, title, width))
 		}
 		return padRows(rows, height)
 

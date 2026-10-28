@@ -3,8 +3,9 @@ package main
 // uninstall.go — `streambeats uninstall`: remove exactly what the installer
 // landed (issue #9). Registry-aware: uses $PREFIX/share/streambeats/
 // manifest.txt when present and falls back to the known layout for installs
-// created before manifests existed. User data is protected: ~/Music/
-// StreamBeats is never touched and the catalog cache needs an explicit
+// created before manifests existed. User data is protected: the library
+// (XDG music dir, e.g. ~/Música or ~/Music)/StreamBeats is never touched
+// and the catalog cache needs an explicit
 // --cache flag.
 
 import (

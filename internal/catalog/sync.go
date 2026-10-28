@@ -21,13 +21,32 @@ type SyncResult struct {
 	Skipped    int      `json:"skipped"` // tracks without a stream available
 }
 
-// DefaultLibraryPath is the user-visible music library location.
+// DefaultLibraryPath is the user-visible music library location: the XDG
+// user music dir (es systems: Música; en: Music) + the StreamBeats subdir,
+// so the sync destination lands where the user actually keeps music.
 func DefaultLibraryPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("user home: %w", err)
 	}
-	return filepath.Join(home, "Music", "StreamBeats"), nil
+	musicDir, err := XDGMusicDir(xdgUserDirsPath(), home)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(musicDir, "StreamBeats"), nil
+}
+
+// xdgUserDirsPath returns the user-dirs.dirs location honoring XDG_CONFIG_HOME.
+func xdgUserDirsPath() string {
+	config := os.Getenv("XDG_CONFIG_HOME")
+	if config == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		config = filepath.Join(home, ".config")
+	}
+	return filepath.Join(config, "user-dirs.dirs")
 }
 
 // SyncAlbum downloads every downloadable track of one album into

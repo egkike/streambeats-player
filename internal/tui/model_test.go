@@ -779,7 +779,7 @@ func TestViewRendersWithoutPanicking(t *testing.T) {
 
 	m.mode = ModeLibrary
 	out = m.View()
-	for _, want := range []string{"Local library (1 files)", "First"} {
+	for _, want := range []string{"Local library (1 songs, 0 folders)", "First"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("library view is missing %q:\n%s", want, out)
 		}
