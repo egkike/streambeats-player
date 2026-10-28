@@ -71,6 +71,12 @@ func ListDir(dir string) (dirs []string, files []string, err error) {
 		return nil, nil, err
 	}
 	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			// Hidden entries: macOS AppleDouble resource-forks (._*.mp3),
+			// .DS_Store and dot-directories are junk — listing them made the
+			// queue cascade through undecodable files (issue #88).
+			continue
+		}
 		if e.IsDir() {
 			dirs = append(dirs, filepath.Join(dir, e.Name()))
 			continue
