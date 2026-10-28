@@ -91,7 +91,7 @@ func TestListDirAcceptsCommonAudioFormats(t *testing.T) {
 	root := t.TempDir()
 	for _, f := range []string{
 		"a.flac", "b.ogg", "c.oga", "d.opus", "e.m4a", "f.aac", "g.wav", "h.wma",
-		"i.MP3", // case-insensitive like today
+		"i.MP3",                            // case-insensitive like today
 		"j.jpg", "k.txt", "l.cue", "m.mp4", // not audio for the navigator
 	} {
 		if err := os.WriteFile(filepath.Join(root, f), nil, 0o600); err != nil {
