@@ -473,6 +473,15 @@ environment_advisories() {
 	else
 		warn "ghostty was NOT found in PATH — the floating quick-terminal panel needs it (the TUI itself does not)"
 	fi
+	# Panel toggle advisory (issue #70): on Linux + ghostty, Ctrl+Alt+M hides
+	# and restores the panel through kdotool. Without it the panel still
+	# opens — the second press just cannot minimize/restore — so this stays
+	# a warning, never fatal. Name both install paths (distro package;
+	# upstream prebuilt binary).
+	if [ "$OS_FLAVOR" = "linux" ] && command -v ghostty >/dev/null 2>&1 &&
+		! command -v kdotool >/dev/null 2>&1; then
+		warn "kdotool was NOT found in PATH — Ctrl+Alt+M opens the panel but cannot hide/restore it; install kdotool 0.3.0+ (distro package, or the upstream prebuilt: https://github.com/jinliu/kdotool/releases)"
+	fi
 }
 
 main() {

@@ -20,7 +20,16 @@
 
 set -u
 
-USAGE="usage: streambeats-panel [top|bottom|left|right]"
+USAGE="usage: streambeats-panel [toggle] [top|bottom|left|right]"
+MODE="spawn"
+# Optional leading mode word: `streambeats-panel toggle [side]` toggles the
+# running panel (two-press doctrine): focused window -> minimize it (music
+# keeps playing); unfocused -> activate it (restores minimized, raises
+# visible-unfocused). Unknown windows still spawn the panel.
+if [ "$#" -ge 1 ] && [ "$1" = "toggle" ]; then
+	MODE="toggle"
+	shift
+fi
 SIDE="right"
 if [ "$#" -gt 1 ]; then
 	printf '%s\n' "$USAGE" >&2
@@ -90,6 +99,33 @@ systemd_ok() {
 # no systemd user session) proceeds to spawn or the fallback path.
 UNIT="streambeats-panel-${SIDE}.service"
 if systemd_ok && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
+	if [ "$MODE" = "toggle" ] && command -v kdotool >/dev/null 2>&1; then
+		# kdotool 0.3.0 has no minimized-state query, so the toggle decides by
+		# the ACTIVE window: a minimized panel is never active, so activate
+		# covers both minimized and visible-unfocused; minimizing fires only
+		# when the panel itself holds the focus.
+		panel_wins="$(kdotool search --name 'streambeats player' 2>/dev/null)" || panel_wins=""
+		active_win="$(kdotool getactivewindow 2>/dev/null)" || active_win=""
+		for panel_win in $panel_wins; do
+			if [ "$active_win" = "$panel_win" ]; then
+				if kdotool windowminimize "$panel_win"; then
+					notify "panel minimized (music keeps playing)"
+					exit 0
+				fi
+				notify "could not minimize the panel window — it stays visible"
+				exit 1
+			fi
+		done
+		for panel_win in $panel_wins; do
+			kdotool windowactivate "$panel_win" && exit 0
+		done
+		notify "panel unit active but no window found — restart it: streambeats-panel $SIDE"
+		exit 0
+	fi
+	if [ "$MODE" = "toggle" ]; then
+		notify "toggle needs kdotool — panel stays running; install it for show/hide"
+		exit 0
+	fi
 	try_focus
 	notify "streambeats-panel $SIDE already running"
 	exit 0

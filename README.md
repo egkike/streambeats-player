@@ -87,6 +87,11 @@ nothing above ever touches them.
 - **Ghostty 1.2+** — required only for the floating quick-terminal panel
   (`streambeats-quick` + presets under `assets/ghostty/`); the `streambeats`
   TUI itself runs in any terminal. See docs/ghostty.md.
+- **kdotool 0.3+** (Linux, optional) — enables the panel show/hide toggle:
+  `streambeats-panel toggle <side>` minimizes the focused panel (audio keeps
+  playing) and restores/raises it on the next press. Without it the panel
+  still opens — the second press just cannot hide it. The installer warns
+  with the exact install paths when it is missing.
 - **Go 1.27+** — only for building from a source checkout (below); the user
   install never runs the compiler.
 

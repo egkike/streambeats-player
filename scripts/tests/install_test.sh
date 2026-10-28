@@ -478,6 +478,84 @@ else
 	pass "manifest does not list the config dir"
 fi
 
+# ---------------------------------------------------------------------------
+# Scenario 11: kdotool advisory (issue #70) — panel toggle dependency.
+# Linux + ghostty present + kdotool missing → the installer names both
+# install paths (distro package; upstream prebuilt). kdotool present, or the
+# darwin branch (no freedesktop integration), stay silent (S3/S5).
+say "scenario 11: kdotool advisory (panel toggle dependency)"
+FAKEBIN="$Fx/fakebin"
+mkdir -p "$FAKEBIN"
+printf '#!/bin/sh\nexit 0\n' >"$FAKEBIN/ghostty"
+chmod 0755 "$FAKEBIN/ghostty"
+
+STAGE="$Fx/stage11"
+mkdir -p "$STAGE/api/releases/tags"
+stage_fake_release "$STAGE/artifacts" 1
+cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
+
+# 11a: linux + ghostty + kdotool missing -> advisory. Hermeticity: the
+# owner's real kdotool (~/.local/bin) sits in PATH, and `command -v` skips
+# non-executable shadows — so build KDFREE_PATH by dropping every PATH
+# directory that holds an executable kdotool, then lead with FAKEBIN.
+KDFREE_PATH=""
+for d in $(printf '%s' "$PATH" | tr ':' ' '); do
+	[ -x "$d/kdotool" ] || KDFREE_PATH="$KDFREE_PATH:$d"
+done
+KDFREE_PATH="${KDFREE_PATH#:}"
+PREFIXA="$Fx/prefix11a"
+rc11a=0
+if OUT11A=$(PATH="$FAKEBIN:$KDFREE_PATH" run_installer "$PREFIXA" 2>&1); then
+	pass "advisory scenario exits 0 (kdotool missing)"
+else
+	rc11a=$?
+	fail "advisory scenario exited $rc11a"
+fi
+if printf '%s' "$OUT11A" | grep -q "kdotool"; then
+	pass "advisory names kdotool when missing (linux + ghostty)"
+else
+	fail "no kdotool advisory on linux + ghostty (out: $OUT11A)"
+fi
+if printf '%s' "$OUT11A" | grep -q "jinliu/kdotool"; then
+	pass "advisory names the upstream prebuilt path"
+else
+	fail "advisory omits the upstream prebuilt path"
+fi
+
+# 11b: kdotool present -> silent (executable FAKEBIN shadow decides)
+printf '#!/bin/sh\nexit 0\n' >"$FAKEBIN/kdotool"
+chmod 0755 "$FAKEBIN/kdotool"
+PREFIXB="$Fx/prefix11b"
+rc11b=0
+if OUT11B=$(PATH="$FAKEBIN:$KDFREE_PATH" run_installer "$PREFIXB" 2>&1); then
+	pass "kdotool-present scenario exits 0"
+else
+	rc11b=$?
+	fail "kdotool-present scenario exited $rc11b"
+fi
+if printf '%s' "$OUT11B" | grep -q "kdotool"; then
+	fail "advisory fired despite kdotool being present"
+else
+	pass "no kdotool advisory when kdotool is present"
+fi
+
+# 11c: darwin branch -> silent even with kdotool missing
+rm -f "$FAKEBIN/kdotool"
+PREFIXC="$Fx/prefix11c"
+rc11c=0
+if OUT11C=$(PATH="$FAKEBIN:$PATH" STREAMBEATS_FAKE_OS=darwin \
+		run_installer "$PREFIXC" 2>&1); then
+	pass "darwin advisory scenario exits 0"
+else
+	rc11c=$?
+	fail "darwin advisory scenario exited $rc11c"
+fi
+if printf '%s' "$OUT11C" | grep -q "kdotool"; then
+	fail "darwin branch fired the kdotool advisory (S5 violated)"
+else
+	pass "darwin branch stays silent about kdotool"
+fi
+
 say "----------------------------------------"
 say "scenarios: $((PASS_COUNT + FAIL_COUNT)) assertions — $PASS_COUNT pass, $FAIL_COUNT fail"
 [ "$FAIL_COUNT" -eq 0 ] || exit 1

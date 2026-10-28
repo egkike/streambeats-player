@@ -36,11 +36,12 @@ The presets adopt the values the merged ghostty config already accepts
 (window-mode, autotype...); when a GTK dialog reports a preset field, see
 `docs/ghostty.md` (pseudo-config gotchas, L9/L10).
 
-## Toggle hide/show — deliberately NOT here
+## Toggle hide/show — shipped (kdotool toggle, issue #70)
 
-No shipped automation toggles visibility from outside the window (Ghostty
-1.3.1 lacks a quick-terminal CLI action; KWin scripting would need live
-per-release validation). Call it a `q` away: quit inside the panel stops
-world (audio included), and the keybind respawns fresh. A separate issue
-will explore KWin scripting/kdotool with real KDE evidence when the owner
-wants the full toggle dance.
+`streambeats-panel toggle <side>` implements the two-press toggle: focused
+panel → `windowminimize` (audio keeps playing); unfocused → `windowactivate`
+(restores minimized, raises visible-unfocused). kdotool 0.3 has no
+minimized-state query, so the decision uses the ACTIVE window only. The
+installer warns with both install paths when kdotool is missing (Linux +
+ghostty). Plain `streambeats-panel <side>` keeps the spawn-and-guard
+behavior, and quitting inside the panel (`q`) still stops the world.
