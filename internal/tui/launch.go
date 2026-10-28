@@ -77,13 +77,28 @@ func (w *debugRawWriter) Write(b []byte) (int, error) {
 // scrapeCmd is non-nil only on a fresh cache (issue #75): the TUI boots with
 // an empty list and a live-scrape status; the cmd populates it in place.
 func Launch(cat *catalog.Catalog, scrapeCmd tea.Cmd) error {
-	root, rootErr := catalog.DefaultLibraryPath()
-
-	var files []string
-	if rootErr == nil {
-		if scanned, err := catalog.ScanLibrary(root); err == nil {
-			files = scanned
+	// Library root (issue #76): the persisted choice wins; otherwise the XDG
+	// user music dir (es systems: Música; en: Music) resolves the default,
+	// which is then persisted so later xdg changes cannot surprise the user.
+	settingsStore, settingsErr := settings.DefaultStore()
+	var saved settings.Settings
+	if settingsErr == nil {
+		if user, err := settingsStore.Load(); err == nil {
+			saved = user
 		}
+	}
+	root := saved.LibraryRoot
+	if root == "" {
+		root, _ = catalog.MusicDir()
+		if settingsErr == nil {
+			saved.LibraryRoot = root
+			_ = settingsStore.Save(saved) // best-effort; defaults stay resolved
+		}
+	}
+
+	var dirs, files []string
+	if root != "" {
+		dirs, files, _ = catalog.ListDir(root)
 	}
 
 	var (
@@ -116,16 +131,12 @@ func Launch(cat *catalog.Catalog, scrapeCmd tea.Cmd) error {
 	// on Options so the Config screen can also persist (R3-config-not-
 	// persisted, review lineage review-d1aeb96ca49e64a5): loading without
 	// wiring the store back in breaks the write path at the junction point.
-	settingsStore, settingsErr := settings.DefaultStore()
-	theme := ""
-	if settingsErr == nil {
-		if user, err := settingsStore.Load(); err == nil {
-			theme = user.Theme
-		}
-	}
+	theme := saved.Theme
 	opts := Options{
 		Catalog:       cat,
 		ScrapeCmd:     scrapeCmd,
+		LibraryDir:    root,
+		LibDirs:       dirs,
 		LibraryFiles:  files,
 		LibraryRoot:   root,
 		PlayerNote:    playerNote,

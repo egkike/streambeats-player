@@ -32,8 +32,9 @@ streambeats-quick right   # floating quick-terminal panel (Ghostty)
 ```
 
 Uninstall (the bundled CLI removes exactly what the installer landed; the
-panel is stopped first and your local library, `~/Music/StreamBeats`, is
-never touched):
+panel is stopped first and your local library — the `StreamBeats` folder
+inside your XDG music dir, e.g. `~/Música` on es systems or `~/Music` on
+en — is never touched):
 
 ```sh
 streambeats uninstall          # add --cache to also clear the catalog cache
@@ -56,9 +57,9 @@ rm -rf ~/.local/share/streambeats \
 rm -rf ~/.cache/streambeats
 ```
 
-Your `~/Music/StreamBeats` local library (downloaded albums) and your
-`~/.config/streambeats/settings.json` (theme choice) are user data:
-nothing above ever touches them.
+Your local library (the `StreamBeats` folder inside your XDG music dir)
+and your `~/.config/streambeats/settings.json` (theme, `libraryRoot`) are
+user data: nothing above ever touches them.
 
 ## Requirements
 
@@ -106,11 +107,13 @@ go build -o bin/streambeats ./cmd/streambeats
 ```sh
 ./bin/streambeats          # launch the TUI
 ./bin/streambeats refresh  # scrape the StreamBeats catalog into cache
-./bin/streambeats sync     # download playable albums to ~/Music/StreamBeats
+./bin/streambeats sync     # download playable albums to <music dir>/StreamBeats (XDG)
 ./bin/streambeats help     # key bindings and paths
 ```
 
-TUI keys: `j/k` move, `enter` play, `l` local-library mode, `space` pause,
+TUI keys: `j/k` move, `enter` play/open, `l` library browser (navigate
+folders; `u` goes up; the root defaults to your XDG music dir, editable
+via `libraryRoot` in settings.json), `space` pause,
 `s` stop, `+/-` volume, `>` next song, `<` previous song, `esc` back,
 `q` quit. The transport row at the bottom is visual only — the keyboard
 does the work — and is terminal-adaptive (detected once at launch):

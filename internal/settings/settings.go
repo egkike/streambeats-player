@@ -16,7 +16,8 @@ import (
 
 // Settings is the persisted user configuration.
 type Settings struct {
-	Theme string `json:"theme,omitempty"`
+	Theme       string `json:"theme,omitempty"`
+	LibraryRoot string `json:"libraryRoot,omitempty"`
 }
 
 // Store persists and reloads settings as JSON.

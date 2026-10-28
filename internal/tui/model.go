@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -83,8 +85,12 @@ var errNoPlayer = errors.New("mpv is not connected")
 
 // Options configures a Model.
 type Options struct {
-	Catalog       *catalog.Catalog
-	LibraryFiles  []string
+	Catalog      *catalog.Catalog
+	LibraryFiles []string
+	// Library navigation (issue #76): the current directory and its
+	// subdirectories (rendered first, before the audio files).
+	LibraryDir    string
+	LibDirs       []string
 	LibraryRoot   string
 	Player        Player // nil when mpv is unavailable
 	Resolver      Resolver
@@ -113,8 +119,14 @@ type Model struct {
 	player  Player
 	resolve Resolver
 
-	library       []string
-	libraryRoot   string
+	library     []string
+	libraryRoot string
+	// Library navigation (issue #76): the current directory and its
+	// subdirectories (rendered before the audio files). The play path
+	// stays untouched: `library` remains the audio files of the current
+	// directory and `playingLib` its index.
+	libraryDir    string
+	libDirs       []string
 	mode          Mode
 	inTracks      bool
 	albumCursor   int
@@ -184,6 +196,8 @@ func NewModel(opts Options) Model {
 		resolve:        opts.Resolver,
 		library:        append([]string(nil), opts.LibraryFiles...),
 		libraryRoot:    opts.LibraryRoot,
+		libraryDir:     opts.LibraryDir,
+		libDirs:        append([]string(nil), opts.LibDirs...),
 		volume:         defaultVolume,
 		playingAlbum:   -1,
 		playingTrack:   -1,
@@ -252,6 +266,14 @@ type (
 		Cat *catalog.Catalog
 		Err error
 	}
+	// LibListedMsg (issue #76): the result of a library-directory listing.
+	// Dirs are absolute paths of subdirectories; Files the .mp3 children.
+	LibListedMsg struct {
+		Dir   string
+		Dirs  []string
+		Files []string
+		Err   error
+	}
 	actionMsg struct {
 		err error
 	}
@@ -305,6 +327,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, pollCmd(m.player))
 		}
 		return m, tea.Batch(cmds...)
+	case LibListedMsg:
+		// Lazy listing resolution (issue #76): swap the current directory's
+		// contents in place; an unreadable dir degrades to a status line.
+		if msg.Err != nil {
+			m.status = fmt.Sprintf("cannot read %s (%v) — u: up", msg.Dir, msg.Err)
+			return m, nil
+		}
+		m.libraryDir = msg.Dir
+		m.libDirs = msg.Dirs
+		m.library = msg.Files
+		m.libraryCursor = 0
+		if len(msg.Dirs) == 0 && len(msg.Files) == 0 {
+			m.status = "this folder has no music — u: up, streambeats sync to fill"
+		}
+		return m, nil
 	case CatalogScrapedMsg:
 		// Live-scrape resolution (issue #75): populate in place on success;
 		// keep the retry cmd alive on failure so `r` can re-issue the scrape.
@@ -447,6 +484,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Stop playback and let mpv exit BEFORE the program tears down, so
 		// audio never outlives the panel.
 		return m, tea.Sequence(quitPlayerCmd(m.player), tea.Quit)
+	case msg.String() == "u" && m.mode == ModeLibrary:
+		// Library ascend (issue #76): parent directory, clamped at the root.
+		return m.ascendLibrary()
 	case msg.String() == "r" && m.scrapeCmd != nil:
 		// Live-scrape retry (issue #75): `r` has no other binding, and this
 		// branch only exists while a scrape is pending or failed.
@@ -510,7 +550,8 @@ func (m *Model) setStatus(text string) {
 func (m *Model) moveCursor(delta int) {
 	switch {
 	case m.mode == ModeLibrary:
-		m.libraryCursor = clampCursor(m.libraryCursor+delta, len(m.library))
+		// combined list (issue #76): subdirectories first, then audio files
+		m.libraryCursor = clampCursor(m.libraryCursor+delta, m.libEntryCount())
 	case m.inTracks:
 		n := 0
 		if album, ok := m.selectedAlbum(); ok {
@@ -542,10 +583,56 @@ func (m *Model) toggleMode() {
 	}
 	m.mode = ModeLibrary
 	m.inTracks = false
-	if len(m.library) == 0 {
-		m.status = "local library is empty — run `streambeats sync`"
+	if m.libEntryCount() == 0 {
+		m.status = "this folder has no music — u: up, streambeats sync to fill"
 	} else {
 		m.status = ""
+	}
+}
+
+// Library navigation (issue #76): lazy per-directory listing. The combined
+// cursor spans subdirectories (rendered first) and audio files; playback
+// keeps indexing `library` (files of the current directory) exactly as before.
+func (m Model) libEntryCount() int { return len(m.libDirs) + len(m.library) }
+
+// libDirAt reports the subdirectory under the combined cursor, if any.
+func (m Model) libDirAt() (string, bool) {
+	if m.mode != ModeLibrary || m.libraryCursor >= len(m.libDirs) || len(m.libDirs) == 0 {
+		return "", false
+	}
+	return m.libDirs[clampCursor(m.libraryCursor, len(m.libDirs))], true
+}
+
+// descendLibrary enters a directory and issues its lazy listing cmd.
+func (m Model) descendLibrary(dir string) (tea.Model, tea.Cmd) {
+	m.libraryDir = dir
+	m.libraryCursor = 0
+	m.library = nil
+	m.libDirs = nil
+	m.status = ""
+	return m, listLibraryCmd(dir)
+}
+
+// ascendLibrary goes to the parent directory, clamped at the library root:
+// the navigator never escapes above the configured root.
+func (m Model) ascendLibrary() (tea.Model, tea.Cmd) {
+	dir := m.libraryDir
+	if dir == "" {
+		dir = m.libraryRoot
+	}
+	parent := filepath.Dir(dir)
+	if m.libraryRoot != "" && (!strings.HasPrefix(parent, m.libraryRoot) || parent == dir) {
+		parent = m.libraryRoot
+	}
+	return m.descendLibrary(parent)
+}
+
+// listLibraryCmd lists one directory lazily: subdirectories + .mp3 files,
+// no recursion (issue #76 S3) — a $HOME root lists instantly.
+func listLibraryCmd(dir string) tea.Cmd {
+	return func() tea.Msg {
+		dirs, files, err := catalog.ListDir(dir)
+		return LibListedMsg{Dir: dir, Dirs: dirs, Files: files, Err: err}
 	}
 }
 
@@ -619,11 +706,15 @@ func (m Model) applyThemeSelection() (tea.Model, tea.Cmd) {
 // track/file.
 func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 	if m.mode == ModeLibrary {
+		if dir, ok := m.libDirAt(); ok {
+			// Enter on a subdirectory descends (lazy listing, issue #76).
+			return m.descendLibrary(dir)
+		}
 		if len(m.library) == 0 {
-			m.status = "local library is empty — run `streambeats sync`"
+			m.status = "this folder has no music — u: up, streambeats sync to fill"
 			return m, nil
 		}
-		idx := clampCursor(m.libraryCursor, len(m.library))
+		idx := clampCursor(m.libraryCursor, m.libEntryCount()) - len(m.libDirs)
 		m.playingLib = idx
 		m.playingAlbum, m.playingTrack = -1, -1
 		path := m.library[idx]
