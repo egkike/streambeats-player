@@ -69,3 +69,13 @@ Specs quote the design agreed in conversation 2026-10-28. Branch:
   with status:approved + type:feature per the standing grant. Full local
   pipeline green: gofmt/go build/go vet/go test, shellcheck, macos smoke
   19/19.
+- L4 (2026-10-28): RDD native review review-f0ae204a30b17e8b (tier HIGH,
+  lenses risk + reliability, candidate = 4 commits / 9 paths / 312 lines,
+  committed-only base e6e3704): 2 lens reviewers admitted → refuter found
+  R3-001 CRITICAL (failed windowminimize skipped the notify but still
+  exited 0 — toggle unapplied, caller uninformed) → bounded correction
+  commit 99213cf (success notifies + exit 0; failure notifies "could not
+  minimize" + exit 1; harness scenario 6d pins it via
+  KROTOOL_STUB_FAIL_MINIMIZE, RED 2 fails → GREEN 30/30) → targeted
+  validator resolved R3-001 → APPROVED, authority burned
+  (gentle-ai.review-acknowledged/v1). Total 4 authorized model runs.
