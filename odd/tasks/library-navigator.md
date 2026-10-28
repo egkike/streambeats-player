@@ -49,3 +49,17 @@ Branch: `feat/library-navigator`.
   (single cohesive feature; splitting the navigator from its catalog
   layer would strand the first PR without a consumer).
   Pipeline: full suite + race green; shellcheck clean.
+- L3 (2026-10-28, owner validation of v1.8.0): first-run scrape fix
+  CONFIRMED ("Ya carga la app de una la primera vez"); library navigator
+  opened at ~/Music (fallback) with no settings.json — root cause found
+  with /proc evidence: the panel TUI inherits
+  XDG_CONFIG_HOME=/tmp/streambeats-ghostty.* (the virtual config home
+  streambeats-quick creates for Ghostty's preset, issue #57 round-7), so
+  it cannot see the user's user-dirs.dirs or settings.json — a LATENT
+  v1.7.x bug (Config-screen theme saves also went to the ephemeral dir).
+  Fix: streambeats-quick passes the user's real XDG_CONFIG_HOME to the
+  player child (env -u when absent), keeping Ghostty on the virtual XDG
+  (issue #80, status:approved type:bug). Harness scenario 7 pins the
+  passthrough both ways (41/41). Installed script patched in place as
+  immediate relief (repo copy restored byte-exact after a botched in-
+  place edit — empty-file incident, repaired from the repo copy).

@@ -108,6 +108,21 @@ EOF
 chmod +x "$STUB_BIN/systemctl" "$STUB_BIN/systemd-run" "$STUB_BIN/kdotool" \
 	"$STUB_BIN/notify-send"
 
+# ghostty stub (issue #80): records its own XDG_CONFIG_HOME plus the full -e
+# argv, so the harness can pin the player's config-home passthrough.
+GHOSTTY_LOG="$Fx/ghostty.log"
+cat >"$STUB_BIN/ghostty" <<EOF
+#!/bin/bash
+{
+	printf 'env XDG_CONFIG_HOME=%s\n' "\${XDG_CONFIG_HOME:-}"
+	printf 'argv:'
+	for a in "\$@"; do printf ' %s' "\$a"; done
+	printf '\n'
+} >>"$GHOSTTY_LOG"
+exit 0
+EOF
+chmod +x "$STUB_BIN/ghostty"
+
 # --- scenario 1: guard — second launch of the same side must not spawn ------
 say "scenario 1: single-instance guard (unit active)"
 : >"$SYSTEMD_RUN_LOG"
@@ -356,6 +371,23 @@ else
 	fail "toggle (minimize fails) is silent (notify log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
 fi
 
+: >"$SYSTEMD_RUN_LOG"
+: >"$KROTOOL_LOG"
+rc6e=0
+env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
+	"$PANEL_UNDER_TEST" toggle right >/dev/null 2>&1 || rc6e=$?
+assert_eq "$rc6e" "0" "toggle (no unit) exits 0"
+if grep -q -e "--unit=streambeats-panel-right.service" "$SYSTEMD_RUN_LOG"; then
+	pass "toggle (no unit) spawned the detached unit"
+else
+	fail "toggle (no unit) did not spawn (systemd-run log: $(cat "$SYSTEMD_RUN_LOG"))"
+fi
+if [ -s "$KROTOOL_LOG" ]; then
+	fail "toggle (no unit) invoked kdotool — it must spawn instead"
+else
+	pass "toggle (no unit) never touches kdotool"
+fi
+
 # 6e: toggle with NO unit -> spawns exactly like plain <side> (issue #73 S2:
 # Exec=toggle is safe by construction — first press spawns)
 : >"$SYSTEMD_RUN_LOG"
@@ -373,6 +405,47 @@ if [ -s "$KROTOOL_LOG" ]; then
 	fail "toggle (no unit) invoked kdotool — it must spawn instead"
 else
 	pass "toggle (no unit) never touches kdotool"
+fi
+
+# --- scenario 7: player config-home passthrough (issue #80) ------------------
+# The panel's ghostty needs the virtual XDG (preset-only, #57), but the
+# PLAYER it spawns must see the USER's real config home — otherwise settings
+# and user-dirs resolution break inside the panel.
+say "scenario 7: player config-home passthrough"
+QUICK_UNDER_TEST="$REPO_ROOT/scripts/streambeats-quick"
+# 7a: user WITHOUT XDG_CONFIG_HOME -> the child runs with it unset
+if OUT7A=$(env -u XDG_CONFIG_HOME PATH="$STUB_BIN:$PATH" \
+	"$QUICK_UNDER_TEST" right 2>&1); then
+	pass "quick (no user xdg) exits 0"
+else
+	fail "quick (no user xdg) exited nonzero: $OUT7A"
+fi
+GVIRT=$(grep '^env ' "$GHOSTTY_LOG" | tail -1)
+if printf '%s' "$GVIRT" | grep -q 'XDG_CONFIG_HOME=.*streambeats-ghostty'; then
+	pass "ghostty still runs with the virtual preset XDG"
+else
+	fail "ghostty lost the virtual XDG: $GVIRT"
+fi
+GARG=$(grep '^argv:' "$GHOSTTY_LOG" | tail -1)
+if printf '%s' "$GARG" | grep -q -- '-e env -u XDG_CONFIG_HOME'; then
+	pass "player child runs with XDG_CONFIG_HOME unset (never the /tmp virtual)"
+else
+	fail "player child passthrough wrong (no user xdg): $GARG"
+fi
+
+# 7b: user WITH XDG_CONFIG_HOME -> the child keeps THEIR value
+: >"$GHOSTTY_LOG"
+if OUT7B=$(env XDG_CONFIG_HOME=/custom/user-cfg PATH="$STUB_BIN:$PATH" \
+	"$QUICK_UNDER_TEST" right 2>&1); then
+	pass "quick (custom user xdg) exits 0"
+else
+	fail "quick (custom user xdg) exited nonzero: $OUT7B"
+fi
+GARG=$(grep '^argv:' "$GHOSTTY_LOG" | tail -1)
+if printf '%s' "$GARG" | grep -q -- '-e env XDG_CONFIG_HOME=/custom/user-cfg'; then
+	pass "player child keeps the user's custom XDG_CONFIG_HOME"
+else
+	fail "player child passthrough wrong (custom xdg): $GARG"
 fi
 
 say "----------------------------------------"
