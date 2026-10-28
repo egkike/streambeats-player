@@ -147,6 +147,12 @@ type Model struct {
 	// pending (first boot) or failed and retryable via `r`. While set, the
 	// status line never auto-expires and the scrape notice stays visible.
 	scrapeCmd tea.Cmd
+	// loadingTrack (issue #80 follow-up): true between a MANUAL loadfile
+	// and its loadedMsg. The replaced stream's idle-active fires during
+	// that window; swallowing it there prevents a spurious queue advance
+	// (the machine's own advance does NOT set it, so dead-stream recovery
+	// keeps working).
+	loadingTrack bool
 	// Bookkeeping for end-of-track auto-advance: which album/track/library
 	// item is currently playing (-1 when none). The basis is the played
 	// source itself, not the browsed list, so navigation while playing
@@ -362,6 +368,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = ""
 		return m, nil
 	case loadedMsg:
+		// The manual-load window closes as soon as the load resolves (#80).
+		m.loadingTrack = false
 		if msg.err != nil {
 			m.playing = false
 			m.paused = false
@@ -377,8 +385,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The browse cursor follows playback so the ♪/▸ markers stay in sync
 		// after auto-advances and skips (user report L31).
 		if m.mode == ModeLibrary {
+			// combined cursor (issue #76): the played file's row is dirs-first
 			if m.playingLib >= 0 && m.playingLib < len(m.library) {
-				m.libraryCursor = m.playingLib
+				m.libraryCursor = len(m.libDirs) + m.playingLib
 			}
 		} else if m.playingAlbum >= 0 && m.playingAlbum < len(m.albums) {
 			m.albumCursor = m.playingAlbum
@@ -406,7 +415,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// for a mere slow source — only for a truly finished one.
 		if msg.event.Name == "property-change" && msg.event.Property == "idle-active" &&
 			msg.event.Bool != nil && *msg.event.Bool &&
-			m.playing && !m.paused {
+			m.playing && !m.paused && !m.loadingTrack {
 			mNext, cmd := m.autoAdvance()
 			if cmd != nil {
 				rearm = []tea.Cmd{cmd, waitEventsCmd(m.player)}
@@ -439,6 +448,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.progressMisses = 0
+		m.loadingTrack = false // a live progress reading ends the load window
 		// A real progress reading proves the source is live: transient
 		// property banners (mpv not reporting duration while buffering)
 		// clear right here — but NEVER a fresh feedback status within its
@@ -717,6 +727,9 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		idx := clampCursor(m.libraryCursor, m.libEntryCount()) - len(m.libDirs)
 		m.playingLib = idx
 		m.playingAlbum, m.playingTrack = -1, -1
+		// Manual play over a live stream: arm the load window so the replaced
+		// stream's idle-active cannot drive a spurious advance (#80).
+		m.loadingTrack = true
 		path := m.library[idx]
 		return m, loadFileCmd(m.player, path, libraryEntryTitle(path))
 	}
