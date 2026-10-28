@@ -68,3 +68,7 @@ Branch: `feat/library-navigator`.
   owner's HiFi folder holds non-mp3 audio and showed empty. sync stays
   mp3-only. Owner approved: "Si quiero que reproduzca otros formatos
   también".
+- L5 (2026-10-28): owner live-validated the dotfile fix on the in-place
+  rebuilt binary ("Ya probé y funciona bien") — the MP3 folder lists real
+  files only and the cascade advance is gone. PR #89 (issue #88) ready
+  for merge; release v1.8.3 to follow with the owner's go.
