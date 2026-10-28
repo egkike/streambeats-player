@@ -182,6 +182,13 @@ if printf '%s' "$OUT" | grep -qE "systemd user session unavailable|background"; 
 else
 	fail "fallback message wrong: $OUT"
 fi
+# the fallback backgrounds the launcher (setsid … &): give it a bounded
+# window to write its log instead of racing it (was a flaky assertion)
+launch_wait=0
+while [ ! -s "$LAUNCH_LOG" ] && [ "$launch_wait" -lt 20 ]; do
+	sleep 0.1
+	launch_wait=$((launch_wait + 1))
+done
 if [ -s "$LAUNCH_LOG" ]; then
 	LAUNCH_LINE=$(head -n 1 "$LAUNCH_LOG")
 	if printf '%s' "$LAUNCH_LINE" | grep -q '^right$'; then
@@ -260,9 +267,11 @@ if grep -q "@PREFIX@" "$DESKTOP_DEST" 2>/dev/null; then
 else
 	pass "no @PREFIX@ placeholder in the generated .desktop"
 fi
-if grep -q "Exec=$PREFIX/bin/streambeats-panel right" "$DESKTOP_DEST" &&
-	grep -q "Exec=$PREFIX/bin/streambeats-panel top" "$DESKTOP_DEST"; then
-	pass "Exec entries carry the absolute prefix (default + side actions)"
+toggle_execs=$(grep -c '^Exec=.*streambeats-panel toggle' "$DESKTOP_DEST")
+if grep -q "Exec=$PREFIX/bin/streambeats-panel toggle right" "$DESKTOP_DEST" &&
+	grep -q "Exec=$PREFIX/bin/streambeats-panel toggle top" "$DESKTOP_DEST" &&
+	[ "$toggle_execs" -eq 5 ]; then
+	pass "Exec entries launch the toggle (default + 4 side actions)"
 else
 	fail "Exec entries wrong: $(grep '^Exec=' "$DESKTOP_DEST" | head -2)"
 fi
@@ -333,9 +342,9 @@ fi
 # 6d: minimize command fails -> tell the caller, never fake success (R3-001)
 : >"$KROTOOL_LOG"
 rc_fail=0
-OUT6D=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
 	KROTOOL_STUB_ACTIVE_WINDOW=W-TEST KROTOOL_STUB_FAIL_MINIMIZE=1 \
-	"$PANEL_UNDER_TEST" toggle right 2>&1) || rc_fail=$?
+	"$PANEL_UNDER_TEST" toggle right >/dev/null 2>&1 || rc_fail=$?
 if [ "$rc_fail" -ne 0 ]; then
 	pass "toggle (minimize fails) exits nonzero, not faking success"
 else
@@ -345,6 +354,25 @@ if grep -q "could not minimize" "$NOTIFY_LOG"; then
 	pass "toggle (minimize fails) notifies the failure"
 else
 	fail "toggle (minimize fails) is silent (notify log: $(cat "$NOTIFY_LOG" 2>/dev/null))"
+fi
+
+# 6e: toggle with NO unit -> spawns exactly like plain <side> (issue #73 S2:
+# Exec=toggle is safe by construction — first press spawns)
+: >"$SYSTEMD_RUN_LOG"
+: >"$KROTOOL_LOG"
+rc6e=0
+env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
+	"$PANEL_UNDER_TEST" toggle right >/dev/null 2>&1 || rc6e=$?
+assert_eq "$rc6e" "0" "toggle (no unit) exits 0"
+if grep -q -e "--unit=streambeats-panel-right.service" "$SYSTEMD_RUN_LOG"; then
+	pass "toggle (no unit) spawned the detached unit"
+else
+	fail "toggle (no unit) did not spawn (systemd-run log: $(cat "$SYSTEMD_RUN_LOG"))"
+fi
+if [ -s "$KROTOOL_LOG" ]; then
+	fail "toggle (no unit) invoked kdotool — it must spawn instead"
+else
+	pass "toggle (no unit) never touches kdotool"
 fi
 
 say "----------------------------------------"

@@ -24,7 +24,10 @@ Different sides are separate units on purpose (you may keep two panels).
 
 The installer generates `~/.local/share/applications/streambeats-panel.desktop`
 with right-click **Actions** for each side. Exec/Icon are absolute — no PATH
-dependence.
+dependence. The Exec launches the **toggle** (v1.7.2+): launching the app or
+binding it to a global keybind spawns the panel on first press and
+shows/hides it afterwards — binding the app icon is the full toggle story,
+no separate command needed (kdotool optional, see the advisory).
 
 ## Window rules (System Settings → Window Management → Window Rules)
 
