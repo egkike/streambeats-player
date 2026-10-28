@@ -14,20 +14,21 @@ KDE Plasma 6: **System Settings → Keyboard → Shortcuts → Add New → Comma
 Script…** and bind it to your shortcut (e.g. `Meta+S`):
 
 ```sh
-$HOME/.local/bin/streambeats-panel right
+$HOME/.local/bin/streambeats-panel toggle right
 ```
 
+- `toggle` makes the keybind the full show/hide switch (v1.7.1+): a focused
+  panel minimizes (audio keeps playing); a minimized or unfocused panel is
+  restored/raised. Requires kdotool — without it the installer advisory
+  names both install paths (distro package; upstream jinliu/kdotool
+  prebuilt). kdotool 0.3 has no minimized-state query, so the decision
+  uses the ACTIVE window only (two-press doctrine).
 - It spawns the panel **detached** (systemd user unit
   `streambeats-panel-<side>.service`), so closing terminals never kills it.
-- With **kdotool** installed (Linux), the keybind becomes a full toggle:
-  `streambeats-panel toggle <side>` minimizes the panel when it holds the
-  focus (audio keeps playing) and restores/raises it on the next press
-  (two-press doctrine; kdotool 0.3 has no minimized-state query, so the
-  decision uses the ACTIVE window only). The installer advisory names the
-  install paths when kdotool is missing.
-- Pressing the keybind again does NOT duplicate the panel: the per-side
-  single-instance guard only notifies (`already running → streambeats-panel +
-  streaming-careful hint`) instead.
+  The first press spawns; subsequent presses toggle instead of duplicating
+  (the per-side single-instance guard stays underneath: plain
+  `streambeats-panel <side>` without `toggle` keeps the legacy spawn/guard
+  behavior — "already running").
 - Want a different side on the same shortcut? Change the trailing argument to
   `top|bottom|left|right`. Different sides are separate units on purpose, so
   you can keep two at once.
