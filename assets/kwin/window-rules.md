@@ -19,6 +19,12 @@ $HOME/.local/bin/streambeats-panel right
 
 - It spawns the panel **detached** (systemd user unit
   `streambeats-panel-<side>.service`), so closing terminals never kills it.
+- With **kdotool** installed (Linux), the keybind becomes a full toggle:
+  `streambeats-panel toggle <side>` minimizes the panel when it holds the
+  focus (audio keeps playing) and restores/raises it on the next press
+  (two-press doctrine; kdotool 0.3 has no minimized-state query, so the
+  decision uses the ACTIVE window only). The installer advisory names the
+  install paths when kdotool is missing.
 - Pressing the keybind again does NOT duplicate the panel: the per-side
   single-instance guard only notifies (`already running → streambeats-panel +
   streaming-careful hint`) instead.

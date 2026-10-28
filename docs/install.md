@@ -58,6 +58,7 @@ installed prefix.
 | Linux (amd64/arm64) / macOS (amd64/arm64) | refusal on other OSes; Windows: use WSL2 (Ubuntu) for the TUI — the floating panel stays Linux/macOS-only (Ghostty does not support Windows) |
 | `mpv` in PATH | advisory; TUI browses but cannot play |
 | `ghostty` in PATH | advisory; only the floating panel needs it (Linux) |
+| `kdotool` in PATH | advisory (Linux + ghostty only); panel show/hide toggle needs it — without it the panel opens but a second press cannot hide/restore it. The advisory names both install paths (distro package; upstream prebuilt jinliu/kdotool) |
 | `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |
 
 ## macOS notes (darwin)
