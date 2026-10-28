@@ -131,3 +131,36 @@ func TestDefaultLibraryPathFollowsXDG(t *testing.T) {
 		t.Fatalf("DefaultLibraryPath = %q, want %q", got, want)
 	}
 }
+
+func TestListDirSkipsHiddenAndAppleDouble(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{
+		"._01 song.mp3",    // macOS AppleDouble junk
+		".DS_Store",        // hidden junk
+		"01 song.mp3",      // real
+		"(I Love You).mp3", // real, non-alphanumeric start
+	} {
+		if err := os.WriteFile(filepath.Join(root, f), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(root, ".hidden-dir"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	dirs, files, err := ListDir(root)
+	if err != nil {
+		t.Fatalf("ListDir: %v", err)
+	}
+	if len(dirs) != 0 {
+		t.Fatalf("hidden directories must not list: %v", dirs)
+	}
+	if len(files) != 2 {
+		t.Fatalf("listing = %v, want only the two real files", files)
+	}
+	for _, f := range files {
+		if strings.HasPrefix(filepath.Base(f), ".") {
+			t.Fatalf("hidden file listed: %v", files)
+		}
+	}
+}
