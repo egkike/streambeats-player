@@ -72,6 +72,16 @@ if [ ! -x "$launcher" ]; then
 	exit 1
 fi
 
+# Responsive panel-terminal resolution (issue #108 S2): sibling scanner
+# from the SAME scripts dir as the launcher — one single source of truth —
+# so the detached wrapper and the launcher resolve under ONE contract and
+# no probe invocations pollute any caller's logs.
+kitty_host() {
+	[ -f "$script_dir/panel-terminal" ] || return 1
+	. "$script_dir/panel-terminal"
+	[ "$(settings_terminal)" = "kitty" ]
+}
+
 notify() {
 	# Best-effort user feedback; never fatal.
 	if command -v notify-send >/dev/null 2>&1; then
@@ -93,6 +103,21 @@ systemd_ok() {
 		command -v systemctl >/dev/null 2>&1 &&
 		systemctl --user show-environment >/dev/null 2>&1
 }
+
+# ISSUE #108 (S2): kitty relay BEFORE the unit guard — the native quick
+# access terminal toggles by re-running the same command (per instance
+# group); a layer-shell surface is not a targetable KWin window, so the
+# unit guard / kdotool never apply to kitty. Detached background spawn:
+# every press relays the launcher (first press opens, next press hides).
+if kitty_host; then
+	if command -v setsid >/dev/null 2>&1; then
+		setsid "$launcher" "$SIDE" >/dev/null 2>&1 &
+	else
+		"$launcher" "$SIDE" >/dev/null 2>&1 &
+	fi
+	notify "kitty panel toggled (spawn/relay on every press)"
+	exit 0
+fi
 
 # Single-instance guard per side: the fixed unit name is the lock. is-active
 # returns 0 only while the unit is running; any failure (inactive, failed,

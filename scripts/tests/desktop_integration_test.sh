@@ -98,6 +98,7 @@ EOF
 # PATH, notify() in streambeats-panel routes through it, so message
 # assertions target NOTIFY_LOG and never depend on (or leak to) a real
 # desktop daemon on the test machine.
+mkdir -p "$Fx/home-no-settings/.config"   # scenarios 1..6 sanity: the wrapper must never read the real user settings
 NOTIFY_LOG="$Fx/notify.log"
 cat >"$STUB_BIN/notify-send" <<EOF
 #!/bin/bash
@@ -126,7 +127,7 @@ chmod +x "$STUB_BIN/ghostty"
 # --- scenario 1: guard — second launch of the same side must not spawn ------
 say "scenario 1: single-instance guard (unit active)"
 : >"$SYSTEMD_RUN_LOG"
-OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right \
+OUT=$(env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right \
 	"$PANEL_UNDER_TEST" right 2>&1)
 rc1=$?
 assert_eq "$rc1" "0" "guard path exits 0"
@@ -144,7 +145,7 @@ fi
 # --- scenario 2: spawn path — detached unit with per-side name ---------------
 say "scenario 2: detached spawn via systemd-run"
 : >"$SYSTEMD_RUN_LOG"
-env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
+env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
 	"$PANEL_UNDER_TEST" left >/dev/null 2>&1
 rc2=$?
 assert_eq "$rc2" "0" "spawn path exits 0"
@@ -174,6 +175,8 @@ mkdir -p "$FAKE_ROOT/scripts"
 cp "$PANEL_UNDER_TEST" "$FAKE_ROOT/scripts/streambeats-panel"
 chmod 0755 "$FAKE_ROOT/scripts/streambeats-panel"
 LAUNCH_LOG="$Fx/launch.log"
+cp "$REPO_ROOT/scripts/panel-terminal" "$FAKE_ROOT/scripts/panel-terminal"
+chmod 0755 "$FAKE_ROOT/scripts/panel-terminal"
 cat >"$FAKE_ROOT/scripts/streambeats-quick" <<EOF
 #!/bin/bash
 printf '%s\n' "\$*" >>"$LAUNCH_LOG"
@@ -189,7 +192,7 @@ for tool in bash sh dirname readlink mv chmod setsid grep head tr sed mkenv; do
 		ln -s "$tool_path" "$NODIR/$tool"
 done
 
-OUT=$(PATH="$NODIR" "$FAKE_ROOT/scripts/streambeats-panel" right 2>&1)
+OUT=$(HOME="$Fx/home-no-settings" PATH="$NODIR" "$FAKE_ROOT/scripts/streambeats-panel" right 2>&1)
 rc3=$?
 assert_eq "$rc3" "0" "fallback path exits 0"
 if printf '%s' "$OUT" | grep -qE "systemd user session unavailable|background"; then
@@ -222,7 +225,7 @@ fi
 
 # --- scenario 4: invalid side ------------------------------------------------
 say "scenario 4: argument validation"
-if env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
+if env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
 	"$PANEL_UNDER_TEST" diagonal >/dev/null 2>&1; then
 	fail "invalid side accepted"
 else
@@ -308,7 +311,7 @@ say "scenario 6: toggle mode"
 : >"$KROTOOL_LOG"
 
 # 6a: unit active, panel window exists, focus elsewhere -> windowactivate
-OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+OUT=$(env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
 	"$PANEL_UNDER_TEST" toggle right 2>&1)
 rc_toggle=$?
 assert_eq "$rc_toggle" "0" "toggle (unfocused) exits 0"
@@ -323,7 +326,7 @@ fi
 
 # 6b: focus ON the panel -> minimize
 : >"$KROTOOL_LOG"
-OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+OUT=$(env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
 	KROTOOL_STUB_ACTIVE_WINDOW=W-TEST \
 	"$PANEL_UNDER_TEST" toggle right 2>&1)
 rc_focus=$?
@@ -344,7 +347,7 @@ fi
 
 # 6c: unit active but no panel window anywhere -> explain, never fatal
 : >"$KROTOOL_LOG"
-OUT=$(env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW= \
+OUT=$(env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW= \
 	"$PANEL_UNDER_TEST" toggle right 2>&1)
 rc_ghost=$?
 assert_eq "$rc_ghost" "0" "toggle (no window) exits 0"
@@ -357,7 +360,7 @@ fi
 # 6d: minimize command fails -> tell the caller, never fake success (R3-001)
 : >"$KROTOOL_LOG"
 rc_fail=0
-env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
+env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE=right KROTOOL_STUB_WINDOW=W-TEST \
 	KROTOOL_STUB_ACTIVE_WINDOW=W-TEST KROTOOL_STUB_FAIL_MINIMIZE=1 \
 	"$PANEL_UNDER_TEST" toggle right >/dev/null 2>&1 || rc_fail=$?
 if [ "$rc_fail" -ne 0 ]; then
@@ -374,7 +377,7 @@ fi
 : >"$SYSTEMD_RUN_LOG"
 : >"$KROTOOL_LOG"
 rc6e=0
-env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
+env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
 	"$PANEL_UNDER_TEST" toggle right >/dev/null 2>&1 || rc6e=$?
 assert_eq "$rc6e" "0" "toggle (no unit) exits 0"
 if grep -q -e "--unit=streambeats-panel-right.service" "$SYSTEMD_RUN_LOG"; then
@@ -393,7 +396,7 @@ fi
 : >"$SYSTEMD_RUN_LOG"
 : >"$KROTOOL_LOG"
 rc6e=0
-env PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
+env HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" SYSTEMCTL_STUB_ACTIVE= \
 	"$PANEL_UNDER_TEST" toggle right >/dev/null 2>&1 || rc6e=$?
 assert_eq "$rc6e" "0" "toggle (no unit) exits 0"
 if grep -q -e "--unit=streambeats-panel-right.service" "$SYSTEMD_RUN_LOG"; then
@@ -414,7 +417,7 @@ fi
 say "scenario 7: player config-home passthrough"
 QUICK_UNDER_TEST="$REPO_ROOT/scripts/streambeats-quick"
 # 7a: user WITHOUT XDG_CONFIG_HOME -> the child runs with it unset
-if OUT7A=$(env -u XDG_CONFIG_HOME PATH="$STUB_BIN:$PATH" \
+if OUT7A=$(env -u XDG_CONFIG_HOME HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" \
 	"$QUICK_UNDER_TEST" right 2>&1); then
 	pass "quick (no user xdg) exits 0"
 else
@@ -435,7 +438,7 @@ fi
 
 # 7b: user WITH XDG_CONFIG_HOME -> the child keeps THEIR value
 : >"$GHOSTTY_LOG"
-if OUT7B=$(env XDG_CONFIG_HOME=/custom/user-cfg PATH="$STUB_BIN:$PATH" \
+if OUT7B=$(env XDG_CONFIG_HOME=/custom/user-cfg HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" \
 	"$QUICK_UNDER_TEST" right 2>&1); then
 	pass "quick (custom user xdg) exits 0"
 else
@@ -448,7 +451,88 @@ else
 	fail "player child passthrough wrong (custom xdg): $GARG"
 fi
 
-say "----------------------------------------"
+# --- scenario 8: panel toggle relays kitty's native re-run (issue #108) ------
+# kitty's native quick-access terminal toggles by RE-RUNNING the same
+# command (per instance-group). The wrapper must resolve the hosting
+# terminal from settings.json and relay the launcher on EVERY press,
+# bypassing the systemd unit guard and NEVER touching kdotool for kitty
+# (a layer-shell surface is not a targetable KWin window).
+say "scenario 8: panel kitty bypass (guard bypass + native re-run)"
+KITTY_ROOT="$Fx/kitty-root"
+mkdir -p "$KITTY_ROOT/scripts" "$KITTY_ROOT/bin" "$KITTY_ROOT/xdg/streambeats"
+cp "$PANEL_UNDER_TEST" "$KITTY_ROOT/scripts/streambeats-panel"
+cp "$REPO_ROOT/scripts/panel-terminal" "$KITTY_ROOT/scripts/panel-terminal"
+chmod 0755 "$KITTY_ROOT/scripts/"*
+cat >"$KITTY_ROOT/scripts/streambeats-quick" <<EOF
+#!/bin/sh
+echo launcher-argv:\$* >> "$KITTY_ROOT/launcher.log"
+exit 0
+EOF
+chmod 0755 "$KITTY_ROOT/scripts/streambeats-quick"
+printf '#!/bin/sh\necho player\n' >"$KITTY_ROOT/bin/streambeats"
+chmod 0755 "$KITTY_ROOT/bin/streambeats"
+printf '{\n  "theme": "oscuro",\n  "panelTerminal": "kitty"\n}\n' >"$KITTY_ROOT/xdg/streambeats/settings.json"
+# systemd present + kdotool present; unit reported active so the guard WOULD
+# kick in if the wrapper ever reached it — the kitty path must never get there.
+SP_BIN8=$Fx/stubs8
+if [ -d "$SP_BIN8" ]; then rm -rf "$SP_BIN8"; fi
+mkdir "$SP_BIN8"
+cat >"$SP_BIN8/systemd-run" <<'EOF'
+#!/bin/sh
+echo "systemd-run $*" >> "$KITTY_ROOT/systemd-run.log"
+exit 0
+EOF
+cat >"$SP_BIN8/systemctl" <<'EOF'
+#!/bin/sh
+case "$*" in
+	*show-environment*) exit 0 ;;
+	*is-active*) echo active; exit 0 ;;
+esac
+exit 0
+EOF
+cat >"$SP_BIN8/kdotool" <<'EOF'
+#!/bin/sh
+echo "kdotool $*" >> "$KITTY_ROOT/kdotool.log"
+exit 0
+EOF
+cat >"$SP_BIN8/notify-send" <<'EOF'
+#!/bin/sh
+echo "notify $*" >> "$KITTY_ROOT/notify.log"
+exit 0
+EOF
+chmod 0755 "$SP_BIN8/"*
+for bin in grep tail wc awk setsid dirname; do cp "$(command -v "$bin")" "$SP_BIN8/" 2>/dev/null; done
+: >"$KITTY_ROOT/launcher.log"
+: >"$KITTY_ROOT/kdotool.log"
+: >"$KITTY_ROOT/systemd-run.log"
+: >"$KITTY_ROOT/notify.log"
+
+say "scenario 8: panel kitty bypass (guard bypass + native re-run)"
+PANEL_UNDER_KITTY="$KITTY_ROOT/scripts/streambeats-panel"
+if env XDG_CONFIG_HOME="$KITTY_ROOT/xdg" PATH="$SP_BIN8:/usr/bin:/bin" \
+	"$PANEL_UNDER_KITTY" toggle right >/dev/null 2>&1; then
+	pass "kitty toggle first press exits 0"
+else
+	fail "kitty toggle first press exited nonzero"
+fi
+sleep 1
+FIRST=$( [ -f "$KITTY_ROOT/launcher.log" ] && grep -c 'launcher-argv:' "$KITTY_ROOT/launcher.log" | tr -d ' ' || echo 0 )
+assert_eq "$FIRST" 1 "kitty first press relays the launcher directly (not the unit)"
+assert_eq "$( [ -f "$KITTY_ROOT/kdotool.log" ] && grep -c . "$KITTY_ROOT/kdotool.log" | tr -d ' ' || echo 0 )" 0 "kdotool NEVER consulted for kitty"
+assert_eq "$( [ -f "$KITTY_ROOT/systemd-run.log" ] && grep -c . "$KITTY_ROOT/systemd-run.log" | tr -d ' ' || echo 0 )" 0 "the systemd unit guard is never consulted for kitty"
+# Second press: today the unit guard absorbs it and kdotool fails to find a
+# targetable KWin window (no toggle happens); fixed behavior relays again.
+if env XDG_CONFIG_HOME="$KITTY_ROOT/xdg" PATH="$SP_BIN8:/usr/bin:/bin" \
+	"$PANEL_UNDER_KITTY" toggle right >/dev/null 2>&1; then
+	pass "kitty toggle second press exits 0"
+else
+	fail "kitty toggle second press exited nonzero"
+fi
+sleep 1
+SECOND=$( [ -f "$KITTY_ROOT/launcher.log" ] && grep -c 'launcher-argv:' "$KITTY_ROOT/launcher.log" | tr -d ' ' || echo 0 )
+assert_eq "$SECOND" 2 "kitty second press relays again (native re-run toggle)"
+
+
 say "scenarios: $((PASS_COUNT + FAIL_COUNT)) assertions — $PASS_COUNT pass, $FAIL_COUNT fail"
 [ "$FAIL_COUNT" -eq 0 ] || exit 1
 exit 0
