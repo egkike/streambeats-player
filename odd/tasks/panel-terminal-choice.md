@@ -201,3 +201,12 @@ Branch: `feature/panel-terminal-choice`.
   the harness; the full finding texts are not recoverable post-ack, so
   supersession is the honest record (no invented detail). All three stay
   review-only: no code change, no re-open, per the provider disposition.
+- L17 (2026-10-30): release evidence (governance step 5) — annotated tag
+  v1.9.0 pushed over main tip ec9091e (merge-commit CI green on the three
+  landing merges: ec9091e/c8d4a2f/5db101d, all success). The release
+  workflow completed success: GitHub Release v1.9.0 published
+  2026-10-30T19:17:15Z as Latest, target main, 6 assets (darwin amd64/arm64,
+  linux amd64/arm64, windows amd64 tar.gz/zip + checksums.txt). Tag message
+  records the panel-terminal cycle receipt cross-refs. Cycle fully closed:
+  issues/PRs #90–#103 land CLOSED/MERGED with the release covering every
+  landing to date.
