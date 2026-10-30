@@ -47,6 +47,7 @@ archives:
       - scripts/streambeats-quick
       - scripts/streambeats-panel
       - assets/ghostty/streambeats-*.conf
+      - assets/kitty/streambeats-*.conf
       # KDE integration assets (consumer of scripts/install.sh).
       - assets/desktop/streambeats-panel.desktop.in
       - assets/icons/streambeats-panel.svg

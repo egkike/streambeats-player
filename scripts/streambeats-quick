@@ -64,12 +64,14 @@ repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd -P) ||
 #      then kitty (native quick-access terminal, kitty 0.42+).
 side=right
 wished_terminal=
+resolve_only=
 for arg in "$@"; do
 	case $arg in
 	-h | --help)
 		usage
 		exit 0
 		;;
+	--resolve-terminal) resolve_only=1 ;;
 	top | bottom | left | right) side=$arg ;;
 	--terminal=ghostty | --terminal=kitty) wished_terminal=${arg#--terminal=} ;;
 	--terminal=*)
@@ -158,6 +160,14 @@ elif command -v kitty >/dev/null 2>&1; then
 	chosen_terminal=kitty
 else
 	die "neither ghostty nor kitty found on PATH. Install Ghostty (https://ghostty.org/docs/install) or kitty (https://sw.kovidgoyal.net/kitty/)"
+fi
+
+# streambeats-panel's kitty relay (issue #108 S2) asks the launcher for
+# the SAME resolution contract without spawning anything: print the chosen
+# terminal and exit before any spawn machinery. Zero side effects.
+if [ -n "$resolve_only" ]; then
+	echo "$chosen_terminal"
+	exit 0
 fi
 
 kitty_preset=$repo_root/assets/kitty/streambeats-$side.conf

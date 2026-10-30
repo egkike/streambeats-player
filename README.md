@@ -152,7 +152,8 @@ from any terminal (systemd user unit per side, single-instance guard) so a
 `.desktop` entry or a KDE global keybind runs it with one action. Since
 v1.7.2 the desktop entry and the recommended keybind launch the **toggle**:
 first press spawns, later presses show/hide (audio keeps playing when
-hidden; needs kdotool — the installer advisory names the install paths).
+hidden; needs kdotool on the Ghostty path — issue #108: the kitty panel
+toggles natively by re-running, no kdotool involved).
 KRunner ships side actions via the generated desktop entry. Keybind + KWin
 floating window-rules steps: docs/kde-panel-integration.md
 (plain `scripts/streambeats-quick` stays tied to the calling shell; use the

@@ -60,7 +60,7 @@ installed prefix.
 | `mpv` in PATH | advisory; TUI browses but cannot play |
 | `ghostty` in PATH | advisory; only the floating panel needs it (Linux) |
 | `kitty` in PATH | advisory; second valid panel host (issue #90, kitty 0.42+ native quick access terminal; choice editable in the TUI settings, key `c`, applies after restarting the panel). Warns loud only when neither ghostty nor kitty is present |
-| `kdotool` in PATH | advisory (Linux + ghostty only); panel show/hide toggle needs it — without it the panel opens but a second press cannot hide/restore it. The advisory names both install paths (distro package; upstream prebuilt jinliu/kdotool) |
+| `kdotool` in PATH | advisory (Linux, **Ghostty panel path only** — issue #108: the kitty panel toggles natively by re-running, no kdotool involved); panel show/hide toggle needs it — without it the panel opens but a second press cannot hide/restore it. The advisory names both install paths (distro package; upstream prebuilt jinliu/kdotool) |
 | `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |
 
 ## macOS notes (darwin)
