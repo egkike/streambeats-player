@@ -110,3 +110,13 @@ Branch: `feature/panel-terminal-choice`.
   terminal= summary now prints only on the kitty branch) and scenario 8
   pins the stderr contract as a committed test. New review runs on the
   changed candidate; correction budget of the closed lineage untouched.
+- L7 (2026-10-30): re-review receipt — lineage review-58690d33945a47c3 (high
+  tier, 4 lens model runs host-relayed, owner-authorized for this
+  corrected candidate). OUTCOME: APPROVED; acknowledgement burned
+  (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:0f5b46c6fa5465c40e70aa691bfad995a0a76f1ad9173713d6e85d108f1c7dbf).
+  Three non-blocking informational findings recorded as separate follow-up
+  work (never re-review material): R2-settings-read-not-anchored (launcher
+  settings.json read anchoring), R3-001 (reliability, streambeats-quick:102),
+  R4-001 (resilience, streambeats-quick:108). Delivery follows ordinary
+  repository policy: PR under the issue-first gate with `Closes #90`.
