@@ -144,6 +144,9 @@ func Launch(cat *catalog.Catalog, scrapeCmd tea.Cmd) error {
 		Theme:         theme,
 		ThemeDark:     lipgloss.HasDarkBackground(),
 		SettingsStore: settingsStore,
+		// Panel-terminal choice (issue #90): foreign values sanitize away
+		// inside NewModel; Section 3's launch path reads settings.json.
+		PanelTerminal: saved.PanelTerminal,
 		// Terminal-adaptive transport (issue #64): read ONCE here — only the
 		// exact "ghostty" keeps the calibrated keycaps; anything else fails
 		// closed to the ASCII tokens.

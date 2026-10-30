@@ -8,8 +8,13 @@ package tui
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"streambeats/internal/settings"
 )
 
 // lookupFor builds an injected lookup: only the listed binaries resolve.
@@ -80,4 +85,145 @@ func TestPanelTerminalValidatedAgainstOffer(t *testing.T) {
 			t.Errorf("panelTerminalValid(%q) = true, want false (fails closed)", bad)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Settings-screen menu layer (issue #90 S1/S2/S7): the terminal section rides
+// the pure-update model pattern — tea.KeyMsg injection, statuses asserted on
+// rendered output, fakes for the store and the lookup. No real PATH, no mpv.
+
+// newTerminalChoiceModel builds a model with both injected fakes in place.
+func newTerminalChoiceModel(t *testing.T, store *settings.Store, lookups func(string) (string, error), panelTerminal string) Model {
+	t.Helper()
+	return NewModel(Options{
+		Theme:          "oscuro",
+		ThemeDark:      true,
+		SettingsStore:  store,
+		LibraryRoot:    "/music",
+		PanelTerminal:  panelTerminal,
+		TerminalLookup: lookups,
+	})
+}
+
+// S1/S3: the section lists ONLY the installed terminals, in canonical order,
+// marking the persisted one as current; a missing binary never gets a row.
+func TestConfigScreenTerminalSectionListsInstalledOnly(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "ghostty")
+	after, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	view := after.(Model).View()
+	if !strings.Contains(view, "ghostty") || !strings.Contains(view, "kitty") {
+		t.Errorf("both installed: settings view lacks the terminal rows:\n%s", view)
+	}
+	if !strings.Contains(view, "ghostty  (current)") {
+		t.Errorf("persisted panelTerminal must carry the (current) marker:\n%s", view)
+	}
+
+	// Now kitty alone: ghostty must disappear from the screen entirely.
+	m = newTerminalChoiceModel(t, store, lookupFor("kitty"), "")
+	after, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	view = after.(Model).View()
+	if strings.Contains(view, "ghostty") {
+		t.Errorf("uninstalled ghostty must not offer a row (fail closed):\n%s", view)
+	}
+	if !strings.Contains(view, "kitty") {
+		t.Errorf("installed kitty must offer a row:\n%s", view)
+	}
+}
+
+// S7: neither installed → no rows, a visible note, no invented choices.
+func TestConfigScreenTerminalSectionEmptyOfferShowsNote(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := newTerminalChoiceModel(t, store, lookupFor(), "")
+	after, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	view := after.(Model).View()
+	if strings.Contains(view, "ghostty") || strings.Contains(view, "kitty") {
+		t.Errorf("nothing installed: no terminal rows may render:\n%s", view)
+	}
+	if !strings.Contains(strings.ToLower(view), "no panel terminal") {
+		t.Errorf("empty offer must show a friendly note:\n%s", view)
+	}
+}
+
+// S2: committing a terminal change persists it and the status line tells the
+// user the change applies after restarting the app.
+func TestConfigScreenTerminalCommitNoticesRestart(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "")
+	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	// Themes occupy indices 0..2; the terminal rows start right after. From
+	// the current theme (index 1) two-down reaches the ghostty row.
+	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	cm := commit.(Model)
+	if cm.panelTerminal != "ghostty" {
+		t.Errorf("committed panel terminal = %q, want ghostty", cm.panelTerminal)
+	}
+	if persist == nil {
+		t.Fatalf("terminal commit returned no persistence cmd")
+	}
+	msg := persist()
+	save, ok := msg.(saveMsg)
+	if ok && save.err != nil {
+		t.Fatalf("save failed: %v", save.err)
+	}
+	// The persistence feedback carries the restart notice (S2).
+	delivered, _ := cm.Update(msg)
+	if !strings.Contains(strings.ToLower(delivered.(Model).View()), "restart") {
+		t.Errorf("committed change must announce the restart requirement:\n%s", delivered.(Model).View())
+	}
+	saved, err := store.Load()
+	if err != nil {
+		t.Fatalf("load after save: %v", err)
+	}
+	if saved.PanelTerminal != "ghostty" {
+		t.Errorf("persisted panelTerminal = %q, want ghostty", saved.PanelTerminal)
+	}
+}
+
+// S2/S7: re-committing the current terminal is a no-op — no restart notice.
+func TestConfigScreenTerminalRecommitCurrentIsNoOp(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "ghostty")
+	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	cm := commit.(Model)
+	if strings.Contains(strings.ToLower(cm.View()), "restart") {
+		t.Errorf("re-committing the current terminal must NOT announce a restart:\n%s", cm.View())
+	}
+	if persist != nil {
+		t.Errorf("no-op commit must not fire a save cmd")
+	}
+}
+
+// A theme save generalizes to full-settings persistence: an existing
+// panelTerminal and libraryRoot survive a theme change (the latent clobber
+// guard; prior behavior lost siblings).
+func TestThemeSavePreservesTerminalAndRootSiblings(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	if err := store.Save(settings.Settings{Theme: "oscuro", LibraryRoot: "/music", PanelTerminal: "kitty"}); err != nil {
+		t.Fatal(err)
+	}
+	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "kitty")
+	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	commit, persist := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if persist == nil {
+		t.Fatalf("theme commit returned no persistence cmd")
+	}
+	msg := persist()
+	if save, ok := msg.(saveMsg); ok && save.err != nil {
+		t.Fatalf("save failed: %v", save.err)
+	}
+	saved, err := store.Load()
+	if err != nil {
+		t.Fatalf("load after save: %v", err)
+	}
+	if saved.Theme != "system" || saved.PanelTerminal != "kitty" || saved.LibraryRoot != "/music" {
+		t.Errorf("theme save clobbered siblings: %+v", saved)
+	}
+	_ = commit
 }

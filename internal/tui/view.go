@@ -226,7 +226,7 @@ func (m Model) headerView() string {
 	switch {
 	case m.mode == ModeConfig:
 		return m.titleStyle().Render("Settings") +
-			m.dimStyle().Render("  theme: enter to apply  esc: back")
+			m.dimStyle().Render("  theme / terminal: enter to apply  esc: back")
 	case m.mode == ModeLibrary:
 		root := m.libraryRoot
 		if root == "" {
@@ -275,6 +275,21 @@ func (m Model) listRows() []string {
 			}
 			row := m.renderRow(i == m.configIndex, false, label, width)
 			rows = append(rows, row)
+			if i == len(configThemeIDs)-1 {
+				// Terminal section header (issue #90): visual-only divider, the
+				// cursor does not land on it.
+				rows = append(rows, m.dimStyle().Render("  panel terminal:"))
+				for j, terminalID := range m.panelOffer {
+					label := terminalID
+					if terminalID == m.panelTerminal {
+						label += "  (current)"
+					}
+					rows = append(rows, m.renderRow(len(configThemeIDs)+j == m.configIndex, false, label, width))
+				}
+				if len(m.panelOffer) == 0 {
+					rows = append(rows, m.dimStyle().Render("  no panel terminal installed"))
+				}
+			}
 		}
 		// Library root (issue #76): read-only here — edit settings.json
 		// (libraryRoot) to point the navigator elsewhere.
