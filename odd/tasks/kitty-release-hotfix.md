@@ -86,3 +86,12 @@ Target release: `v1.9.1`.
   the layer-shell geometry note; docs/install.md kdotool advisory scoped
   to the Ghostty path; README toggle paragraph parity. Pending: native
   review of the hotfix delta + PR merge + v1.9.1 tag + release evidence.
+- L4 (2026-10-30): RDD native review receipt — lineage review-fffd33b53d9f768a
+  (high tier, 4 lens runs + 1 refuter run host-relayed, owner-authorized).
+  OUTCOME: APPROVED with the refuter closing the chain; R3-001 (CRITICAL)
+  was REFUTED, R2-001/R4-001/R4-002 informational warnings recorded as
+  separate follow-up work (never reopen: streambeats-quick:163-170
+  readability, panel-terminal:20-23 resilience, desktop harness:130
+  resilience). Acknowledgement burned (gentle-ai.review-acknowledged/v1,
+  consumed_revision sha256:c394e937...). Delivery: PR + owner merge + tag
+  v1.9.1 whose archive must contain the kitty presets (S1 live proof).
