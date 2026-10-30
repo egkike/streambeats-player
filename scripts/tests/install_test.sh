@@ -215,11 +215,16 @@ cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
 # Raw content at the same tag: launcher + presets that v1.0.0-era archives
 # did not carry. Generated fresh here (the asset-less dist tree never
 # created them).
-mkdir -p "$STAGE/raw/v1.1.0/scripts" "$STAGE/raw/v1.1.0/assets/ghostty"
+mkdir -p "$STAGE/raw/v1.1.0/scripts" "$STAGE/raw/v1.1.0/assets/ghostty" "$STAGE/raw/v1.1.0/assets/kitty"
 printf '#!/bin/sh
 echo "quick-panel $*"
 ' >"$STAGE/raw/v1.1.0/scripts/streambeats-quick"
 chmod 0755 "$STAGE/raw/v1.1.0/scripts/streambeats-quick"
+# Issue #90: the raw fallback ships BOTH panel families now.
+for side in top bottom left right; do
+	printf 'edge = %s\n# raw-staged kitty preset\n' "$side" \
+		>"$STAGE/raw/v1.1.0/assets/kitty/streambeats-$side.conf"
+done
 for side in top bottom left right; do
 	printf 'window-mode = %s\n# raw-staged preset\n' "$side" \
 		>"$STAGE/raw/v1.1.0/assets/ghostty/streambeats-$side.conf"
@@ -235,6 +240,7 @@ fi
 SHARE="$PREFIX/share/streambeats"
 assert_file "$SHARE/scripts/streambeats-quick" "launcher fetched from raw"
 assert_file "$SHARE/assets/ghostty/streambeats-right.conf" "preset fetched from raw"
+assert_file "$SHARE/assets/kitty/streambeats-right.conf" "kitty preset fetched from raw (issue #90)"
 QUICK=$("$PREFIX/bin/streambeats-quick" left 2>&1)
 if printf '%s' "$QUICK" | grep -q "quick-panel"; then
 	pass "quick wrapper runs the launcher after fallback"

@@ -100,6 +100,12 @@ type Options struct {
 	Theme         string          // raw theme id from settings; "" = default
 	ThemeDark     bool            // resolved background detection result
 	SettingsStore *settings.Store // nil disables persistence (tests, alt runtimes)
+	// PanelTerminal (issue #90): the persisted panel-terminal choice from
+	// settings.json; a foreign value sanitizes away (fails closed).
+	PanelTerminal string
+	// TerminalLookup (issue #90): injectable exec.LookPath-compatible
+	// detector; nil falls back to the real one so no test touches PATH.
+	TerminalLookup func(string) (string, error)
 	// ScrapeCmd (issue #75): cmd that performs a live catalog scrape and
 	// returns CatalogScrapedMsg. Non-nil only on a fresh cache: the TUI
 	// boots immediately with a scraping status and populates in place.
@@ -177,6 +183,12 @@ type Model struct {
 	// screen marks it as current and settings persists it.
 	theme         theme.Theme
 	settingsStore *settings.Store
+	// panelTerminal (issue #90): the validated panel-terminal choice; marked
+	// as current on the config screen and persisted with the settings set.
+	panelTerminal string
+	// panelOffer is the installed-only terminal offer, computed once at
+	// construction in canonical order — never re-detected inside render.
+	panelOffer []string
 	// debug records received messages when the diagnostic kit is on.
 	debug func(msg string)
 	// debug records received messages when the diagnostic kit is on.
@@ -197,6 +209,14 @@ type Model struct {
 
 // NewModel builds a model from already-loaded data. No I/O happens here.
 func NewModel(opts Options) Model {
+	// Panel-terminal detection (issue #90): the injected lookup wins; the
+	// real PATH lookup is only the production fallback. The offer and the
+	// sanitised choice are computed once here, in the constructor, and the
+	// render path never re-reads the environment.
+	lookup := opts.TerminalLookup
+	if lookup == nil {
+		lookup = defaultPanelTerminalLookup
+	}
 	m := Model{
 		player:         opts.Player,
 		resolve:        opts.Resolver,
@@ -214,6 +234,8 @@ func NewModel(opts Options) Model {
 		settingsStore:  opts.SettingsStore,
 		debug:          opts.Debug,
 		asciiTransport: opts.AsciiTransport,
+		panelOffer:     panelTerminalRows(lookup),
+		panelTerminal:  opts.PanelTerminal,
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
@@ -228,6 +250,11 @@ func NewModel(opts Options) Model {
 	m.darkBackground = opts.ThemeDark
 	m.palette = theme.Resolve(m.theme, opts.ThemeDark)
 	m.configIndex = configIndexFor(m.theme)
+	// Sanitize the persisted terminal (issue #90): a foreign value fails
+	// closed to unset, so no row can claim a current marker it did not earn.
+	if !panelTerminalValid(m.panelTerminal) {
+		m.panelTerminal = ""
+	}
 	if len(m.albums) == 0 {
 		if opts.ScrapeCmd != nil {
 			// Fresh install (issue #75): the scrape runs as a cmd inside the
@@ -442,6 +469,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// never blocks the TUI (S4).
 		if msg.err != nil {
 			m.status = friendlyError("could not save settings", msg.err)
+		} else if msg.notice != "" {
+			m.status = msg.notice
 		} else {
 			m.status = "theme saved"
 		}
@@ -535,15 +564,28 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// saveMsg closes the theme persistence cycle: the command ran outside the
-// update loop and reports either way.
-type saveMsg struct{ err error }
+// saveMsg closes the persistence cycle for any settings commit: the
+// command ran outside the update loop and reports either way. notice is
+// the success feedback unique to the commit that produced the save (an
+// empty notice keeps the theme default feedback).
+type saveMsg struct {
+	err    error
+	notice string
+}
 
-// saveThemeCmd persists the chosen theme to the settings store.
-func saveThemeCmd(store settings.Store, chosen theme.Theme) tea.Cmd {
+// saveSettingsCmd persists the full settings set (issue #90): a theme save
+// and a terminal commit always write every current value together, so one
+// selection can never silently lose its siblings.
+func saveSettingsCmd(store settings.Store, set settings.Settings, notice string) tea.Cmd {
 	return func() tea.Msg {
-		return saveMsg{err: store.Save(settings.Settings{Theme: chosen.String()})}
+		return saveMsg{err: store.Save(set), notice: notice}
 	}
+}
+
+// configRowCount counts the selectable rows of the settings screen: the
+// theme list plus the installed terminal rows (issue #90 combined cursor).
+func configRowCount(m Model) int {
+	return len(configThemeIDs) + len(m.panelOffer)
 }
 
 // openConfig enters the settings screen, remembering where the user came
@@ -683,15 +725,34 @@ func (m Model) configTheme() theme.Theme {
 	return configThemeIDs[clampCursor(m.configIndex, len(configThemeIDs))]
 }
 
+// configTerminalChoice reports the terminal row under the settings cursor,
+// when the cursor sits in the terminal section (issue #90): theme rows come
+// first, the installed terminal rows follow in canonical order.
+func (m Model) configTerminalChoice() (string, bool) {
+	if m.configIndex < len(configThemeIDs) {
+		return "", false
+	}
+	idx := m.configIndex - len(configThemeIDs)
+	if idx >= len(m.panelOffer) {
+		return "", false
+	}
+	return m.panelOffer[idx], true
+}
+
 // configKey runs the settings screen keyboard: navigation, commit and
 // return; every playback/browse binding is inert while it is open.
 func (m Model) configKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, keys.Up):
-		m.configIndex = clampCursor(m.configIndex-1, len(configThemeIDs))
+		// Combined settings cursor (issue #90): theme rows first, then the
+		// installed terminal rows, all clamped on one count.
+		m.configIndex = clampCursor(m.configIndex-1, configRowCount(m))
 	case key.Matches(msg, keys.Down):
-		m.configIndex = clampCursor(m.configIndex+1, len(configThemeIDs))
+		m.configIndex = clampCursor(m.configIndex+1, configRowCount(m))
 	case key.Matches(msg, keys.Enter):
+		if id, ok := m.configTerminalChoice(); ok {
+			return m.applyTerminalSelection(id)
+		}
 		return m.applyThemeSelection()
 	case key.Matches(msg, keys.Back):
 		m.mode = m.configReturn
@@ -718,7 +779,35 @@ func (m Model) applyThemeSelection() (tea.Model, tea.Cmd) {
 		m.status = joinStatus(m.status, chosen.String()+" applied (not saved anywhere)")
 		return m, nil
 	}
-	return m, saveThemeCmd(*m.settingsStore, chosen)
+	return m, saveSettingsCmd(*m.settingsStore, settings.Settings{
+		Theme:         m.theme.String(),
+		LibraryRoot:   m.libraryRoot,
+		PanelTerminal: m.panelTerminal,
+	}, "")
+}
+
+// applyTerminalSelection commits a panel-terminal choice (issue #90 S1/S2):
+// re-committing the current value is a silent no-op; a committed change
+// persists the full settings set and tells the user the change applies
+// after restarting the app (the host of the running TUI never changes).
+func (m Model) applyTerminalSelection(chosen string) (tea.Model, tea.Cmd) {
+	if chosen == m.panelTerminal {
+		return m, nil
+	}
+	m.panelTerminal = chosen
+	m.mode = m.configReturn
+	if m.configReturn != ModeLibrary {
+		m.inTracks = false
+	}
+	if m.settingsStore == nil {
+		m.status = joinStatus(m.status, chosen+" set as panel terminal (not saved anywhere) — restarts the app to apply")
+		return m, nil
+	}
+	return m, saveSettingsCmd(*m.settingsStore, settings.Settings{
+		Theme:         m.theme.String(),
+		LibraryRoot:   m.libraryRoot,
+		PanelTerminal: m.panelTerminal,
+	}, chosen+" set as panel terminal — applies after restarting the app")
 }
 
 // activateSelection is the enter key: open an album, or play the selected

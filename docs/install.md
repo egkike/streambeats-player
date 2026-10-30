@@ -23,6 +23,7 @@ Everything, user-level, under one `--prefix` (default `~/.local`):
 | `$PREFIX/share/streambeats/bin/streambeats` | the TUI player binary |
 | `$PREFIX/share/streambeats/scripts/streambeats-quick` | floating-panel launcher |
 | `$PREFIX/share/streambeats/assets/ghostty/streambeats-<side>.conf` | top/bottom/left/right presets |
+| `$PREFIX/share/streambeats/assets/kitty/streambeats-<side>.conf` | kitty quick-access presets (issue #90; kitty 0.42+ native panel) |
 | `$PREFIX/share/streambeats/README.md`, `LICENSE` | shipped docs of that release |
 | `$PREFIX/bin/streambeats` | wrapper → shared binary |
 | `$PREFIX/bin/streambeats-quick` | wrapper → shared launcher |
@@ -58,6 +59,7 @@ installed prefix.
 | Linux (amd64/arm64) / macOS (amd64/arm64) | refusal on other OSes; Windows: use WSL2 (Ubuntu) for the TUI — the floating panel stays Linux/macOS-only (Ghostty does not support Windows) |
 | `mpv` in PATH | advisory; TUI browses but cannot play |
 | `ghostty` in PATH | advisory; only the floating panel needs it (Linux) |
+| `kitty` in PATH | advisory; second valid panel host (issue #90, kitty 0.42+ native quick access terminal; choice editable in the TUI settings, key `c`, applies after restarting the panel). Warns loud only when neither ghostty nor kitty is present |
 | `kdotool` in PATH | advisory (Linux + ghostty only); panel show/hide toggle needs it — without it the panel opens but a second press cannot hide/restore it. The advisory names both install paths (distro package; upstream prebuilt jinliu/kdotool) |
 | `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |
 

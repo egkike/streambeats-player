@@ -2,8 +2,11 @@
 
 The player is meant to live in a Ghostty **quick terminal** (Quake-style panel)
 that slides in from any screen edge, so you can control music while working in
-another window. Spec: `odd/tasks/streambeats.md` — S3 (floating panel on any
-side), S7 (Quick Terminal Ghostty), S8 (herdr), task T7.
+another window. The launcher also supports **kitty** (0.42+ native quick
+access terminal) as an alternative panel host — see `docs/kitty.md` and the
+settings-menu choice (issue #90). Spec: `odd/tasks/streambeats.md` — S3
+(floating panel on any side), S7 (Quick Terminal Ghostty), S8 (herdr), task
+T7.
 
 Reference: <https://ghostty.org/docs/config/reference>
 (`quick-terminal-position`, `quick-terminal-size`, `toggle_quick_terminal`).

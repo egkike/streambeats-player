@@ -139,7 +139,10 @@ jobs:
     # every Go PR via the cross-builds above; a skipped instance here is
     # still reported as a satisfying required check (#16 doctrine).
     if: needs.changes.outputs.installer == 'true'
-    runs-on: macos-14
+    # macos-14 runner images retired on 2026-11-02 (actions/runner-images#13518
+    # scheduled brownout cancels the job at startup); macos-15 is the pinned
+    # stable successor (issue #93).
+    runs-on: macos-15
     timeout-minutes: 20
     steps:
       - name: Checkout
