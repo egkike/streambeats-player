@@ -221,7 +221,7 @@ verify_archive() {
 # ---------------------------------------------------------------------------
 install_bundle() {
 	local prefix="$1" share="$2" ver="$3"
-	mkdir -p "$share/bin" "$share/scripts" "$share/assets/ghostty" "$prefix/bin" ||
+	mkdir -p "$share/bin" "$share/scripts" "$share/assets/ghostty" "$share/assets/kitty" "$prefix/bin" ||
 		die "cannot create install directories under $prefix (is HOME writable?)"
 
 	# Binary moves to bin/ so scripts/streambeats-quick resolves its tree.
@@ -244,6 +244,7 @@ install_bundle() {
 	if [ -f "$EXTRACT_TMP/scripts/streambeats-quick" ]; then
 		mv "$EXTRACT_TMP/scripts/streambeats-quick" "$share/scripts/streambeats-quick"
 		mv "$EXTRACT_TMP/assets/ghostty/"*.conf "$share/assets/ghostty/" 2>/dev/null || true
+		mv "$EXTRACT_TMP/assets/kitty/"*.conf "$share/assets/kitty/" 2>/dev/null || true
 		chmod 0755 "$share/scripts/streambeats-quick"
 	else
 		warn "release archive predates bundled launcher assets; fetching them from raw.githubusercontent (NOT checksum covered)"
@@ -259,6 +260,10 @@ install_bundle() {
 			fetch "$RAW_URL/${VERSION_PINNED}/assets/ghostty/streambeats-$side.conf" "$tmpfile" ||
 				die "raw fallback: preset streambeats-$side.conf download failed"
 			mv "$tmpfile" "$share/assets/ghostty/streambeats-$side.conf"
+			tmpfile=$(new_tmp)
+			fetch "$RAW_URL/${VERSION_PINNED}/assets/kitty/streambeats-$side.conf" "$tmpfile" ||
+				die "raw fallback: kitty preset streambeats-$side.conf download failed"
+			mv "$tmpfile" "$share/assets/kitty/streambeats-$side.conf"
 		done
 	fi
 
@@ -472,6 +477,14 @@ environment_advisories() {
 		say "ghostty found at $(command -v ghostty)"
 	else
 		warn "ghostty was NOT found in PATH — the floating quick-terminal panel needs it (the TUI itself does not)"
+	fi
+	# Panel-terminal choice (issue #90): kitty is ALSO a valid host (its
+	# native quick access terminal needs 0.42+). Advisory, never fatal — the
+	# launcher resolves the terminal with flag > settings > builtin order.
+	if command -v kitty >/dev/null 2>&1; then
+		say "kitty found at $(command -v kitty) — panel terminal choice available in the TUI settings (key c)"
+	elif ! command -v ghostty >/dev/null 2>&1; then
+		warn "neither ghostty nor kitty found in PATH — the floating quick-terminal panel needs one of them (the TUI itself does not)"
 	fi
 	# Panel toggle advisory (issue #70): on Linux + ghostty, Ctrl+Alt+M hides
 	# and restores the panel through kdotool. Without it the panel still

@@ -190,6 +190,17 @@ else
 	fail "bottom preset lost for kitty: $K"
 fi
 
+# --- fixture presence: the REAL repo ships every kitty side preset ------------
+say "fixture: assets/kitty ships all four side presets"
+if [ -f "$REPO_ROOT/assert_file.sh" ]; then :; fi
+for side in top bottom left right; do
+	if [ -f "$REPO_ROOT/assets/kitty/streambeats-$side.conf" ]; then
+		pass "kitty preset streambeats-$side.conf exists"
+	else
+		fail "kitty preset streambeats-$side.conf missing"
+	fi
+done
+
 say "----------------------------------------"
 say "scenarios: $((PASS_COUNT + FAIL_COUNT)) assertions — $PASS_COUNT pass, $FAIL_COUNT fail"
 [ "$FAIL_COUNT" -eq 0 ] || exit 1
