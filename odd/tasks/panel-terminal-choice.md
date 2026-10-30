@@ -190,8 +190,8 @@ Branch: `feature/panel-terminal-choice`.
   release tag remains the owner's explicit decision (nothing recorded as
   release-bound).
 - L16 (2026-10-30): formal disposition of the informational findings from
-  the APPROVED lineage review-58690d33945a47c3 (issue #103 numbering for
-  this ledger: issue #102). R2-settings-read-not-anchored (readability):
+  the APPROVED lineage review-58690d33945a47c3 (recorded pre-merge; logged
+  here by issue #102). R2-settings-read-not-anchored (readability):
   RESOLVED by cycle #92 — the loose grep was replaced by the top-level
   anchored scanner (issues pinned by harness scenarios 9a-9d); the flagged
   read no longer exists on main. R3-001 (reliability) and R4-001
