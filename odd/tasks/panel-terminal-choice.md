@@ -176,3 +176,16 @@ Branch: `feature/panel-terminal-choice`.
   "independent panel window (ghostty or kitty)". macOS section untouched:
   kitty-a-macOS parity is NOT claimed as validated (CI validates the
   installer path, not the kitty panel there).
+- L15 (2026-10-30): wrap-up ledger (governance step 5) — PR #97 MERGED as
+  merge commit 897e11c98f... (README kitty recovery; issue #96 CLOSED by
+  the PR keyword), PR #99 MERGED as 696a275 (go.mod promote + tidy gate;
+  issue #98 CLOSED). RDD decline receipt recorded: the go.mod delta
+  candidate ran through review START and was consent-DECLINED
+  candidate-scoped (lineage created=false, zero model runs, receipt
+  gentle-ai consent declined_this_candidate) — review-only evidence;
+  delivery proceeded under ordinary repository policy with CI 4/4 green
+  on both PRs. Post-merge host verification on main: README carries 10
+  kitty mentions, `go mod tidy -diff` EMPTY, `go mod verify` all modules
+  verified, working branches deleted. The cycle is fully closed; the
+  release tag remains the owner's explicit decision (nothing recorded as
+  release-bound).
