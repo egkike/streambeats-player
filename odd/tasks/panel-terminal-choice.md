@@ -146,3 +146,16 @@ Branch: `feature/panel-terminal-choice`.
   Edit and merge point for the ledger: after the owner merges, L10
   records the merge evidence (PR #91, squash, CI 4/4 green) per
   governance step 5.
+- L12 (2026-10-30): merge ledger (governance step 5) — PR #91 MERGED by the
+  owner as merge commit b240e5650babd87b7a127fdb8b83aa87c76cc135
+  ("Merge pull request #91 from egkike/feat/panel-terminal-choice",
+  mergedAt 2026-10-30T18:24:43Z). Merge-commit CI green BEFORE any new
+  main push: run 41106714736 completed success on b240e56 (Detect Go
+  changes / Install macOS / Verify Go code / issue-gate). Issues closed
+  by the PR keywords: #90, #92, #93. Feature branch deleted (local +
+  remote) after the ledger. Release tagging: the cycle records no
+  release-bound flag; a tag remains the owner's explicit decision and
+  would require its own green merge-commit CI row (received here).
+  Follow-ups riding the merge are done; no open engineering work from
+  this cycle remains. Docs-only ledger rides its own PR per the ruleset
+  (docs lane, model #25).
