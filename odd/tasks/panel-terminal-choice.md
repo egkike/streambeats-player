@@ -133,3 +133,16 @@ Branch: `feature/panel-terminal-choice`.
   breaks minified files and a boundary regex still false-matches
   nested hand-written JSON; depth-by-construction is the only POSIX
   anchoring that holds for both shapes (jq is not a launcher dependency).
+- L9 (2026-10-30): delta-cycle re-review receipt — lineage
+  review-30823f4c4f4313ab (high tier, 4 lens model runs host-relayed,
+  owner-authorized for the #92/#93 delta against base eb07ac9). OUTCOME:
+  APPROVED on the last admitted event, zero corrections requested;
+  acknowledgement burned (gentle-ai.review-acknowledged/v1, consumed
+  revision sha256:10402694521335aa2755cf9b0f78f4b84abd1a7e973700e8a8e).
+  The whole PR #91 tree (~1306 lines, 11 commits) is now covered by
+  APPROVED receipts: the #90 feature (review-58690d33945a47c3) and this
+  #92/#93 delta. Delivery follows ordinary repository policy; owner
+  merge decision remains the sole gate.
+  Edit and merge point for the ledger: after the owner merges, L10
+  records the merge evidence (PR #91, squash, CI 4/4 green) per
+  governance step 5.
