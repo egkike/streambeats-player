@@ -143,7 +143,7 @@ Branch: `feature/panel-terminal-choice`.
   APPROVED receipts: the #90 feature (review-58690d33945a47c3) and this
   #92/#93 delta. Delivery follows ordinary repository policy; owner
   merge decision remains the sole gate.
-  Edit and merge point for the ledger: after the owner merges, L10
+  Edit and merge point for the ledger: after the owner merges, L12
   records the merge evidence (PR #91, squash, CI 4/4 green) per
   governance step 5.
 - L12 (2026-10-30): merge ledger (governance step 5) — PR #91 MERGED by the
@@ -159,3 +159,20 @@ Branch: `feature/panel-terminal-choice`.
   Follow-ups riding the merge are done; no open engineering work from
   this cycle remains. Docs-only ledger rides its own PR per the ruleset
   (docs lane, model #25).
+
+- L13 (owner, 2026-10-30): "Cuando actualices los docs de odd también verifica
+  el README.md para ver si necesita actualización con lo que agregamos" —
+  standing doc-update directive: every later odd/docs wave cross-verifies
+  README.md coverage.
+- L14 (2026-10-30): README.md read (187 lines) vs cycle reality — four stale
+  spots found and updated: (1) quick-start comment "panel (Ghostty)" →
+  panel (Ghostty or kitty, choice in the settings screen); (2) the
+  Requirements bullet "Ghostty 1.2+ required only for the floating panel"
+  → Ghostty 1.2+ OR kitty 0.42+ with the settings-menu choice and the
+  --terminal override; (3) the "Floating quick terminal" section: presets
+  paragraph now covers both asset families + per-host toggle semantics +
+  docs/kitty.md link; (4) Architecture section gains docs/kitty.md and the
+  settings choice; the Notes line "independent Ghostty window" became
+  "independent panel window (ghostty or kitty)". macOS section untouched:
+  kitty-a-macOS parity is NOT claimed as validated (CI validates the
+  installer path, not the kitty panel there).
