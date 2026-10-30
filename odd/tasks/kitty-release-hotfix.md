@@ -95,3 +95,14 @@ Target release: `v1.9.1`.
   resilience). Acknowledgement burned (gentle-ai.review-acknowledged/v1,
   consumed_revision sha256:c394e937...). Delivery: PR + owner merge + tag
   v1.9.1 whose archive must contain the kitty presets (S1 live proof).
+- L5 (2026-10-30): release evidence (governance step 5) — PR #109 MERGED as
+  7307bb1 ("Merge pull request #109 from egkike/fix/kitty-release-hotfix",
+  issue #108 CLOSED by keyword), merge-commit CI success ×2 pre-tag, branch
+  deleted local (remote auto-retired). Annotated tag v1.9.1 pushed;
+  release workflow completed success: GitHub Release v1.9.1 published
+  2026-10-30T20:44:50Z as Latest with 6 assets. S1 LIVE PROOF: downloaded
+  the published linux_amd64 tarball and listed it — assets/kitty/
+  streambeats-{top,bottom,left,right}.conf ALL PRESENT in the archive
+  (4/4). Cycle closed pending the owner's laptop live validation:
+  reinstall from v1.9.1, kitty Quake panel via ctrl+alt+m relay toggle
+  (first press opens, second hides; settings already panelTerminal=kitty).
