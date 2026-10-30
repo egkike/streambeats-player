@@ -49,7 +49,7 @@ built for a live coding workflow (Ghostty + herdr + gentle-shell, KDE Plasma Way
   injection, statuses asserted on rendered output. NO tests touch the network, mpv binaries or the filesystem cache
   (catalog tests use fixture HTML + ride-along stub round trippers).
 - Table-driven style; every test asserts observable behavior (statuses, progress values, command payloads).
-- Pipeline before any commit: `gofmt -l .` clean, `go build ./...`, `go vet ./...`, `go test ./...`.
+- Pipeline before any commit: `gofmt -l .` clean, `go build ./...`, `go vet ./...`, `go test ./...`, and `go mod tidy -diff` empty (the dependency manifest stays tidy; issue #98).
   Race detector when touching the IPC/event channel: `go test -race ./internal/player/ ./internal/tui/`.
 
 ## Git & Branch Rules
