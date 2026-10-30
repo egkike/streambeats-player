@@ -28,7 +28,8 @@ written. Details, pinned versions and the installed layout: docs/install.md.
 
 ```sh
 streambeats               # TUI player, runs in any terminal
-streambeats-quick right   # floating quick-terminal panel (Ghostty)
+streambeats-quick right   # floating quick-terminal panel (Ghostty or kitty —
+                          # the host is chosen in the TUI settings, key `c`)
 ```
 
 Uninstall (the bundled CLI removes exactly what the installer landed; the
@@ -85,9 +86,16 @@ user data: nothing above ever touches them.
   browses the catalog and says so in a friendly status line; it never crashes.
 - **Network access to bandcamp.com** — stream URLs are tokenized and expire;
   a fresh one is resolved right before every play, never cached.
-- **Ghostty 1.2+** — required only for the floating quick-terminal panel
-  (`streambeats-quick` + presets under `assets/ghostty/`); the `streambeats`
-  TUI itself runs in any terminal. See docs/ghostty.md.
+- **Ghostty 1.2+ or kitty 0.42+** — required only for the floating
+  quick-terminal panel (`streambeats-quick` + side presets under
+  `assets/ghostty/` for Ghostty and `assets/kitty/` for kitty's native
+  quick access terminal); the `streambeats` TUI itself runs in any
+  terminal. The hosting terminal is chosen in the TUI settings screen
+  (`c` → Terminal; only the terminals installed on the machine are
+  selectable, persisted as `panelTerminal` in `settings.json`) or forced
+  per invocation with `streambeats-quick --terminal=<kitty|ghostty>`. The
+  panel host change applies after restarting the panel. See docs/ghostty.md
+  and docs/kitty.md.
 - **kdotool 0.3+** (Linux, optional) — enables the panel show/hide toggle:
   `streambeats-panel toggle <side>` minimizes the focused panel (audio keeps
   playing) and restores/raises it on the next press. Without it the panel
@@ -131,8 +139,13 @@ scripts/streambeats-quick [top|bottom|left|right]   # from a source checkout
 streambeats-panel  [top|bottom|left|right]          # installed (detached)
 ```
 
-Presets live in `assets/ghostty/streambeats-<side>.conf` (default side:
-`right`, narrow 22% strip). Toggle with `ctrl+alt+s`.
+Presets live in `assets/ghostty/streambeats-<side>.conf` (Ghostty) and
+`assets/kitty/streambeats-<side>.conf` (kitty) — default side `right`,
+narrow 22% strip. Toggle depends on the host: inside a Ghostty panel use
+`ctrl+alt+s` (fully native auto-opening needs a newer Ghostty than 1.3.1);
+the kitty quick access terminal toggles by re-running the same launcher
+command (bind it to a KDE global shortcut for one-key show/hide). Host
+choice + precedence details: docs/kitty.md.
 
 The installed companion `streambeats-panel` spawns the same panel detached
 from any terminal (systemd user unit per side, single-instance guard) so a
@@ -155,7 +168,8 @@ README "Run detached" recipe for that path).
   without mpv.
 - `scripts/install.sh` — curl-based user installer, SHA-256 verified
   (tests in `scripts/tests/install_test.sh`; detail in docs/install.md).
-- `docs/ghostty.md` — quick terminal integration details.
+- `docs/ghostty.md` — Ghostty quick terminal integration details.
+- `docs/kitty.md` — kitty quick access terminal panel (issue #90 choice).
 
 ## Run detached (survives the invoking terminal)
 
@@ -181,7 +195,7 @@ opens with the catalog.)
 
 ## Notes
 
-- Runs beside herdr as an independent Ghostty window; nothing needs to be
-  embedded into the agent runtime.
+- Runs beside herdr as an independent floating panel (Ghostty or kitty);
+  nothing needs to be embedded into the agent runtime.
 - MP3-128 is Bandcamp's streaming tier; for archival quality download the
   FLAC from Bandcamp manually per release.
