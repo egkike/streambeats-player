@@ -77,3 +77,26 @@ Branch: `feature/panel-terminal-choice`.
   la app para que haga efecto (siempre que seleccione una opción de cambio)"
   — authorized as issue #90 with `status:approved` (standing grant,
   established 2026-10-25, issue #25 working model) and `type:feature`.
+- L4 (2026-10-30): cycle implemented RED→GREEN. Unit 1 (e6c7902 + d3534fa
+  odd doc): settings store `panelTerminal` (omitempty) + offer-set helper
+  (`panelTerminalRows`, canonical order, injected lookup, whitelist)
+  with 10 RED-then-GREEN tests. Unit 2 (a5bf19d): combined settings cursor
+  (themes → installed terminals), no-op on re-commit, notice via
+  `saveMsg.notice` = "X set as panel terminal — applies after restarting
+  the app", full-settings persistence (absorbs the latent theme-save
+  sibling clobber of libraryRoot — guarded by a dedicated test), empty
+  offer renders "no panel terminal installed" (S7). Unit 3 (6a8e1f3):
+  launcher resolution flag > settings.json `panelTerminal` (anchored
+  grep, fail-through) > builtin ghostty→kitty; wishes verified against
+  PATH; kitty branch execs `kitten quick-access-terminal --config
+  <preset> <player>`; stub harness 22/22 + desktop 41/41 + install 78/78.
+  Session side task: stale gh branches cleaned — `fix/load-window-marker`
+  (fully merged) deleted local+stale tracking; `fix/nav-skip-dotfiles`
+  had unmerged L5 docs content, preserved on `docs/library-navigator-l5`
+  before deletion.
+- L5 (2026-10-30): slice boundary at ~859 authored lines (4 commits) —
+  this cycle exceeds the ~400-line advisory as a whole; delivery strategy:
+  ONE feature PR carrying `size:exception` label (advisory visibility for
+  the owner; the unit commits inside keep the review slices), per AGENTS
+  lane rules. Remaining: T6 uninstaller assets check, docs commit, native
+  review receipt.
