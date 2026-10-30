@@ -212,6 +212,57 @@ else
 	fail "ghostty parity scenario exited nonzero: $(cat "$Fx/ghostty_stderr.log")"
 fi
 
+# --- scenario 9: settings.json read anchoring (issue #92, R2/R3/R4) ----------
+# The read resolves ONLY a top-level panelTerminal key. A hand-nested JSON
+# object must never inject a panel terminal inside the key's own object, and
+# the machine-written shapes (Marshalled 2-space pretty and minified flat)
+# must both keep working.
+say "scenario 9: anchored settings read (nested JSON is out of contract)"
+
+# 9a RED target: a nested "panelTerminal" key must NOT resolve kitty.
+: >"$Fx/KITTEN.log"
+write_settings '{
+  "theme": {
+    "panelTerminal": "kitty"
+  }
+}'
+if run_launcher right; then pass "nested panelTerminal fixture exits 0"; else fail "nested fixture crashed: $(cat "$Fx/stderr.log")"; fi
+assert_eq "$(count KITTEN)" 0 "nested panelTerminal must never resolve kitty (anchored read)"
+G=$(latest GHOSTTY)
+if [ -n "$G" ]; then pass "nested fixture falls through to builtin ghostty"; else fail "nested fixture lost the builtin fallback"; fi
+
+# 9b pin: the TUI's machine shape (2-space MarshalIndent) keeps resolving.
+: >"$Fx/KITTEN.log"
+write_settings '{
+  "theme": "oscuro",
+  "panelTerminal": "kitty"
+}'
+if run_launcher right; then pass "pretty machine shape exits 0"; else fail "pretty machine shape crashed: $(cat "$Fx/stderr.log")"; fi
+if printf '%s' "$(latest KITTEN)" | grep -q 'quick-access-terminal'; then
+	pass "pretty machine shape still resolves kitty"
+else
+	fail "anchoring broke the machine-written pretty shape: $(latest KITTEN)"
+fi
+
+# 9c pin: hand-minified flat JSON keeps resolving too.
+: >"$Fx/KITTEN.log"
+write_settings '{"theme":"oscuro","panelTerminal":"kitty"}'
+if run_launcher right; then pass "minified flat shape exits 0"; else fail "minified flat shape crashed: $(cat "$Fx/stderr.log")"; fi
+if printf '%s' "$(latest KITTEN)" | grep -q 'quick-access-terminal'; then
+	pass "minified flat shape still resolves kitty"
+else
+	fail "anchoring broke the minified shape: $(latest KITTEN)"
+fi
+
+# 9d RED target: a NESTED key inside a hand-minified JSON is equally out of
+# contract — the anchor must read depth, not just indentation.
+: >"$Fx/KITTEN.log"
+: >"$Fx/GHOSTTY.log"
+write_settings '{"theme":{"panelTerminal":"kitty"},"note":"x"}'
+if run_launcher right; then pass "1-line nested fixture exits 0"; else fail "1-line nested fixture crashed: $(cat "$Fx/stderr.log")"; fi
+assert_eq "$(count KITTEN)" 0 "nested minified panelTerminal must never resolve kitty"
+if [ -n "$(latest GHOSTTY)" ]; then pass "nested minified falls through to builtin ghostty"; else fail "nested minified lost the builtin fallback"; fi
+
 # --- fixture presence: the REAL repo ships every kitty side preset ------------
 say "fixture: assets/kitty ships all four side presets"
 if [ -f "$REPO_ROOT/assert_file.sh" ]; then :; fi

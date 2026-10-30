@@ -120,3 +120,16 @@ Branch: `feature/panel-terminal-choice`.
   settings.json read anchoring), R3-001 (reliability, streambeats-quick:102),
   R4-001 (resilience, streambeats-quick:108). Delivery follows ordinary
   repository policy: PR under the issue-first gate with `Closes #90`.
+- L8 (2026-10-30): follow-up cycle #92 (informational review findings R2/R3/R4-001
+  from the APPROVED lineage review-58690d33945a47c3) implemented RED→GREEN
+  on the same branch: settings_terminal() replaced by a single-pass
+  top-level anchored awk scanner (depth + JSON-string aware; value
+  whitelisted to ghostty|kitty; escapes NOT decoded — strict compare;
+  silent fail-through preserved). RED: nested pretty + nested minified
+  fixtures; pins: pretty 2-space machine shape, minified flat,
+  nested minified. Harness 38/38, desktop 41/41, install 79/79,
+  shellcheck clean, go suite green. Docs: docs/kitty.md precedence table
+  + anchor contract note updated. Why not a pure regex: line-anchoring
+  breaks minified files and a boundary regex still false-matches
+  nested hand-written JSON; depth-by-construction is the only POSIX
+  anchoring that holds for both shapes (jq is not a launcher dependency).

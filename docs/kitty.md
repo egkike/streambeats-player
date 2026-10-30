@@ -15,8 +15,13 @@ Reference: <https://sw.kovidgoyal.net/kitty/kittens/quick-access-terminal/>
 | # | Source | Notes |
 | --- | --- | --- |
 | 1 | `--terminal=ghostty\|kitty` flag | wins over everything; a wish is validated against PATH, never substituted |
-| 2 | `panelTerminal` in `~/.config/streambeats/settings.json` | written by the TUI **`c` → Terminal section**; malformed or foreign values fall through (fail closed) |
+| 2 | `panelTerminal` in `~/.config/streambeats/settings.json` | written by the TUI **`c` → Terminal section**; the launcher reads it with a **top-level anchored scan** (a nested or value-embedded lookalike never resolves — issue #92 hardening); unreadable, malformed or foreign values fall through silently (fail closed) |
 | 3 | builtin order | ghostty first (calibrated keycaps, issue #64), then kitty |
+
+The anchored scan reads both machine shapes — the written-by-TUI
+2-space MarshalIndent pretty file and a hand-minified flat file — and
+treats hand-nested JSON as out of contract (fall-through to the builtin
+order instead of a wrong host).
 
 The settings screen commits the change and tells you the choice **applies
 after restarting the app** — the terminal hosting the running TUI never
