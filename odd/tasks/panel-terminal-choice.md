@@ -100,3 +100,13 @@ Branch: `feature/panel-terminal-choice`.
   the owner; the unit commits inside keep the review slices), per AGENTS
   lane rules. Remaining: T6 uninstaller assets check, docs commit, native
   review receipt.
+- L6 (2026-10-30): RDD native review receipt — lineage review-98c9795b52254860
+  (high tier, owner authorized 4 refuted-binding lens runs + 1 refuter run,
+  host-relay). Result: ESCALATED closed — refuter corroborated R2/R4
+  "ghostty-output-regression" (summary line gained terminal= token and the
+  doubled pre-existing 1.3.1 note printfs dropped to one; S8 byte-identity
+  violated). Owner decision (2026-10-30): fix + full re-review. Parity fix
+  restored the plain summary + doubled notes on the ghostty branch (the
+  terminal= summary now prints only on the kitty branch) and scenario 8
+  pins the stderr contract as a committed test. New review runs on the
+  changed candidate; correction budget of the closed lineage untouched.

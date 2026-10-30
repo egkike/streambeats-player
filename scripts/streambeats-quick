@@ -151,9 +151,8 @@ else
 	die "streambeats binary not found. Build it with 'go build -o bin/streambeats ./cmd/streambeats' or install it on PATH."
 fi
 
-printf 'streambeats-quick: terminal=%s side=%s preset=%s player=%s\n' "$chosen_terminal" "$side" "$preset" "$player_bin" >&2
-
 if [ "$chosen_terminal" = kitty ]; then
+	printf 'streambeats-quick: terminal=%s side=%s preset=%s player=%s\n' "$chosen_terminal" "$side" "$preset" "$player_bin" >&2
 	# Issue #90: kitty hosts the panel through its native Quake-style quick
 	# access terminal (kitty 0.42+, wlr-layer-shell — the same Wayland
 	# requirement as Ghostty). Running this command again toggles the panel
@@ -171,6 +170,21 @@ fi
 # --- ghostty branch ----------------------------------------------------------
 ghostty_bin=$(command -v ghostty 2>/dev/null || true)
 [ -n "$ghostty_bin" ] || die "ghostty not found on PATH. Install Ghostty (https://ghostty.org/docs/install) or add its binary to PATH, then re-run $0."
+
+# Summary byte-identical with the pre-#90 launcher (review findings R2/R4,
+# lineage review-98c9795b52254860): the ghostty path's stderr keeps both the
+# plain summary line and TWO printfs of the 1.3.1 notes (one here, one
+# before the exec). The doubled notes were main's behavior — parity wins
+# over de-duplication this cycle.
+printf 'streambeats-quick: side=%s preset=%s player=%s\n' "$side" "$preset" "$player_bin" >&2
+printf '%s\n' \
+	'streambeats-quick: note: Ghostty 1.3.1 cannot spawn a quick terminal from the CLI' \
+	'  (the +toggle-quick-terminal action landed after that release), so this panel' \
+	'  opens as a normal dedicated window. Auto-opening the quick terminal needs a' \
+	'  newer Ghostty build; the side presets already configure position, size and' \
+	'  autohide for it.' \
+	'streambeats-quick: note: inside the panel, ctrl+alt+s toggles the Ghostty quick' \
+	'  terminal once your binary supports that action.' >&2
 
 # Virtual XDG config home so Ghostty loads the preset through its canonical
 # config path. `--config=<path>` is NOT a real Ghostty option (see

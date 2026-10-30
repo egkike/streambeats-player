@@ -190,6 +190,28 @@ else
 	fail "bottom preset lost for kitty: $K"
 fi
 
+# --- scenario 8: the ghostty stderr contract stays byte-identical ------------
+# (review lineage review-98c9795b52254860 findings R2/R4): the summary line
+# keeps the plain 'side=... preset=... player=' shape with NO terminal=
+# token, and BOTH historical note printfs appear (main prints them twice;
+# the doubled block is pre-existing behavior this cycle must not change).
+say "scenario 8: ghostty stderr parity (summary shape + doubled 1.3.1 notes)"
+: >"$Fx/GHOSTTY.log"
+rm -f "$Fx/ghostty_stderr.log"
+if env -u XDG_CONFIG_HOME PATH="$STUBS:/usr/bin:/bin" XDG_CONFIG_HOME="$Fx/xdg" \
+	"$LAUNCHER" right 2>"$Fx/ghostty_stderr.log" >/dev/null; then
+	STDERR="$Fx/ghostty_stderr.log"
+	if grep -q '^streambeats-quick: side=.* preset=.* player=' "$STDERR" && ! grep -q '^streambeats-quick: terminal=' "$STDERR"; then
+		pass "ghostty summary keeps the plain shape (no terminal= token)"
+	else
+		fail "ghostty summary changed shape: $(grep '^streambeats-quick:' "$STDERR" | head -1)"
+	fi
+	NOTES=$(grep -c 'Ghostty 1.3.1 cannot spawn' "$STDERR")
+	assert_eq "$NOTES" 2 "1.3.1 notes print twice (pre-existing doubled block preserved)"
+else
+	fail "ghostty parity scenario exited nonzero: $(cat "$Fx/ghostty_stderr.log")"
+fi
+
 # --- fixture presence: the REAL repo ships every kitty side preset ------------
 say "fixture: assets/kitty ships all four side presets"
 if [ -f "$REPO_ROOT/assert_file.sh" ]; then :; fi
