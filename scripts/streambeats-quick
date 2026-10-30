@@ -14,20 +14,28 @@ set -eu
 
 usage() {
 	cat <<'EOF'
-Usage: streambeats-quick [top|bottom|left|right]
+Usage: streambeats-quick [--terminal=ghostty|kitty] [top|bottom|left|right]
 
-Open the streambeats player in a Ghostty side panel anchored to a screen edge
-(default: right). Each side has its own preset. On Ghostty 1.3.1 the panel is a
-normal dedicated window; the quick-terminal keys in the preset take effect once
-your Ghostty supports the +toggle-quick-terminal action. The panel is an
-independent Ghostty window, separate from any herdr session.
+Open the streambeats player in a floating side panel anchored to a screen
+edge (default: right). Each side has its own preset per terminal. On Ghostty
+1.3.1 the panel is a normal dedicated window; the quick-terminal keys in the
+preset take effect once your Ghostty supports the +toggle-quick-terminal
+action. The panel is an independent window, separate from any herdr session.
 
 Options:
-  -h, --help   Show this help and exit.
+  --terminal=<name>   Hosts the panel in the named terminal (ghostty or
+                      kitty). Without it the choice resolves in this order:
+                      settings.json panelTerminal (the TUI settings screen,
+                      issue #90) > builtin order (ghostty first, then kitty).
+  -h, --help          Show this help and exit.
 
 Examples:
-  streambeats-quick            # right edge strip
-  streambeats-quick bottom     # bottom strip
+  streambeats-quick                       # right edge strip
+  streambeats-quick bottom                # bottom strip
+  streambeats-quick --terminal=kitty right # kitty right edge strip
+
+Kitty panels ride the native quick-access terminal (kitty 0.42+); the KDE
+global shortcut toggles it by re-running the same command. See docs/kitty.md.
 EOF
 }
 
@@ -47,35 +55,83 @@ script_dir=$(CDPATH='' cd -- "$script_dir" && pwd -P) ||
 repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd -P) ||
 	die "cannot resolve repository root from $script_dir"
 
-if [ "$#" -gt 1 ]; then
-	printf 'streambeats-quick: error: expected at most one argument\n\n' >&2
-	usage >&2
-	exit 2
-fi
-
+# Issue #90 anchor panel-terminal resolution (S5):
+#   1. the --terminal=<name> flag,
+#   2. panelTerminal in $XDG_CONFIG_HOME/streambeats/settings.json (the
+#      anchored, narrow read of the machine-written field; a malformed or
+#      absent file falls through),
+#   3. the builtin order: ghostty first (calibrated keycaps per issue #64),
+#      then kitty (native quick-access terminal, kitty 0.42+).
 side=right
-if [ "$#" -eq 1 ]; then
-	case $1 in
-	top | bottom | left | right) side=$1 ;;
+wished_terminal=
+for arg in "$@"; do
+	case $arg in
 	-h | --help)
 		usage
 		exit 0
 		;;
+	top | bottom | left | right) side=$arg ;;
+	--terminal=ghostty | --terminal=kitty) wished_terminal=${arg#--terminal=} ;;
+	--terminal=*)
+		printf 'streambeats-quick: error: unknown terminal "%s" (ghostty and kitty are the supported ones)\n\n' "${arg#--terminal=}" >&2
+		usage >&2
+		exit 2
+		;;
 	*)
-		printf 'streambeats-quick: error: unknown side "%s"\n\n' "$1" >&2
+		printf 'streambeats-quick: error: unknown argument "%s"\n\n' "$arg" >&2
 		usage >&2
 		exit 2
 		;;
 	esac
+done
+
+# settings_terminal reads the panelTerminal choice the TUI settings screen
+# persists: ONLY the two canonical values pass an anchored match, so a
+# malformed or foreign settings file resolves to nothing (fail closed) and
+# the builtin order takes over. No jq dependency: the file is machine-
+# written by the Go settings store with a stable, narrow shape.
+settings_terminal() {
+	cfg=${XDG_CONFIG_HOME:-"$HOME"/.config}
+	settings_file=$cfg/streambeats/settings.json
+	[ -f "$settings_file" ] || return 0
+	if grep -Eq '"panelTerminal"[[:space:]]*:[[:space:]]*"ghostty"' "$settings_file"; then
+		echo ghostty
+		return 0
+	fi
+	if grep -Eq '"panelTerminal"[[:space:]]*:[[:space:]]*"kitty"' "$settings_file"; then
+		echo kitty
+		return 0
+	fi
+	return 0
+}
+
+# Resolution with explicit smoke: a flag or settings value must exist on
+# PATH (a wish is validated, never substituted); the remaining case rides
+# the builtin order ghostty -> kitty.
+wished_terminal=${wished_terminal:-$(settings_terminal)}
+if [ -n "$wished_terminal" ]; then
+	if ! command -v "$wished_terminal" >/dev/null 2>&1; then
+		die "requested terminal '$wished_terminal' is not on PATH"
+	fi
+	chosen_terminal=$wished_terminal
+elif command -v ghostty >/dev/null 2>&1; then
+	chosen_terminal=ghostty
+elif command -v kitty >/dev/null 2>&1; then
+	chosen_terminal=kitty
+else
+	die "neither ghostty nor kitty found on PATH. Install Ghostty (https://ghostty.org/docs/install) or kitty (https://sw.kovidgoyal.net/kitty/)"
 fi
 
-preset=$repo_root/assets/ghostty/streambeats-$side.conf
-[ -f "$preset" ] || die "missing preset file: $preset"
-
-ghostty_bin=$(command -v ghostty 2>/dev/null || true)
-if [ -z "$ghostty_bin" ]; then
-	die "ghostty not found on PATH. Install Ghostty (https://ghostty.org/docs/install) or add its binary to PATH, then re-run $0."
+kitty_preset=$repo_root/assets/kitty/streambeats-$side.conf
+ghostty_preset=$repo_root/assets/ghostty/streambeats-$side.conf
+if [ "$chosen_terminal" = ghostty ] && [ ! -f "$ghostty_preset" ]; then
+	die "missing preset file: $ghostty_preset"
 fi
+if [ "$chosen_terminal" = kitty ] && [ ! -f "$kitty_preset" ]; then
+	die "missing preset file: $kitty_preset"
+fi
+preset=$ghostty_preset
+[ "$chosen_terminal" = kitty ] && preset=$kitty_preset
 
 # Prefer the repo-built binary; fall back to a `streambeats` already on PATH.
 # A stale binary would silently run last week's player, so if `go` is on PATH
@@ -95,15 +151,26 @@ else
 	die "streambeats binary not found. Build it with 'go build -o bin/streambeats ./cmd/streambeats' or install it on PATH."
 fi
 
-printf 'streambeats-quick: side=%s preset=%s player=%s\n' "$side" "$preset" "$player_bin" >&2
-printf '%s\n' \
-	'streambeats-quick: note: Ghostty 1.3.1 cannot spawn a quick terminal from the CLI' \
-	'  (the +toggle-quick-terminal action landed after that release), so this panel' \
-	'  opens as a normal dedicated window. Auto-opening the quick terminal needs a' \
-	'  newer Ghostty build; the side presets already configure position, size and' \
-	'  autohide for it.' \
-	'streambeats-quick: note: inside the panel, ctrl+alt+s toggles the Ghostty quick' \
-	'  terminal once your binary supports that action.' >&2
+printf 'streambeats-quick: terminal=%s side=%s preset=%s player=%s\n' "$chosen_terminal" "$side" "$preset" "$player_bin" >&2
+
+if [ "$chosen_terminal" = kitty ]; then
+	# Issue #90: kitty hosts the panel through its native Quake-style quick
+	# access terminal (kitty 0.42+, wlr-layer-shell — the same Wayland
+	# requirement as Ghostty). Running this command again toggles the panel
+	# per instance-group, so a KDE global shortcut bound to streambeats-quick
+	# doubles as the show/hide key.
+	kitten_bin=$(command -v kitten 2>/dev/null || true)
+	[ -n "$kitten_bin" ] || die "kitten not found on PATH (kitten ships with kitty)"
+	printf '%s\n' \
+		'streambeats-quick: note: the kitty panel rides the native quick access' \
+		'  terminal; run streambeats-quick again (or the KDE global shortcut it' \
+		'  is bound to) to toggle it. See docs/kitty.md.' >&2
+	exec "$kitten_bin" quick-access-terminal --config "$preset" "$player_bin"
+fi
+
+# --- ghostty branch ----------------------------------------------------------
+ghostty_bin=$(command -v ghostty 2>/dev/null || true)
+[ -n "$ghostty_bin" ] || die "ghostty not found on PATH. Install Ghostty (https://ghostty.org/docs/install) or add its binary to PATH, then re-run $0."
 
 # Virtual XDG config home so Ghostty loads the preset through its canonical
 # config path. `--config=<path>` is NOT a real Ghostty option (see
