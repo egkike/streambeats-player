@@ -106,3 +106,15 @@ Target release: `v1.9.1`.
   (4/4). Cycle closed pending the owner's laptop live validation:
   reinstall from v1.9.1, kitty Quake panel via ctrl+alt+m relay toggle
   (first press opens, second hides; settings already panelTerminal=kitty).
+- L6 (2026-10-30): OWNER LIVE VALIDATION — installed from the v1.9.1 release
+  on the laptop and reported "Funciona perfecto": the kitty Quake panel
+  opens from the right edge via the ctrl+alt+m relay toggle (first press
+  opens, second hides, music keeps playing). The two v1.9.0 delivery
+  defects are closed in practice on the owner's machine (issue #108 →
+  PR #109 → release evidence L5). Cycle closed: the kitty integration is
+  its final doctrine (Quake panel by design, not mouse-draggable by
+  doctrine — documented); Ghostty stays on its 1.3.1 dedicated-window
+  fallback until the emulator upgrade brings the native quick terminal,
+  whose presets are already parked in every pack. Explicit NON-goal
+  recorded at the owner's decision: the "kitty window mode" (draggable
+  window) idea is parked — the owner's target was always the Quake panel.
