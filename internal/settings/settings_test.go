@@ -61,6 +61,41 @@ func TestSaveRoundTripsTheme(t *testing.T) {
 	}
 }
 
+// Issue #90 (S4): the panel-terminal choice round trips with the other
+// fields; a committed selection must survive (never silently lost).
+func TestSaveRoundTripsPanelTerminal(t *testing.T) {
+	st := testStore(t)
+	if err := st.Save(Settings{Theme: "oscuro", PanelTerminal: "kitty", LibraryRoot: "/music"}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := st.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.PanelTerminal != "kitty" {
+		t.Errorf("PanelTerminal = %q, want kitty", got.PanelTerminal)
+	}
+	if got.Theme != "oscuro" || got.LibraryRoot != "/music" {
+		t.Errorf("round trip lost sibling fields: theme=%q libraryRoot=%q", got.Theme, got.LibraryRoot)
+	}
+}
+
+// Issue #90 (S4): a terminal never chosen must not materialize its key in
+// settings.json (omitempty contract); an empty PanelTerminal equals "unset".
+func TestUnsetPanelTerminalOmitsKey(t *testing.T) {
+	st := testStore(t)
+	if err := st.Save(Settings{Theme: "claro"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(st.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "panelTerminal") {
+		t.Errorf("unset panelTerminal must not appear in settings.json; raw=\n%s", raw)
+	}
+}
+
 func TestSaveOverwritesPreviousContent(t *testing.T) {
 	st := testStore(t)
 	if err := st.Save(Settings{Theme: "claro"}); err != nil {

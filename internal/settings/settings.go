@@ -18,6 +18,11 @@ import (
 type Settings struct {
 	Theme       string `json:"theme,omitempty"`
 	LibraryRoot string `json:"libraryRoot,omitempty"`
+	// PanelTerminal (issue #90): which terminal binary hosts the panel
+	// ("ghostty" | "kitty"). Absent means the launcher falls back by its
+	// own precedence; the value is validated by the settings screen before
+	// it is persisted (the store itself stays dumb).
+	PanelTerminal string `json:"panelTerminal,omitempty"`
 }
 
 // Store persists and reloads settings as JSON.
