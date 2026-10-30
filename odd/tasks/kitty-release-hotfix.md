@@ -64,3 +64,25 @@ Target release: `v1.9.1`.
   (verified by downloading the published tarball) + panel toggle
   ghostty-model. Authorized: "Vamos con el hotfix v1.9.1" → issue #108
   (`status:approved`, standing grant model #25, `type:bug`).
+- L2 (2026-10-30): cycle implemented RED→GREEN. Unit 1 (T1+T3): RED
+  packaging-coverage guard (kitty family missing from .goreleaser.yaml) →
+  GREEN by adding assets/kitty/streambeats-*.conf to the packaging files
+  list. Unit 2 (T2+T4): panel-kitty RED — the toggle in a kitty-revolve
+  sandbox with systemd+unit-active never relayed and never toggled — then
+  GREEN by sharing the scanner: scripts/panel-terminal becomes the single
+  source of truth (launcher sources it too; the --resolve-terminal probe
+  idea was dropped: probing the launcher polluted harness logs — the
+  wrapper sources the same settings_terminal() directly, contract per
+  issue #92's anchoring). The wrapper's kitty bypass sits BEFORE the unit
+  guard and relays the launcher detached on every press; kdotool/systemd
+  unit NEVER consulted for kitty (asserted). Ghostty tests byte-identical
+  via HOME/XDG sandbox isolation (the suite's scenarios 1–7 were reading
+  the real ~/.config streambeats settings — harness gap fixed).
+  Owner-side visual note recorded: kitty layer-shell panels stretch the
+  secondary axis and are NOT mouse-draggable/minimizable (documented in
+  docs/kitty.md). Suites: packaging 3/3, desktop 47/47, launcher 38/38,
+  install 79/79, shellcheck clean, go suite green.
+- L3 (2026-10-30): T5 docs — docs/kitty.md gains the wrapper-relay toggle +
+  the layer-shell geometry note; docs/install.md kdotool advisory scoped
+  to the Ghostty path; README toggle paragraph parity. Pending: native
+  review of the hotfix delta + PR merge + v1.9.1 tag + release evidence.
