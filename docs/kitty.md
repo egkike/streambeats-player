@@ -55,8 +55,16 @@ instance-group, so a second spawn hides (or restores) the panel. That is
 also how a KDE global shortcut binds:
 
 - *System Settings → Keyboard → Shortcuts → Add New → Command or Script…* —
-  bind `streambeats-quick` (or the same command with a side).
+  bind `streambeats-quick` (or the same command with a side) **or the
+  installed companion `streambeats-panel toggle <side>`** — the wrapper
+  relays kitty on every press (issue #108), so one keybind toggles it
+  without kdotool.
 - The first press spawns/shows the panel, the next press hides it.
+
+Edge panels stretch their secondary axis to the full screen height/width
+(kitty layer-shell design — the panel is not mouse-draggable and has no
+minimize button; show/hide is the toggle). To cap the secondary axis, edit
+the preset's `columns`/`lines` px value and add `margin_*` offsets.
 
 For a panel that outlives the launcher process (detached, toggle by
 desktop entry), `streambeats-panel` (issue #70/#73) wraps this on the
