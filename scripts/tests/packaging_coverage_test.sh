@@ -42,6 +42,16 @@ fi
 
 # The installer's own expectations must still match the declared file
 # names (single family per table row, per side list).
+# S1 (issue #122): the shared scanner helper must ride the archive too —
+# the wrapper sources it from ITS OWN scripts dir; a missing helper makes
+# the kitty relay silently fall into the ghostty path (v1.9.1/v1.9.2
+# shipped without it exactly that way).
+if grep -q 'scripts/panel-terminal' "$GORELEASER"; then
+	pass "panel-terminal helper declared in .goreleaser.yaml files"
+else
+	fail "panel-terminal helper (scripts/panel-terminal) NOT declared in .goreleaser.yaml files — installed trees lose the kitty relay toggle (issue #122)"
+fi
+
 if [ -x "$REPO_ROOT/scripts/tests/install_test.sh" ]; then
 	pass "installer expectations test remains available (install_test.sh)"
 else

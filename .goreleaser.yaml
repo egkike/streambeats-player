@@ -46,6 +46,10 @@ archives:
       - LICENSE
       - scripts/streambeats-quick
       - scripts/streambeats-panel
+      # Shared scanner helper sourced by streambeats-panel for the kitty
+      # relay (issue #122: its absence silently broke the toggle on
+      # installed trees).
+      - scripts/panel-terminal
       - assets/ghostty/streambeats-*.conf
       - assets/kitty/streambeats-*.conf
       # KDE integration assets (consumer of scripts/install.sh).
