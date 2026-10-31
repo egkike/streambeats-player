@@ -65,3 +65,11 @@ Target release: `v1.9.3`.
   reopen): R2-001 (readability) and R3-001 (reliability), both at
   scripts/install.sh:245-246 (the raw-fallback helper staging lines).
   Delivery: PR + owner merge + tag v1.9.3 + archive live proof (S5).
+- L4 (2026-10-31): release evidence (governance step 5) — PR #123 MERGED as
+  712f86b (issue #122 CLOSED by keyword), merge-commit CI success ×2, branch
+  cleaned. Annotated tag v1.9.3 pushed; release workflow success: GitHub
+  Release v1.9.3 published 2026-10-31T17:26:07Z as Latest with 6 assets.
+  S5 LIVE PROOF: downloaded the published linux_amd64 tarball and listed
+  it — scripts/panel-terminal IS inside the archive. Owner laptop
+  recovery: reinstall from v1.9.3 (installer now lands the helper) →
+  ctrl+alt+m kitty relay toggle re-validated live to close the cycle.
