@@ -243,6 +243,7 @@ install_bundle() {
 	# pulled from raw content at the same tag (unchecksummed fallback).
 	if [ -f "$EXTRACT_TMP/scripts/streambeats-quick" ]; then
 		mv "$EXTRACT_TMP/scripts/streambeats-quick" "$share/scripts/streambeats-quick"
+		mv "$EXTRACT_TMP/scripts/panel-terminal" "$share/scripts/panel-terminal" 2>/dev/null || true
 		mv "$EXTRACT_TMP/assets/ghostty/"*.conf "$share/assets/ghostty/" 2>/dev/null || true
 		mv "$EXTRACT_TMP/assets/kitty/"*.conf "$share/assets/kitty/" 2>/dev/null || true
 		chmod 0755 "$share/scripts/streambeats-quick"
@@ -254,6 +255,12 @@ install_bundle() {
 			die "archive has no launcher assets and raw fallback failed; see README Requirements for a manual install"
 		mv "$tmpfile" "$share/scripts/streambeats-quick"
 		chmod 0755 "$share/scripts/streambeats-quick"
+		# Issue #122: the shared helper rides the fallback too.
+		tmpfile=$(new_tmp)
+		fetch "$RAW_URL/${VERSION_PINNED}/scripts/panel-terminal" "$tmpfile" ||
+			die "raw fallback: panel-terminal helper download failed"
+		mv "$tmpfile" "$share/scripts/panel-terminal"
+		chmod 0755 "$share/scripts/panel-terminal"
 		local side
 		for side in top bottom left right; do
 			tmpfile=$(new_tmp)

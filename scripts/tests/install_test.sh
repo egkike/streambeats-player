@@ -64,6 +64,7 @@ EOF
 	if [ "$with_assets" = "1" ]; then
 		printf '#!/bin/sh\necho "quick-panel $*"\n' >"$dist/scripts/streambeats-quick"
 		chmod 0755 "$dist/scripts/streambeats-quick"
+		printf '#!/bin/sh\ntrue\n' >"$dist/scripts/panel-terminal"
 		for side in top bottom left right; do
 			printf 'window-mode = %s\n# streambeats fake preset\n' "$side" \
 				>"$dist/assets/ghostty/streambeats-$side.conf"
@@ -132,6 +133,7 @@ SHARE="$PREFIX/share/streambeats"
 assert_file "$SHARE/bin/streambeats" "shared player binary under bin/ (launcher resolves scripts/..)"
 assert_not_file "$SHARE/streambeats" "no stray archive-root binary"
 assert_file "$SHARE/scripts/streambeats-quick" "quick-terminal launcher installed"
+assert_file "$SHARE/scripts/panel-terminal" "shared panel-terminal helper installed (issue #122)"
 for side in top bottom left right; do
 	assert_file "$SHARE/assets/ghostty/streambeats-$side.conf" "preset $side"
 done
@@ -216,6 +218,7 @@ cp "$STAGE/artifacts/release.json" "$STAGE/api/releases/tags/v1.1.0"
 # did not carry. Generated fresh here (the asset-less dist tree never
 # created them).
 mkdir -p "$STAGE/raw/v1.1.0/scripts" "$STAGE/raw/v1.1.0/assets/ghostty" "$STAGE/raw/v1.1.0/assets/kitty"
+printf '#!/bin/sh\ntrue\n' >"$STAGE/raw/v1.1.0/scripts/panel-terminal"
 printf '#!/bin/sh
 echo "quick-panel $*"
 ' >"$STAGE/raw/v1.1.0/scripts/streambeats-quick"
@@ -239,6 +242,7 @@ else
 fi
 SHARE="$PREFIX/share/streambeats"
 assert_file "$SHARE/scripts/streambeats-quick" "launcher fetched from raw"
+assert_file "$SHARE/scripts/panel-terminal" "helper fetched from raw (issue #122)"
 assert_file "$SHARE/assets/ghostty/streambeats-right.conf" "preset fetched from raw"
 assert_file "$SHARE/assets/kitty/streambeats-right.conf" "kitty preset fetched from raw (issue #90)"
 QUICK=$("$PREFIX/bin/streambeats-quick" left 2>&1)
