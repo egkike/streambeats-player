@@ -210,3 +210,23 @@ Branch: `feature/panel-terminal-choice`.
   records the panel-terminal cycle receipt cross-refs. Cycle fully closed:
   issues/PRs #90–#103 land CLOSED/MERGED with the release covering every
   landing to date.
+- L18 (2026-10-31): owner live report — the restart notice for a committed
+  terminal choice vanished almost instantly. Root cause VERIFIED in code:
+  the saveMsg handler assigned m.status directly WITHOUT arming
+  statusClearTick (model.go:469-477); the next tick/progress reading wiped
+  it (window never armed: statusClearTick=0 tick=0 pinned by the RED test).
+  Fix: the saveMsg success/error branches route through setStatus (issue
+  #40 doctrine; states: notice/error/theme saved). Tests:
+  TestSaveNoticeArmsExpiryWindow + TestSaveNoticeSurvivesFeedbackWindow
+  (both wipers: tick + progress each tick). Harness: scenario 7a/7b gained
+  GOCACHE/GOMODCACHE on the real defaults + tolerant trap cleanup (the
+  sandbox HOME was gobbling the go module cache and rm-failing on its
+  read-only dirs). Issue #116 (`status:approved`, type:bug).
+- L19 (2026-10-31): RDD native review receipt — lineage review-20d1b8f1d4d345db
+  (high tier, 2 lens runs host-relayed, owner-authorized: readability order
+  0 + reliability order 1; the provider did NOT request a refuter this
+  time). OUTCOME: APPROVED with zero corrections; acknowledgement burned
+  (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:afc374c3e48079c5e98da533d402535d05315c02e94a78ecd95a6a44bae6487d).
+  Delivery: PR #117 under ordinary repository policy (merge-commit CI
+  green 4/4 pre-merge).

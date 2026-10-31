@@ -45,7 +45,7 @@ assert_file() {
 }
 
 Fx=$(mktemp -d "/tmp/streambeats-desktop-test.XXXXXX")
-trap 'rm -rf "$Fx"' EXIT
+trap 'rm -rf "$Fx" 2>/dev/null || true' EXIT
 
 # --- stub infrastructure -----------------------------------------------------
 STUB_BIN="$Fx/stub-bin"
@@ -417,7 +417,7 @@ fi
 say "scenario 7: player config-home passthrough"
 QUICK_UNDER_TEST="$REPO_ROOT/scripts/streambeats-quick"
 # 7a: user WITHOUT XDG_CONFIG_HOME -> the child runs with it unset
-if OUT7A=$(env -u XDG_CONFIG_HOME HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" \
+if OUT7A=$(env -u XDG_CONFIG_HOME HOME="$Fx/home-no-settings" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" PATH="$STUB_BIN:$PATH" \
 	"$QUICK_UNDER_TEST" right 2>&1); then
 	pass "quick (no user xdg) exits 0"
 else
@@ -438,7 +438,7 @@ fi
 
 # 7b: user WITH XDG_CONFIG_HOME -> the child keeps THEIR value
 : >"$GHOSTTY_LOG"
-if OUT7B=$(env XDG_CONFIG_HOME=/custom/user-cfg HOME="$Fx/home-no-settings" PATH="$STUB_BIN:$PATH" \
+if OUT7B=$(env XDG_CONFIG_HOME=/custom/user-cfg HOME="$Fx/home-no-settings" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" PATH="$STUB_BIN:$PATH" \
 	"$QUICK_UNDER_TEST" right 2>&1); then
 	pass "quick (custom user xdg) exits 0"
 else
