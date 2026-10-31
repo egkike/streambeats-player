@@ -63,6 +63,33 @@ installed prefix.
 | `kdotool` in PATH | advisory (Linux, **Ghostty panel path only** — issue #108: the kitty panel toggles natively by re-running, no kdotool involved); panel show/hide toggle needs it — without it the panel opens but a second press cannot hide/restore it. The advisory names both install paths (distro package; upstream prebuilt jinliu/kdotool) |
 | `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |
 
+### Before installing: the three install-time corners (what actually happens)
+
+1. **No kitty AND no ghostty installed** — the installer completes with a
+   warning (it never blocks); the `streambeats` TUI runs in any terminal
+   already on the machine (catalog browsing works; playback needs `mpv`).
+   The floating panel (ctrl+alt+m, desktop-menu toggle) opens nothing: the
+   launcher resolves its host live and fails closed with
+   "neither ghostty nor kitty found on PATH…" until one exists.
+2. **Install kitty/ghostty AFTER the app** — nothing to reinstall. The
+   hosting terminal is resolved on every launch with the precedence
+   `--terminal` flag > `panelTerminal` (settings.json) > builtin order
+   (ghostty first, then kitty), so a newly installed host is picked up on
+   the next run; the TUI settings screen (`c` → Terminal) refreshes its
+   selectable list every launch too. If a persisted host is later removed,
+   the launcher fails closed with `requested terminal 'X' is not on PATH`
+   — re-select in the settings screen (fail closed, no silent substitution).
+3. **Terminals present, helpers missing** — graceful degradation, one
+   feature per miss, never the core:
+
+   | Missing helper | Effect | Scope |
+   | --- | --- | --- |
+   | `kdotool` | panel opens; the second toggle press cannot hide/restore the window | Ghostty window path only (kitty toggles natively, no kdotool, issue #108) |
+   | `mpv` | TUI browses the catalog; playback disabled with a friendly "audio disabled" status | any host |
+   | systemd user session | wrapper falls back to setsid-detached spawn | any host |
+   | `notify-send` | feedback goes to stderr instead of desktop notifications | any host |
+
+
 ## macOS notes (darwin)
 
 - The installer skips everything Linux-specific: no `.desktop`, no hicolor
