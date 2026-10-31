@@ -91,6 +91,14 @@ notify() {
 	fi
 }
 
+# Issue #122 (S4): a wrapper without the shared helper cannot RESOLVE the
+# panel terminal at all — silent fallbacks (like the one that shipped in
+# v1.9.1/v1.9.2) mis-route kitty hosts into the ghostty path. Announce the
+# degraded assumption LOUDLY and serve the ghostty path explicitly.
+if [ ! -f "$script_dir/panel-terminal" ]; then
+	notify "panel-terminal helper missing — reinstall for the kitty relay; assuming ghostty"
+fi
+
 try_focus() {
 	# kdotool (KDE window-control CLI) is optional: raise the running panel.
 	if command -v kdotool >/dev/null 2>&1; then
