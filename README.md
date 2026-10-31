@@ -147,6 +147,25 @@ the kitty quick access terminal toggles by re-running the same launcher
 command (bind it to a KDE global shortcut for one-key show/hide). Host
 choice + precedence details: docs/kitty.md.
 
+**Before installing — three honest corners** (full matrix: docs/install.md):
+
+- **No kitty/ghostty installed?** The installer completes with an advisory;
+  the `streambeats` TUI still runs in ANY terminal you already have (browse
+  the catalog; playback needs mpv) — but the floating panel (ctrl+alt+m,
+  menu clicks) opens nothing: the launcher fails closed with a friendly
+  message until a host exists.
+- **Install a terminal AFTER the app?** Nothing to reinstall — the host is
+  resolved on every launch (live PATH check). Without a persisted choice
+  the builtin order applies (ghostty first, then kitty); the settings
+  screen (`c` → Terminal) refreshes its offered list every run. If you
+  later remove a host you had persisted, the launcher says
+  `requested terminal 'X' is not on PATH` — re-select in the settings menu.
+- **Helpers missing (kdotool, mpv, systemd, notify-send)?** Each degrades
+  one feature, never the core: kdotool only scopes the Ghostty window
+  toggle (kitty toggles natively without it), mpv absence keeps the TUI
+  browsing with a friendly "audio disabled" status, systemd-less sessions
+  detach via setsid, notify-send falls back to stderr.
+
 The installed companion `streambeats-panel` spawns the same panel detached
 from any terminal (systemd user unit per side, single-instance guard) so a
 `.desktop` entry or a KDE global keybind runs it with one action. Since
