@@ -230,3 +230,11 @@ Branch: `feature/panel-terminal-choice`.
   sha256:afc374c3e48079c5e98da533d402535d05315c02e94a78ecd95a6a44bae6487d).
   Delivery: PR #117 under ordinary repository policy (merge-commit CI
   green 4/4 pre-merge).
+- L20 (2026-10-31): release evidence (governance step 5) — annotated tag
+  v1.9.2 pushed over main tip 039359b (merge-commit CI success pre-tag:
+  release-bound evidence). Release workflow success: GitHub Release v1.9.2
+  published 2026-10-31T16:19:57Z as Latest with 6 assets (same composition
+  as v1.9.1 — no packaging changes). Archive sanity re-check: downloaded
+  the linux_amd64 tarball — 4/4 kitty presets still riding (the packaging
+  coverage guard keeps working). The save-feedback fix (PR #117 / issue
+  #116) rides this release.
