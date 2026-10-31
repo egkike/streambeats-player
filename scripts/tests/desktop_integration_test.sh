@@ -533,6 +533,63 @@ SECOND=$( [ -f "$KITTY_ROOT/launcher.log" ] && grep -c 'launcher-argv:' "$KITTY_
 assert_eq "$SECOND" 2 "kitty second press relays again (native re-run toggle)"
 
 
+# --- scenario 9: helper missing -> LOUD advisory + explicit ghostty path -----
+# (issue #122 S4): a wrapper whose shared helper is absent MUST announce
+# the degraded assumption to the user (kitty relay unavailable) instead of
+# silently mis-routing kitty hosts into the ghostty path — that silent
+# fallback shipped broken in v1.9.1/v1.9.2 and hid the packaging defect.
+say "scenario 9: helper missing announces degraded ghostty assumption"
+K9="$Fx/helperless"
+mkdir -p "$K9/scripts" "$K9/xdg/streambeats"
+cp "$PANEL_UNDER_TEST" "$K9/scripts/streambeats-panel"
+chmod 0755 "$K9/scripts/streambeats-panel"
+# NO panel-terminal file on purpose.
+printf '#!/bin/sh\necho launcher-argv:$* >> "%s"\nexit 0\n' "$K9/launch.log" >"$K9/scripts/streambeats-quick"
+chmod 0755 "$K9/scripts/streambeats-quick"
+printf '{\n  "theme": "oscuro",\n  "panelTerminal": "kitty"\n}\n' >"$K9/xdg/streambeats/settings.json"
+W9=$Fx/stubs9
+if [ -d "$W9" ]; then rm -rf "$W9"; fi
+mkdir "$W9"
+cat >"$W9/systemd-run" <<EOF
+#!/bin/sh
+echo "systemd-run \$*" >> "$K9/systemd.log"
+exit 0
+EOF
+cat >"$W9/systemctl" <<'EOF'
+#!/bin/sh
+case "$*" in
+	*show-environment*) exit 0 ;;
+	*is-active*) exit 1 ;;
+esac
+exit 0
+EOF
+cat >"$W9/notify-send" <<EOF
+#!/bin/sh
+echo "notify \$*" >> "$K9/notify.log"
+exit 0
+EOF
+chmod 0755 "$W9"/*
+for bin in grep tail wc awk setsid dirname; do cp "$(command -v "$bin")" "$W9/" 2>/dev/null; done
+: >"$K9/notify.log"
+: >"$K9/systemd.log"
+if env XDG_CONFIG_HOME="$K9/xdg" PATH="$W9:/usr/bin:/bin" \
+	"$K9/scripts/streambeats-panel" toggle right >/dev/null 2>&1; then
+	pass "helperless wrapper exits 0 (degraded, not crashed)"
+else
+	fail "helperless wrapper exited nonzero"
+fi
+sleep 1
+if grep -q "helper missing" "$K9/notify.log" 2>/dev/null; then
+	pass "helperless wrapper announces the degraded assumption LOUDLY"
+else
+	fail "helperless wrapper is silent about the missing helper (notify: $(cat "$K9/notify.log" 2>/dev/null))"
+fi
+if [ -s "$K9/systemd.log" ]; then
+	pass "helperless wrapper still serves the ghostty path (unit spawn)"
+else
+	fail "helperless wrapper stopped serving the ghostty path (systemd: $(cat "$K9/systemd.log" 2>/dev/null))"
+fi
+
 say "scenarios: $((PASS_COUNT + FAIL_COUNT)) assertions — $PASS_COUNT pass, $FAIL_COUNT fail"
 [ "$FAIL_COUNT" -eq 0 ] || exit 1
 exit 0
