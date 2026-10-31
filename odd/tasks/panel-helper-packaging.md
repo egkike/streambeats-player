@@ -56,3 +56,12 @@ Target release: `v1.9.3`.
   logs vanished into /) and the wrapper advisory required notify() to be
   defined before use. Final suites: packaging 4/4 · desktop 50/50 ·
   launcher 38/38 · install 81/81 · shellcheck clean · go full green.
+- L3 (2026-10-31): RDD native review receipt — lineage review-4580a917941f2f80
+  (high tier, 4 lens runs host-relayed, owner-authorized; no refuter
+  requested). OUTCOME: APPROVED with zero corrections; acknowledgement
+  burned (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:cc9afede0b6097b2c450e400561022f575ee8c1aab0948cf3d9322acb1bf5ba1).
+  Two informational warnings recorded as separate follow-up work (never
+  reopen): R2-001 (readability) and R3-001 (reliability), both at
+  scripts/install.sh:245-246 (the raw-fallback helper staging lines).
+  Delivery: PR + owner merge + tag v1.9.3 + archive live proof (S5).
