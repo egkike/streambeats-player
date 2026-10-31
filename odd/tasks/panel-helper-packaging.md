@@ -73,3 +73,12 @@ Target release: `v1.9.3`.
   it — scripts/panel-terminal IS inside the archive. Owner laptop
   recovery: reinstall from v1.9.3 (installer now lands the helper) →
   ctrl+alt+m kitty relay toggle re-validated live to close the cycle.
+- L5 (2026-10-31): OWNER LIVE VALIDATION — installed from v1.9.3
+  (post-#125 main) and reported "ya funciona correctamente :)": the
+  ctrl+alt+m kitty relay toggle works end-to-end on the laptop. The
+  helper-packaging cycle (issue #122 → PR #123 → release v1.9.3 → S5
+  archive proof → owner validation) is CLOSED end-to-end. Doctrine
+  reaffirmed for the arc: every fix cycle finishes with an entry like
+  this one (L6 / L21 / L5) after the owner's live validation, and the
+  packaging coverage guard (ghostty + kitty presets + shared helper)
+  keeps the delivery mistakes of this arc from ever shipping again.
