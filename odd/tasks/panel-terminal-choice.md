@@ -238,3 +238,10 @@ Branch: `feature/panel-terminal-choice`.
   the linux_amd64 tarball — 4/4 kitty presets still riding (the packaging
   coverage guard keeps working). The save-feedback fix (PR #117 / issue
   #116) rides this release.
+- L21 (2026-10-31): OWNER LIVE VALIDATION — installed from the v1.9.2 release
+  and reported "Listo ya lo probé y funciona bien :)": the settings commit
+  notice (and every save feedback) now stays readable for its whole
+  feedback window. The save-feedback cycle (issue #116 → PR #117 → release
+  v1.9.2) closes end-to-end exactly like the kitty hotfix arc before it
+  (L6 doctrine: an owner-validation entry is the last word of every fix
+  cycle that reaches the laptop).
