@@ -227,3 +227,53 @@ func TestThemeSavePreservesTerminalAndRootSiblings(t *testing.T) {
 	}
 	_ = commit
 }
+
+// ---------------------------------------------------------------------------
+// Issue #116 (owner live report): the save feedback (terminal commit notice
+// and theme saved) vanished almost immediately — the saveMsg handler set
+// m.status directly WITHOUT arming the expiry window (statusClearTick), so
+// the very next tick/progress reading wiped it. The rule is ONE: save
+// feedback arms its window exactly like every other feedback (issue #40
+// doctrine, setStatus). Pure-update assertions, no clock.
+
+// The notice arms the window: statusClearTick must be strictly in the
+// future after the saveMsg lands.
+func TestSaveNoticeArmsExpiryWindow(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "")
+	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if persist == nil {
+		t.Fatalf("terminal commit returned no persistence cmd")
+	}
+	m2, _ := update(t, commit.(Model), persist())
+	if m2.statusClearTick <= m2.tick {
+		t.Fatalf("save notice did not arm its expiry window: statusClearTick=%d tick=%d", m2.statusClearTick, m2.tick)
+	}
+}
+
+// The notice survives the full feedback window against BOTH wipers: the
+// tick handler and the progress reading (which fires every second while
+// playing — the owner's scenario).
+func TestSaveNoticeSurvivesFeedbackWindow(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "")
+	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if persist == nil {
+		t.Fatalf("terminal commit returned no persistence cmd")
+	}
+	m2, _ := update(t, commit.(Model), persist())
+	for i := 0; i < statusFeedbackTicks-1; i++ {
+		next, _ := update(t, m2, tickMsg{})
+		next, _ = update(t, next, progressMsg{pos: 1.2, dur: 20})
+		m2 = next
+	}
+	if !strings.Contains(strings.ToLower(m2.View()), "restart") {
+		t.Fatalf("restart notice vanished within its feedback window (ticks=%d):\n%s", statusFeedbackTicks-1, m2.View())
+	}
+}

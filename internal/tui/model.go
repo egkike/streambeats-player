@@ -466,13 +466,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case saveMsg:
 		// Persistence feedback (Phase A): the failure keeps working and
-		// never blocks the TUI (S4).
+		// never blocks the TUI (S4). Issue #116: EVERY save feedback arms
+		// its expiry window through setStatus — a direct assignment left
+		// statusClearTick stale and the next tick/progress reading wiped
+		// the fresh message (owner's unreadable restart notice).
 		if msg.err != nil {
-			m.status = friendlyError("could not save settings", msg.err)
+			m.setStatus(friendlyError("could not save settings", msg.err))
 		} else if msg.notice != "" {
-			m.status = msg.notice
+			m.setStatus(msg.notice)
 		} else {
-			m.status = "theme saved"
+			m.setStatus("theme saved")
 		}
 		return m, nil
 	case progressMsg:
