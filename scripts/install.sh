@@ -247,30 +247,38 @@ install_bundle() {
 		mv "$EXTRACT_TMP/assets/ghostty/"*.conf "$share/assets/ghostty/" 2>/dev/null || true
 		mv "$EXTRACT_TMP/assets/kitty/"*.conf "$share/assets/kitty/" 2>/dev/null || true
 		chmod 0755 "$share/scripts/streambeats-quick"
+		# Issue #128 (R3 hardening): result-check, not status-check — a
+		# missing asset family must announce itself loudly. The previous
+		# silent ||true skips are exactly how v1.9.0 shipped without the
+		# kitty presets and v1.9.1/v1.9.2 without the helper.
+		[ -f "$share/scripts/panel-terminal" ] ||
+			warn "archive lacks scripts/panel-terminal — the kitty panel relay will be unavailable; reinstall from a fixed release"
+		[ -f "$share/assets/ghostty/streambeats-right.conf" ] ||
+			warn "archive lacks the ghostty side presets — the floating panel will be unavailable"
+		[ -f "$share/assets/kitty/streambeats-right.conf" ] ||
+			warn "archive lacks the kitty side presets — the kitty panel host will be unavailable; reinstall from a fixed release"
 	else
 		warn "release archive predates bundled launcher assets; fetching them from raw.githubusercontent (NOT checksum covered)"
-		local tmpfile
-		tmpfile=$(new_tmp)
-		fetch "$RAW_URL/${VERSION_PINNED}/scripts/streambeats-quick" "$tmpfile" ||
-			die "archive has no launcher assets and raw fallback failed; see README Requirements for a manual install"
-		mv "$tmpfile" "$share/scripts/streambeats-quick"
+		# Issue #128 (R2 dedupe): one function for the fetch/mv quartet;
+		# every caller keeps its exact die message.
+		fetch_raw_file() { # <rel-path> <dest> <die-message>
+			local rel="$1" dest="$2" msg="$3"
+			tmpfile=$(new_tmp)
+			fetch "$RAW_URL/${VERSION_PINNED}/$rel" "$tmpfile" || die "$msg"
+			mv "$tmpfile" "$dest"
+		}
+		fetch_raw_file "scripts/streambeats-quick" "$share/scripts/streambeats-quick" \
+			"archive has no launcher assets and raw fallback failed; see README Requirements for a manual install"
 		chmod 0755 "$share/scripts/streambeats-quick"
-		# Issue #122: the shared helper rides the fallback too.
-		tmpfile=$(new_tmp)
-		fetch "$RAW_URL/${VERSION_PINNED}/scripts/panel-terminal" "$tmpfile" ||
-			die "raw fallback: panel-terminal helper download failed"
-		mv "$tmpfile" "$share/scripts/panel-terminal"
+		fetch_raw_file "scripts/panel-terminal" "$share/scripts/panel-terminal" \
+			"raw fallback: panel-terminal helper download failed"
 		chmod 0755 "$share/scripts/panel-terminal"
 		local side
 		for side in top bottom left right; do
-			tmpfile=$(new_tmp)
-			fetch "$RAW_URL/${VERSION_PINNED}/assets/ghostty/streambeats-$side.conf" "$tmpfile" ||
-				die "raw fallback: preset streambeats-$side.conf download failed"
-			mv "$tmpfile" "$share/assets/ghostty/streambeats-$side.conf"
-			tmpfile=$(new_tmp)
-			fetch "$RAW_URL/${VERSION_PINNED}/assets/kitty/streambeats-$side.conf" "$tmpfile" ||
-				die "raw fallback: kitty preset streambeats-$side.conf download failed"
-			mv "$tmpfile" "$share/assets/kitty/streambeats-$side.conf"
+			fetch_raw_file "assets/ghostty/streambeats-$side.conf" "$share/assets/ghostty/streambeats-$side.conf" \
+				"raw fallback: preset streambeats-$side.conf download failed"
+			fetch_raw_file "assets/kitty/streambeats-$side.conf" "$share/assets/kitty/streambeats-$side.conf" \
+				"raw fallback: kitty preset streambeats-$side.conf download failed"
 		done
 	fi
 

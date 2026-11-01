@@ -232,6 +232,46 @@ for side in top bottom left right; do
 	printf 'window-mode = %s\n# raw-staged preset\n' "$side" \
 		>"$STAGE/raw/v1.1.0/assets/ghostty/streambeats-$side.conf"
 done
+
+# --- scenario 2b: partial archive (launcher rides, helper/presets absent) ----
+# Issue #128 (R3-001 hardening): the bundled staging must NOT silently skip
+# missing asset families — the silent variant is exactly how v1.9.0 shipped
+# without the kitty presets and v1.9.1/v1.9.2 without the helper. A partial
+# archive warns loudly per missing family and still installs what it has.
+say "scenario 2b: partial archive warns loudly (no silent skips)"
+STAGE2B="$Fx/stage2b"
+PREFIX2B="$Fx/prefix2b"
+mkdir -p "$STAGE2B/api/releases/tags"
+stage_fake_release "$STAGE2B/artifacts" 1
+rm "$STAGE2B/artifacts/dist/scripts/panel-terminal"
+rm "$STAGE2B/artifacts/dist/assets/kitty/"*.conf
+# rebuild the archive the same way the fixture does, minus the removed files
+DIST2B="$STAGE2B/artifacts/dist"
+TAR2B="$STAGE2B/artifacts/streambeats-player_1.1.0_linux_amd64.tar.gz"
+tar -C "$DIST2B" -czf "$TAR2B" streambeats scripts assets README.md LICENSE 2>/dev/null
+sha2b=$(sha256sum "$TAR2B" | awk '{ print $1 }')
+printf '%s  %s\n' "$sha2b" "$(basename "$TAR2B")" >"$STAGE2B/artifacts/checksums.txt"
+cp "$STAGE2B/artifacts/release.json" "$STAGE2B/api/releases/tags/v1.1.0"
+OUT2B=$(STREAMBEATS_API_URL="file://$STAGE2B/api" \
+	STREAMBEATS_RAW_URL="file://$STAGE2B/raw" \
+	STREAMBEATS_INSTALL_PREFIX="$PREFIX2B" \
+	XDG_CONFIG_HOME="$Fx/user-config" \
+	"$SCRIPT_UNDER_TEST" --version v1.1.0 2>&1)
+rc2b=$?
+assert_eq "$rc2b" "0" "partial-archive install exits 0 (degraded, not fatal)"
+if printf '%s' "$OUT2B" | grep -q "panel-terminal"; then
+	pass "missing helper announced loudly (result-check, no silent skip)"
+else
+	fail "missing helper silently skipped (no warn in output)"
+fi
+if printf '%s' "$OUT2B" | grep -q "archive lacks the kitty side presets"; then
+	pass "missing kitty presets announced loudly"
+else
+	fail "missing kitty presets silently skipped (no warn in output)"
+fi
+assert_file "$PREFIX2B/share/streambeats/scripts/streambeats-quick" "partial archive still installs the launcher"
+assert_not_file "$PREFIX2B/share/streambeats/scripts/panel-terminal" "partial archive: absent helper stays absent (no invented files)"
+
 say "scenario 3: raw fallback for launcher assets"
 OUT=$(run_installer "$PREFIX" 2>"$Fx/err3")
 rc3=$?
