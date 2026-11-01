@@ -247,16 +247,20 @@ install_bundle() {
 		mv "$EXTRACT_TMP/assets/ghostty/"*.conf "$share/assets/ghostty/" 2>/dev/null || true
 		mv "$EXTRACT_TMP/assets/kitty/"*.conf "$share/assets/kitty/" 2>/dev/null || true
 		chmod 0755 "$share/scripts/streambeats-quick"
-		# Issue #128 (R3 hardening): result-check, not status-check — a
-		# missing asset family must announce itself loudly. The previous
-		# silent ||true skips are exactly how v1.9.0 shipped without the
-		# kitty presets and v1.9.1/v1.9.2 without the helper.
+		# Issue #128 (R3 hardening) + #130 (R4-001 granularity): result-check
+		# per SIDE, not a single family sentinel — an archive shipping
+		# "right" alone passed while bottom/top/left were missing. The
+		# previous silent ||true skips shipped v1.9.0 without the kitty
+		# presets and v1.9.1/v1.9.2 without the helper.
+		local side
+		for side in top bottom left right; do
+			[ -f "$share/assets/ghostty/streambeats-$side.conf" ] ||
+				warn "archive lacks the ghostty $side side preset — the floating panel will be unavailable; reinstall from a fixed release"
+			[ -f "$share/assets/kitty/streambeats-$side.conf" ] ||
+				warn "archive lacks the kitty $side side preset — the kitty panel host will be unreliable; reinstall from a fixed release"
+		done
 		[ -f "$share/scripts/panel-terminal" ] ||
 			warn "archive lacks scripts/panel-terminal — the kitty panel relay will be unavailable; reinstall from a fixed release"
-		[ -f "$share/assets/ghostty/streambeats-right.conf" ] ||
-			warn "archive lacks the ghostty side presets — the floating panel will be unavailable"
-		[ -f "$share/assets/kitty/streambeats-right.conf" ] ||
-			warn "archive lacks the kitty side presets — the kitty panel host will be unavailable; reinstall from a fixed release"
 	else
 		warn "release archive predates bundled launcher assets; fetching them from raw.githubusercontent (NOT checksum covered)"
 		# Issue #128 (R2 dedupe): one function for the fetch/mv quartet;

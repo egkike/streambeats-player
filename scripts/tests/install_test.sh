@@ -69,6 +69,13 @@ EOF
 			printf 'window-mode = %s\n# streambeats fake preset\n' "$side" \
 				>"$dist/assets/ghostty/streambeats-$side.conf"
 		done
+		# Issue #130: the kitty family rides the bundled dist too, so the
+		# per-side checks can prove granularity (removing ONE side must warn).
+		mkdir -p "$dist/assets/kitty"
+		for side in top bottom left right; do
+			printf 'edge = %s\n# fake kitty preset\n' "$side" \
+				>"$dist/assets/kitty/streambeats-$side.conf"
+		done
 	fi
 	printf '# streambeats README (staged)\n' >"$dist/README.md"
 	printf 'MIT (staged)\n' >"$dist/LICENSE"
@@ -264,13 +271,44 @@ if printf '%s' "$OUT2B" | grep -q "panel-terminal"; then
 else
 	fail "missing helper silently skipped (no warn in output)"
 fi
-if printf '%s' "$OUT2B" | grep -q "archive lacks the kitty side presets"; then
+if printf '%s' "$OUT2B" | grep -q "archive lacks the kitty top side preset"; then
 	pass "missing kitty presets announced loudly"
 else
 	fail "missing kitty presets silently skipped (no warn in output)"
 fi
 assert_file "$PREFIX2B/share/streambeats/scripts/streambeats-quick" "partial archive still installs the launcher"
 assert_not_file "$PREFIX2B/share/streambeats/scripts/panel-terminal" "partial archive: absent helper stays absent (no invented files)"
+
+# --- scenario 2c: per-side granularity (issue #130, R4-001) --------------------
+# The family sentinels (streambeats-right.conf) cannot catch a MISSING SIDE:
+# an archive shipping right/top/left but lacking kitty-BOTTOM passed
+# silently. Each side gets its own result check and its own warn.
+say "scenario 2c: missing a single SIDE is announced (per-side checks)"
+STAGE2C="$Fx/stage2c"
+PREFIX2C="$Fx/prefix2c"
+mkdir -p "$STAGE2C/api/releases/tags"
+stage_fake_release "$STAGE2C/artifacts" 1
+rm "$STAGE2C/artifacts/dist/assets/kitty/streambeats-bottom.conf"
+DIST2C="$STAGE2C/artifacts/dist"
+TAR2C="$STAGE2C/artifacts/streambeats-player_1.1.0_linux_amd64.tar.gz"
+tar -C "$DIST2C" -czf "$TAR2C" streambeats scripts assets README.md LICENSE 2>/dev/null
+sha2c=$(sha256sum "$TAR2C" | awk '{ print $1 }')
+printf '%s  %s\n' "$sha2c" "$(basename "$TAR2C")" >"$STAGE2C/artifacts/checksums.txt"
+cp "$STAGE2C/artifacts/release.json" "$STAGE2C/api/releases/tags/v1.1.0"
+OUT2C=$(STREAMBEATS_API_URL="file://$STAGE2C/api" \
+	STREAMBEATS_RAW_URL="file://$STAGE2C/raw" \
+	STREAMBEATS_INSTALL_PREFIX="$PREFIX2C" \
+	XDG_CONFIG_HOME="$Fx/user-config" \
+	"$SCRIPT_UNDER_TEST" --version v1.1.0 2>&1)
+rc2c=$?
+assert_eq "$rc2c" "0" "single-side-missing install exits 0"
+assert_file "$PREFIX2C/share/streambeats/assets/kitty/streambeats-right.conf" "the right sentinel is present (granularity gap proven today)"
+if printf '%s' "$OUT2C" | grep -q "archive lacks the kitty bottom side preset"; then
+	pass "a missing SIDE is announced specifically (bottom)"
+else
+	fail "kitty-bottom missing passed silently (family sentinel only; output has no per-side warn)"
+fi
+
 
 say "scenario 3: raw fallback for launcher assets"
 OUT=$(run_installer "$PREFIX" 2>"$Fx/err3")

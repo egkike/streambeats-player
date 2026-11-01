@@ -105,3 +105,27 @@ Target release: `v1.9.3`.
   reopen): R2-001 (readability, install.sh:257-260) and R4-001
   (resilience, install.sh:255-257) — both at the fetch_raw_file/_advisory
   zone this cycle just created. Delivery: PR under ordinary policy.
+- L8 (2026-11-01): follow-up cleanup of the L7 findings (issue #130, owner
+  directive "Hagamos los 2 findings nuevos (install.sh:255-260) y dejemos
+  limpio"): R4-001 resilience → the bundled staging now checks PER SIDE
+  (loop over top/bottom/left/right for both preset families; the single
+  "right" sentinel could not catch missing top/bottom/left) and R2-001
+  readability → the warn trio folded into the per-side loop (one template,
+  per-side interpolation). RED first: install_test scenario 2c builds an
+  archive missing ONLY kitty-bottom (right sentinel present — proven the
+  granularity gap) and asserts the specific warn; scenario 2b (whole
+  family missing) re-anchored to the per-side wording.Fixture lesson: the
+  bundled dist never mkdir'd assets/kitty — the ptr redirections failed
+  silently and the fixture had no kitty presets at all (that is why 2b's
+  family check passed since the very first version). Suites: install
+  87/87, desktop 50/50, launcher 38/38, packaging 4/4, shellcheck clean,
+  go green.
+- L9 (2026-11-01): RDD native review receipt — lineage review-9d8f81fda3298813
+  (high tier, 3 lens runs host-relayed, owner-authorized: resilience 0,
+  readability 1, reliability 2; no refuter requested). OUTCOME: APPROVED
+  with zero corrections; acknowledgement burned
+  (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:7a040e136df32d02c6624f7b078ac2081a297c7118f4f3241c5c6e6dcbd6698b).
+  One informational SUGGESTION in the ODD doc itself (line 117) — parked,
+  never reopen. Delivery: PR under ordinary policy (rides main post-#129;
+  no release needed unless the owner asks a tag).
