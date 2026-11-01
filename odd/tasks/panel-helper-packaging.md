@@ -120,3 +120,12 @@ Target release: `v1.9.3`.
   family check passed since the very first version). Suites: install
   87/87, desktop 50/50, launcher 38/38, packaging 4/4, shellcheck clean,
   go green.
+- L9 (2026-11-01): RDD native review receipt — lineage review-9d8f81fda3298813
+  (high tier, 3 lens runs host-relayed, owner-authorized: resilience 0,
+  readability 1, reliability 2; no refuter requested). OUTCOME: APPROVED
+  with zero corrections; acknowledgement burned
+  (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:7a040e136df32d02c6624f7b078ac2081a297c7118f4f3241c5c6e6dcbd6698b).
+  One informational SUGGESTION in the ODD doc itself (line 117) — parked,
+  never reopen. Delivery: PR under ordinary policy (rides main post-#129;
+  no release needed unless the owner asks a tag).
