@@ -82,3 +82,26 @@ Target release: `v1.9.3`.
   this one (L6 / L21 / L5) after the owner's live validation, and the
   packaging coverage guard (ghostty + kitty presets + shared helper)
   keeps the delivery mistakes of this arc from ever shipping again.
+- L6 (2026-10-31): follow-ups informational cleanup (issue #128, owner
+  directive "Limpiemos los follow-ups informativos de pulido") — the two
+  findings at install.sh:245-246 from review-4580a917941f2f80 resolved:
+  R3-001 reliability → the bundled staging now RESULT-CHECKS the outcome
+  (helper + both preset families verified in the installed tree; any
+  missing family warns loudly with the #122-class lesson named), killing
+  the silent ||true skips; R2-001 readability → the raw-fallback
+  fetch/mv quartet deduped into fetch_raw_file() (labels preserved per
+  caller). RED first: install_test scenario 2b (partial archive: quick
+  rides, helper+presets absent → deleted from the fixture; asserts BOTH
+  warns + degraded-not-fatal + absent-files-stay-absent). Suites: install
+  85/85, desktop 50/50, launcher 38/38, packaging 4/4, shellcheck clean,
+  go green.
+- L7 (2026-10-31): RDD native review receipt — lineage review-e03549a3e6fce89a
+  (high tier, 3 lens runs host-relayed, owner-authorized: resilience 0,
+  readability 1, reliability 2; no refuter requested). OUTCOME: APPROVED
+  with zero corrections; acknowledgement burned
+  (gentle-ai.review-acknowledged/v1, consumed_revision
+  sha256:fb016ce9aa0cb0f1831f9ca0a23c563ab21a48ccb5a942ee39bd6d2f76a30caf).
+  Two NEW informational findings parked as separate later work (never
+  reopen): R2-001 (readability, install.sh:257-260) and R4-001
+  (resilience, install.sh:255-257) — both at the fetch_raw_file/_advisory
+  zone this cycle just created. Delivery: PR under ordinary policy.
