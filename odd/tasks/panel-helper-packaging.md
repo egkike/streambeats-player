@@ -129,3 +129,11 @@ Target release: `v1.9.3`.
   One informational SUGGESTION in the ODD doc itself (line 117) — parked,
   never reopen. Delivery: PR under ordinary policy (rides main post-#129;
   no release needed unless the owner asks a tag).
+- L10 (2026-11-01): release evidence (governance step 5) — PR #131 MERGED as
+  1d39d76 (issue #130 CLOSED), merge-commit CI success ×2 pre-tag, annotated
+  tag v1.9.4 pushed; release workflow success: GitHub Release v1.9.4
+  published 2026-11-01T23:05:50Z as Latest with 6 assets. LIVE PROOFS in
+  the release watcher: downloaded the published linux_amd64 tarball —
+  4/4 kitty presets, 4/4 ghostty presets, scripts/panel-terminal present
+  (all three guard families verified inside the archive). The findings
+  cleanup cycle (#128/#130) formally lands with its release. No code travels.
