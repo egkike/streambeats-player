@@ -88,10 +88,13 @@ the dedicated-window hints used by the fallback:
 | `assets/ghostty/streambeats-left.conf` | `left` | `22%` | `52 × 24` cells | full-height strip, 22% wide |
 | `assets/ghostty/streambeats-right.conf` | `right` | `22%` | `54 × 24` cells | full-height strip, 22% wide |
 
-Because `quick-terminal-size` takes a single value, it applies to the edge's
-primary axis (height for top/bottom, width for left/right) and the other
-axis stays maximized. Use a pair (`22%,600px`) if you also want to cap the
-secondary axis.
+Because `quick-terminal-size` takes a pair on KDE Wayland here: the default
+single-value form leaves the secondary axis at whatever the compositor
+reports, and the owner observed the panel visibly SMALLER than the kitty
+host panel (upstream discussion #11552 — the quick terminal does not span
+the full screen height on Plasma Wayland). Every preset therefore uses an
+explicit pair — `22%,100%` on the vertical strips, `30%,100%` on the
+horizontal ones — so the secondary axis is full-height/full-width.
 
 Every preset also keeps the panel open when it loses focus
 (`quick-terminal-autohide = false`, the Linux default) so playback controls

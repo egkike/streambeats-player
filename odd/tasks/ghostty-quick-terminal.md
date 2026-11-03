@@ -21,6 +21,10 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   owner's desktop; (c) a desktop cleanup round proved the rule: panel instances
   are NEVER killed while showing — panels close by toggle (hide) or natural app
   exit (`quit-after-last-window-closed = true`, the 1.4.0 default).
+- S4: "La ventana de ghostty es más corta o mas chica que la de kitty, no
+  son del mismo tamaño" (owner, live desktop verification round) — the
+  panel geometry must match the kitty host's full-height strip, not the
+  compositor-default secondary axis.
 
 ## Tasks
 
@@ -39,10 +43,16 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
 - T4 docs: `docs/ghostty.md` rewritten for 1.4.0 (limitation §2 resolved; CLI
   `--class` defect documented as upstream status), KDE integration docs,
   `scripts/tests` coverage. Commit: logged in L7.
+- T6 presets: explicit `quick-terminal-size` pairs (`22%,100%` vertical
+  strips, `30%,100%` horizontal strips) so the secondary axis matches the
+  kitty host's full-height/full-width panel instead of the compositor-
+  reported default (owner-reported, S4). Commit: logged in L8.
 - T5 (outside the repo): upstream issue to ghostty-org/ghostty —
   `+toggle-quick-terminal` parses `Options.class` but `run()` ignores it
   (hardcoded `.detect` target), so `--class` cannot address a custom instance.
-  Commit: n/a (separate repository).
+  Commit: n/a (separate repository; report staged at
+  /tmp/streambeats-upstream-bug-report.md pending owner filing — upstream
+  rejects issue creation for our GitHub identity).
 
 ## Log
 
@@ -89,3 +99,12 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   rewriting `docs/ghostty.md` for the 1.4.0 mechanism (per-side app-id durabilty
   claim + gdbus toggle + upstream `--class` defect + KDE relay), and the KWin
   rules doc now states the layer-shell boundary explicitly.
+- L8 (live functional round with the owner): the ghostty panel spawned,
+  claimed org.streambeats.panel.right and showed the player TUI (owner
+  verified visually). Owner reported the panel SMALLER than the kitty host
+  panel (S4 verbatim) — root cause upstream geometry on Plasma Wayland
+  (#11552-class): the single-value size left the secondary axis compositor-
+  derived. Fix T6: explicit size pairs on all four presets; the final round
+  re-verifies parity next to the kitty panel. The lifecycle stayed clean:
+  the owner quit via q (player closed, app exited, claim released) and a
+  subsequent press respawned a fresh claim (51748 → 51887 handover observed).
