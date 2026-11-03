@@ -86,21 +86,24 @@ user data: nothing above ever touches them.
   browses the catalog and says so in a friendly status line; it never crashes.
 - **Network access to bandcamp.com** — stream URLs are tokenized and expire;
   a fresh one is resolved right before every play, never cached.
-- **Ghostty 1.2+ or kitty 0.42+** — required only for the floating
-  quick-terminal panel (`streambeats-quick` + side presets under
-  `assets/ghostty/` for Ghostty and `assets/kitty/` for kitty's native
-  quick access terminal); the `streambeats` TUI itself runs in any
-  terminal. The hosting terminal is chosen in the TUI settings screen
-  (`c` → Terminal; only the terminals installed on the machine are
-  selectable, persisted as `panelTerminal` in `settings.json`) or forced
-  per invocation with `streambeats-quick --terminal=<kitty|ghostty>`. The
-  panel host change applies after restarting the panel. See docs/ghostty.md
-  and docs/kitty.md.
-- **kdotool 0.3+** (Linux, optional) — enables the panel show/hide toggle:
-  `streambeats-panel toggle <side>` minimizes the focused panel (audio keeps
-  playing) and restores/raises it on the next press. Without it the panel
-  still opens — the second press just cannot hide it. The installer warns
-  with the exact install paths when it is missing.
+- **Ghostty 1.4.0+ or kitty 0.42+** — required only for the floating
+  quick-terminal panel. Ghostty 1.4.0+ rides the native quick-terminal
+  panel (with the `gdbus` helper; toggling needs no extra tools); older
+  Ghostty (1.3.1+) falls back to a dedicated window (its toggle uses
+  kdotool, see below); the `streambeats` TUI itself runs in any terminal
+  with no version requirement. The hosting terminal is chosen in the TUI
+  settings screen (`c` → Terminal; only the terminals installed on the
+  machine are selectable, persisted as `panelTerminal` in
+  `settings.json`) or forced per invocation with
+  `streambeats-quick --terminal=<kitty|ghostty>`. The panel host change
+  applies after restarting the panel. See docs/ghostty.md and
+  docs/kitty.md.
+- **kdotool 0.3+** (Linux, optional) — only shapes the LEGACY Ghostty path
+  (a pre-1.4 dedicated-window host). It minimizes the focused panel (audio
+  keeps playing) and restores/raises it on the next press. Ghostty 1.4.0+
+  quick hosts — like kitty — toggle natively by re-running the launch
+  command (issue #134), no kdotool involved; the installer still warns
+  with the exact install paths when kdotool is missing.
 - **Go 1.27+** — only for building from a source checkout (below); the user
   install never runs the compiler.
 
@@ -167,13 +170,15 @@ choice + precedence details: docs/kitty.md.
   browsing with a friendly "audio disabled" status, systemd-less sessions
   detach via setsid, notify-send falls back to stderr.
 
-The installed companion `streambeats-panel` spawns the same panel detached
-from any terminal (systemd user unit per side, single-instance guard) so a
-`.desktop` entry or a KDE global keybind runs it with one action. Since
-v1.7.2 the desktop entry and the recommended keybind launch the **toggle**:
-first press spawns, later presses show/hide (audio keeps playing when
-hidden; needs kdotool on the Ghostty path — issue #108: the kitty panel
-toggles natively by re-running, no kdotool involved).
+The installed companion `streambeats-panel` runs the panel detached from
+any terminal so a `.desktop` entry or a KDE global keybind runs it with
+one action; the desktop entry and the recommended keybind launch the
+**toggle**: first press opens, later presses show/hide. On Ghostty 1.4.0+
+quick hosts and on kitty, the toggle is the native re-run relay (no
+kdotool, no unit guard — issues #134/#108): kitty is detached by the
+wrapper via `setsid`, and the ghostty quick host spawns its own claimed
+app. Pre-1.4 Ghostty hosts keep the legacy path (per-side systemd user
+unit + single-instance guard + kdotool toggle).
 KRunner ships side actions via the generated desktop entry. Keybind + KWin
 floating window-rules steps: docs/kde-panel-integration.md
 (plain `scripts/streambeats-quick` stays tied to the calling shell; use the
@@ -194,25 +199,38 @@ README "Run detached" recipe for that path).
 
 ## Run detached (survives the invoking terminal)
 
-The commands above tie the player to your shell; closing the terminal window
-would kill it. Launch it under your user manager instead:
+The commands above tie the player to your shell; closing the terminal
+window would kill it. The installed companion is already detached:
+
+```sh
+streambeats-panel right
+```
+
+From a source checkout, launch under your user manager instead:
 
 ```sh
 systemd-run --user --unit=streambeats-player \
   "${PWD}/scripts/streambeats-quick" right
 ```
 
-Then:
+Note (Ghostty 1.4.0+ and kitty hosts): this unit is a ONE-SHOT spawn — the
+launcher returns right after opening/toggling the panel and the player
+lives in its own claimed app instance, so `systemctl status` no longer
+tracks the player and `systemctl stop` does not stop it: quit the player
+with `q` inside the panel, or re-run `streambeats-quick`/the keybind to
+hide it. On the pre-1.4 dedicated-window path the old semantics hold (the
+unit stays active while the panel runs; `systemctl stop` kills it).
 
 ```sh
-systemctl --user status streambeats-player   # check
-systemctl --user stop streambeats-player     # stop player
+systemctl --user status streambeats-player   # pre-1.4 path: check
+systemctl --user stop streambeats-player     # pre-1.4 path: stop player
 journalctl --user -u streambeats-player      # launcher/ghostty logs
 ```
 
-(Verified on this machine: the unit goes active, `WAYLAND_DISPLAY` is
-inherited by the user manager under KDE Plasma, and the floating window
-opens with the catalog.)
+(Historical verification, pre-1.4 path: the unit goes active,
+`WAYLAND_DISPLAY` is inherited by the user manager under KDE Plasma, and
+the floating window opens with the catalog. On 1.4.0+ hosts the same
+recipe shows the one-shot behavior described above.)
 
 ## Notes
 
