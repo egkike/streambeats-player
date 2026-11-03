@@ -29,7 +29,7 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   wrapper resets `XDG_CONFIG_HOME` for the player child (issue #80 contract);
   spawn-if-not-claimed → toggles via gdbus `org.gtk.Actions.Activate
   toggle-quick-terminal`; falls back to the dedicated-window flow when the
-  claim/toggle fails or ghostty lacks the action. Commit: TBD.
+  claim/toggle fails or ghostty lacks the action. Commit: logged in L5.
 - T2 `scripts/streambeats-panel` ghostty relay mirroring `kitty_host` (issue
   #108 S2): every press relays the launcher detached before the unit guard.
   Commit: TBD.
@@ -63,3 +63,14 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
 - L4: owner authorized the full cycle (T1–T5) after the diagnostic summary;
   issue #134 opened with `type:feature status:approved` and read back verified
   (facts above).
+- L5: T1 implemented test-first: RED = 25 failing assertions in
+  launcher_terminal_test scenario pins (quick-mode contract), GREEN =
+  65/65 across the rebuilt launcher_terminal harness; pending discoveries
+  encoded as pins: (a) `set -eu` aborts on a failed command substitution
+  capture — toggles capture rc via `$(...) || rc=$?` so failures are handled
+  and loud (scenario 13: uncertain D-Bus failure dies without a second
+  panel); (b) surfaceless instances are retired with TERM only when no
+  toggle ever succeeded (showing-panel rule, S3(c)); (c) settings-driven
+  ghostty + side compose per-side app ids (org.streambeats.panel.<side>).
+  Full pipeline green (gofmt/build/vet/test, mod tidy clean, all five
+  scripts/tests suites incl. macos smoke with bash per its shebang).
