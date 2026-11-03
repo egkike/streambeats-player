@@ -92,6 +92,21 @@ if [ -f "$Fx/gdbus_uncertain" ]; then
 	printf 'connection reset by peer\n' >&2
 	exit 1
 fi
+if [ -f "$Fx/gdbus_refuter" ]; then
+	case "\$n" in
+	1)
+		printf 'failure: org.freedesktop.DBus.Error.ServiceUnknown: The name org.streambeats.panel.right was not provided by any .service files\n' >&2
+		exit 1
+		;;
+	2)
+		printf 'failure: GDBus.Error:org.gtk.GDBus.UnregisteredGActionError: No such action toggle-quick-terminal\n' >&2
+		exit 1
+		;;
+	*)
+		exit 0
+		;;
+	esac
+fi
 if [ -f "$Fx/gdbus_fail_first" ] && [ "\$n" -le 1 ]; then
 	printf 'failure: org.freedesktop.DBus.Error.ServiceUnknown: The name org.streambeats.panel.right was not provided by any .service files\n' >&2
 	exit 1
@@ -454,6 +469,32 @@ else
 	fail "settings-ghostty left press failed: $(cat "$Fx/stderr.log")"
 fi
 rm -f "$Fx/xdg/streambeats/settings.json"
+
+# --- scenario 15: graceful host retirement on a mid-handshake failure --------
+# (review escalación R3-001): a surfaceless spawned host is retired through
+# its own quit GAction (gdbus Activate quit) — a client process must never
+# die mid-display; the TERM kill is the last resort when the bus is gone.
+# gdbus_refuter mode: call #1 ServiceUnknown (no claim → spawn), #2 returns
+# an action-level failure (claimed but unusable → retirement path), #3+
+# succeed so the quit GAction call records.
+say "scenario 15: host retirement uses the quit GAction, never a blind kill"
+: >"$Fx/GHOSTTY.log"; : >"$Fx/GDBUS.log"; : >"$Fx/gdbus_calls.count"; rm -f "$Fx/gdbus_uncertain"
+touch "$Fx/gdbus_refuter"
+rm -f "$Fx/ghostty_stderr.log"
+if env -u XDG_CONFIG_HOME PATH="$STUBS:/usr/bin:/bin" XDG_CONFIG_HOME="$Fx/xdg" \
+	"$LAUNCHER" right 2>"$Fx/ghostty_stderr.log" >/dev/null; then
+	pass "mid-handshake failure falls back to the dedicated window (exit 0)"
+else
+	fail "mid-handshake fallback failed: $(cat "$Fx/ghostty_stderr.log")"
+fi
+QUIT_CALL=$(grep -c 'Activate quit' "$Fx/GDBUS.log")
+assert_eq "$QUIT_CALL" 1 "retirement walks the quit GAction (gdbus Activate quit)"
+if grep -q 'unavailable' "$Fx/ghostty_stderr.log"; then
+	pass "retirement lands on the documented fallback"
+else
+	fail "retirement lost the fallback notes"
+fi
+rm -f "$Fx/gdbus_refuter"
 
 # --- fixture presence: the REAL repo ships every kitty side preset ------------
 say "fixture: assets/kitty ships all four side presets"

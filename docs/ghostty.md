@@ -94,7 +94,10 @@ reports, and the owner observed the panel visibly SMALLER than the kitty
 host panel (upstream discussion #11552 — the quick terminal does not span
 the full screen height on Plasma Wayland). Every preset therefore uses an
 explicit pair — `22%,100%` on the vertical strips, `30%,100%` on the
-horizontal ones — so the secondary axis is full-height/full-width.
+horizontal ones — so the secondary axis is full-height/full-width. Accepted
+residual (owner decision, issue #134): the ghostty quick terminal follows
+the compositor's safe area, so Plasma's own panel strips still shrink it —
+an exact kitty overlay match means user-taste pixel overrides.
 
 Every preset also keeps the panel open when it loses focus
 (`quick-terminal-autohide = false`, the Linux default) so playback controls

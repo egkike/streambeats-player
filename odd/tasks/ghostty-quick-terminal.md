@@ -108,3 +108,20 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   re-verifies parity next to the kitty panel. The lifecycle stayed clean:
   the owner quit via q (player closed, app exited, claim released) and a
   subsequent press respawned a fresh claim (51748 → 51887 handover observed).
+- L9 (native review cycle, lineage review-eea8da689a859364): high-risk tier
+  (process-boundary shell evidence), 3 lens runs + refuter admitted; closure
+  ESCALATED with two corroborated findings,
+  "maintainer action is informational": R3-001 (the wait-loop kill could, in
+  a tiny concurrent-press race, retire an instance drawing a panel) and
+  R4-001 (the relay's unconditional notification). Owner dispositions:
+  R3-001 = graceful retirement fix NOW (retire_host walks the quit GAction,
+  TERM is the last resort only when the bus is gone; wait-loop branches retire
+  in EITHER case, so no surfaceless instance leaks); R4-001 = documented as
+  kitty-parity doctrine (native review R4-001 note in
+  docs/kde-panel-integration.md); geometry "más corto" = accepted residual of
+  the compositor safe area (docs/ghostty.md states the accepted residual +
+  user-taste px overrides). One more mid-handshake director: a wait-loop
+  uncertain transport failure now retires and falls back instead of dying —
+  a surfaceless instance is never leaked into mid-handshake failures
+  (scenario 15 pins the quit-call; scenario 13 keeps the pre-spawn die-loud
+  contract).

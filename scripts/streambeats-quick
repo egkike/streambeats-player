@@ -271,6 +271,19 @@ if "$ghostty_bin" +help 2>/dev/null | grep -q 'toggle-quick-terminal' && command
 		;;
 	esac
 
+	# Retire a spawned-surfaceless host gracefully (review escalación R3-001):
+	# the quit GAction is the primary path — no client process ever dies
+	# mid-display and no exit() orphan surfaces; TERM is the last resort when
+	# the bus is already gone (no surface can be showing in either case: a
+	# VISIBLE panel is never torn down — it closes by toggle or the app's own
+	# quit-after-last-window-closed exit).
+	retire_host() {
+		gdbus call --session --dest "$appid" --object-path "$objpath" \
+			--method org.gtk.Actions.Activate quit '[]' '[]' >/dev/null 2>&1 \
+			|| kill "$hostpid" 2>/dev/null \
+			|| true
+	}
+
 	# Headless dedicated host with the panel preset. The generated config
 	# gains the per-side class + headless flag + the per-surface command;
 	# stdin/stdout are silent because the surface the user sees is the quick
@@ -320,12 +333,15 @@ WRAP
 		fi
 		case "$toggle_out" in
 		*ServiceUnknown*) : ;; # claim still settling: keep waiting
+		*"No such action"* | *"UnknownMethod"* | *"UnknownAction"* | *"UnregisteredGAction"*)
+			retire_host
+			fallback_reason="the spawned host does not expose the quick-terminal action on $appid"
+			break
+			;;
 		*)
-			# Nothing is on screen yet (no toggle ever succeeded), so retiring
-			# this surfaceless instance is safe. The showing-panel rule stands:
-			# a VISIBLE panel is never killed — it closes by toggle or by the
-			# app's own quit-after-last-window-closed exit.
-			kill "$hostpid" 2>/dev/null || true
+			# Uncertain transport failure after spawn: retire the surfaceless
+			# host gracefully and fall back — never guess between two panels.
+			retire_host
 			fallback_reason="quick-terminal toggle failed on the spawned host: $toggle_out"
 			break
 			;;
@@ -334,7 +350,7 @@ WRAP
 		sleep 0.3
 	done
 	if [ -z "$fallback_reason" ]; then
-		kill "$hostpid" 2>/dev/null || true
+		retire_host
 		fallback_reason="ghostty never claimed $appid within the settle window"
 	fi
 else

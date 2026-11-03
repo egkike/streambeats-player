@@ -59,3 +59,8 @@ panel on first press and toggles it after. Pre-1.4 ghostty hosts fail the
 zero-side-effect capability probe (`ghostty +help | grep
 toggle-quick-terminal`) and keep the legacy toggle exactly as documented
 above — same wrapper, same shortcut.
+
+The relay's notification is unconditional by design (matches the kitty
+relay, issue #108): the press always dispatched a detached launcher and the
+launcher owns its own failure messaging (native review R4-001, issue #134
+escalated-closure disposition).
