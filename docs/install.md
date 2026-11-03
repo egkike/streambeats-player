@@ -58,7 +58,7 @@ installed prefix.
 | --- | --- |
 | Linux (amd64/arm64) / macOS (amd64/arm64) | refusal on other OSes; Windows: use WSL2 (Ubuntu) for the TUI — the floating panel stays Linux/macOS-only (Ghostty does not support Windows) |
 | `mpv` in PATH | advisory; TUI browses but cannot play |
-| `ghostty` in PATH | advisory; only the floating panel needs it (Linux) |
+| `ghostty` in PATH | advisory; only the floating panel needs it (Linux). The native quick-terminal panel requires Ghostty **1.4.0+** with the `gdbus` helper (`docs/ghostty.md`); older 1.3.1 builds fall back to the dedicated window, and outside a panel the binary has no version requirement |
 | `kitty` in PATH | advisory; second valid panel host (issue #90, kitty 0.42+ native quick access terminal; choice editable in the TUI settings, key `c`, applies after restarting the panel). Warns loud only when neither ghostty nor kitty is present |
 | `kdotool` in PATH | advisory (Linux, **Ghostty panel path only** — issue #108: the kitty panel toggles natively by re-running, no kdotool involved); panel show/hide toggle needs it — without it the panel opens but a second press cannot hide/restore it. The advisory names both install paths (distro package; upstream prebuilt jinliu/kdotool) |
 | `$PREFIX/bin` in PATH | advisory with the exact `export PATH` hint (macOS: `~/.zprofile`) |

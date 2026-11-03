@@ -142,9 +142,10 @@ streambeats-panel  [top|bottom|left|right]          # installed (detached)
 Presets live in `assets/ghostty/streambeats-<side>.conf` (Ghostty) and
 `assets/kitty/streambeats-<side>.conf` (kitty) — default side `right`,
 narrow 22% strip. Toggle depends on the host: inside a Ghostty panel use
-`ctrl+alt+s` (fully native auto-opening needs a newer Ghostty than 1.3.1);
-the kitty quick access terminal toggles by re-running the same launcher
-command (bind it to a KDE global shortcut for one-key show/hide). Host
+`ctrl+alt+s` (the native quick-terminal panel needs Ghostty 1.4.0+;
+older builds get the dedicated-window fallback instead); the kitty quick
+access terminal toggles by re-running the same launcher command (bind it
+to a KDE global shortcut for one-key show/hide). Host
 choice + precedence details: docs/kitty.md.
 
 **Before installing — three honest corners** (full matrix: docs/install.md):
