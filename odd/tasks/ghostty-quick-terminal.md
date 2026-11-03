@@ -38,7 +38,7 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   removed. Commit: TBD.
 - T4 docs: `docs/ghostty.md` rewritten for 1.4.0 (limitation §2 resolved; CLI
   `--class` defect documented as upstream status), KDE integration docs,
-  `scripts/tests` coverage. Commit: TBD.
+  `scripts/tests` coverage. Commit: logged in L7.
 - T5 (outside the repo): upstream issue to ghostty-org/ghostty —
   `+toggle-quick-terminal` parses `Options.class` but `run()` ignores it
   (hardcoded `.detect` target), so `--class` cannot address a custom instance.
@@ -81,3 +81,11 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   launcher; pre-1.4 hosts fail the probe and keep the legacy kdotool toggle
   (pin updated deliberately — with an ACTIVE unit the legacy toggle never
   spawns a unit, so the spawn pin was restated as kdotool-consulted).
+- L7: T3 + T4 committed (c0460de presets; docs rewrite this commit):
+  presets validate clean on 1.4.0 both as files and through the generated
+  quick-mode merge (runtime verified); stale 1.3.1 headers rewritten;
+  `class = streambeats-panel` documented as the FALLBACK identity; the doc
+  hint table drift was corrected (54×24 right preset, 30 top height) while
+  rewriting `docs/ghostty.md` for the 1.4.0 mechanism (per-side app-id durabilty
+  claim + gdbus toggle + upstream `--class` defect + KDE relay), and the KWin
+  rules doc now states the layer-shell boundary explicitly.

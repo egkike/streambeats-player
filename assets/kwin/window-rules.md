@@ -39,6 +39,11 @@ and the Application Launcher via the installed
 
 ## 2. Window rules (floating/keep-above/no-taskbar feel)
 
+These rules shape the DEDICATED-WINDOW panel (Ghostty pre-1.4 fallback, or
+kitty windows). A Ghostty quick-terminal panel is a layer-shell surface, not
+a KWin window, and never matches window rules or kdotool (issue #134) — for
+it, the toggle plus the preset geometry are the whole contract.
+
 System Settings → **Window Management → Window Rules → Add New…**
 
 Match (use the second tab too if you prefer specificity):
