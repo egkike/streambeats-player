@@ -72,6 +72,12 @@ if [ "\$1" = "+help" ]; then
 	exit 0
 fi
 echo "GHOSTTY argv: \$*" >> "$Fx/GHOSTTY.log"
+for a in "\$@"; do
+	if [ "\$a" = "--gtk-single-instance=true" ]; then
+		echo "\$\$" >> "$Fx/ghostty_pids.log"
+		sleep 2
+	fi
+done
 exit 0
 EOF
 chmod 0755 "$STUBS/ghostty"
@@ -91,6 +97,25 @@ echo "\$n" > "$Fx/gdbus_calls.count"
 if [ -f "$Fx/gdbus_uncertain" ]; then
 	printf 'connection reset by peer\n' >&2
 	exit 1
+fi
+if [ -f "$Fx/gdbus_refuterquit" ]; then
+	case "\$n" in
+	1)
+		printf 'failure: org.freedesktop.DBus.Error.ServiceUnknown: The name org.streambeats.panel.right was not provided by any .service files\n' >&2
+		exit 1
+		;;
+	2)
+		printf 'failure: GDBus.Error:org.gtk.GDBus.UnregisteredGActionError: No such action toggle-quick-terminal\n' >&2
+		exit 1
+		;;
+	3)
+		printf 'connection reset by peer\n' >&2
+		exit 1
+		;;
+	*)
+		exit 0
+		;;
+	esac
 fi
 if [ -f "$Fx/gdbus_refuter" ]; then
 	case "\$n" in
@@ -495,6 +520,31 @@ else
 	fail "retirement lost the fallback notes"
 fi
 rm -f "$Fx/gdbus_refuter"
+
+# --- scenario 16: a claim holder is never TERM'ed by the cleanup (R3-001) -----
+# gdbus_refuterquit mode: #1 ServiceUnknown (no claim → spawn), #2 action-
+# missing on the spawned host (→ retirement), #3 the quit call fails with a
+# TRANSPORT error while the bus is still there. The retire path must leave
+# the host ALIVE (a claim holder can hold a visible surface; a lost reply
+# is retried by the next press) — a blind kill would orphan the panel.
+say "scenario 16: claimed host survives a failed quit (last-resort kill gated)"
+: >"$Fx/GHOSTTY.log"; : >"$Fx/GDBUS.log"; : >"$Fx/gdbus_calls.count"; rm -f "$Fx/gdbus_uncertain" "$Fx/ghostty_pids.log"
+touch "$Fx/gdbus_refuterquit"
+rm -f "$Fx/ghostty_stderr.log"
+if env -u XDG_CONFIG_HOME PATH="$STUBS:/usr/bin:/bin" XDG_CONFIG_HOME="$Fx/xdg" \
+	"$LAUNCHER" right 2>"$Fx/ghostty_stderr.log" >/dev/null; then
+	pass "quit-failure path falls back to the dedicated window (exit 0)"
+else
+	fail "quit-failure path exited nonzero: $(cat "$Fx/ghostty_stderr.log")"
+fi
+assert_eq "$(grep -c 'Activate quit' "$Fx/GDBUS.log")" 1 "retirement attempted the quit GAction exactly once"
+ALIVE=0
+for hp in $(cat "$Fx/ghostty_pids.log" 2>/dev/null); do
+	kill -0 "$hp" 2>/dev/null && ALIVE=$((ALIVE + 1))
+done
+assert_eq "$ALIVE" 1 "the claimed host stays alive (no TERM after a transport-level quit failure)"
+rm -f "$Fx/gdbus_refuterquit"
+for hp in $(cat "$Fx/ghostty_pids.log" 2>/dev/null); do kill "$hp" 2>/dev/null; done
 
 # --- fixture presence: the REAL repo ships every kitty side preset ------------
 say "fixture: assets/kitty ships all four side presets"

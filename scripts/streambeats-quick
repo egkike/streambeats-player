@@ -278,10 +278,21 @@ if "$ghostty_bin" +help 2>/dev/null | grep -q 'toggle-quick-terminal' && command
 	# VISIBLE panel is never torn down — it closes by toggle or the app's own
 	# quit-after-last-window-closed exit).
 	retire_host() {
-		gdbus call --session --dest "$appid" --object-path "$objpath" \
-			--method org.gtk.Actions.Activate quit '[]' '[]' >/dev/null 2>&1 \
-			|| kill "$hostpid" 2>/dev/null \
-			|| true
+		# (bounded review correction, R3-001): the quit GAction remains the
+		# only graceful exit. A TERM kill fires ONLY when the quit failure
+		# proves nobody holds the bus claim (ServiceUnknown: a pre-claim
+		# wedged spawn — no surface can exist). A claim holder may draw a
+		# quick-terminal surface, so a lost quit reply leaves it running
+		# harmlessly; the next press retries the toggle instead of risking
+		# the panel.
+		quit_rc=0
+		quit_out=$(gdbus call --session --dest "$appid" --object-path "$objpath" \
+			--method org.gtk.Actions.Activate quit '[]' '[]' 2>&1) || quit_rc=$?
+		[ "$quit_rc" -eq 0 ] && return 0
+		case "$quit_out" in
+		*ServiceUnknown*) kill "$hostpid" 2>/dev/null || true ;;
+		*) : ;; # transport-level or unknown failure: keep the claim holder
+		esac
 	}
 
 	# Headless dedicated host with the panel preset. The generated config
