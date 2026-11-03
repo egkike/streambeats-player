@@ -31,8 +31,8 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   toggle-quick-terminal`; falls back to the dedicated-window flow when the
   claim/toggle fails or ghostty lacks the action. Commit: logged in L5.
 - T2 `scripts/streambeats-panel` ghostty relay mirroring `kitty_host` (issue
-  #108 S2): every press relays the launcher detached before the unit guard.
-  Commit: TBD.
+  #108 S2): every press relays the launcher, detached, before the unit guard.
+  Commit: logged in L6.
 - T3 presets: valid dotted per-side `class`; KWin window-rule matching
   re-checked (`assets/kwin/window-rules.md`); stale 1.3.1-only comments
   removed. Commit: TBD.
@@ -74,3 +74,10 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   ghostty + side compose per-side app ids (org.streambeats.panel.<side>).
   Full pipeline green (gofmt/build/vet/test, mod tidy clean, all five
   scripts/tests suites incl. macos smoke with bash per its shebang).
+- L6: T2 implemented test-first (RED: relay absent, kdotool consulted via
+  the guard path, second press never relayed; GREEN full). The ghostty relay
+  resolves the host from the shared helper plus the builtin ghostty-first
+  order and gates on the same zero-side-effect +help fingerprint as the
+  launcher; pre-1.4 hosts fail the probe and keep the legacy kdotool toggle
+  (pin updated deliberately — with an ACTIVE unit the legacy toggle never
+  spawns a unit, so the spawn pin was restated as kdotool-consulted).
