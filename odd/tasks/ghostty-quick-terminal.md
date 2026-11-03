@@ -156,3 +156,10 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   full-height on the right. The owner is happy with BOTH geometries as-shipped:
   the px parity-tuning round is ARCHIVED (no longer pending); the safe-area
   residual note in docs/ghostty.md stands as the final disposition.
+- L14 (keybind-ideal guidance, authorized "Sí, escribile"): the README panel
+  paragraph now RECOMMENDS the fully keyboard-driven setup with a concrete
+  verified example — `Ctrl+Alt+M → streambeats-panel toggle right` (owner's
+  own live combo, conflict-free on KDE Plasma Wayland) — and the example is
+  unified across docs/kde-panel-integration.md (Keybind section rewritten for
+  the relay model) and assets/kwin/window-rules.md (was the Meta+S example).
+  Docs-lane patch; no code.

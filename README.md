@@ -173,7 +173,13 @@ choice + precedence details: docs/kitty.md.
 The installed companion `streambeats-panel` runs the panel detached from
 any terminal so a `.desktop` entry or a KDE global keybind runs it with
 one action; the desktop entry and the recommended keybind launch the
-**toggle**: first press opens, later presses show/hide. On Ghostty 1.4.0+
+**toggle**: first press opens, later presses show/hide.
+**Recommended setup (the ideal usage is fully keyboard-driven): bind a
+global KDE key to it — for example `Ctrl+Alt+M` →
+`$HOME/.local/bin/streambeats-panel toggle right` (this exact combo is
+verified working on KDE Plasma Wayland with the default Ghostty and Plasma
+keybinds; any free combo works). The 2-minute walkthrough:
+docs/kde-panel-integration.md, "Keybind" section. On Ghostty 1.4.0+
 quick hosts and on kitty, the toggle is the native re-run relay (no
 kdotool, no unit guard — issues #134/#108): kitty is detached by the
 wrapper via `setsid`, and the ghostty quick host spawns its own claimed
