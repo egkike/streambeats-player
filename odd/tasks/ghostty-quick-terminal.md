@@ -149,3 +149,10 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   could not be filed (upstream restricts issue creation for our identity);
   the full report travels in the PR body for the owner to file.
 - L12 (post-merge README drift sweep, authorized "Parcheo completo via PR" after the owner asked whether README was fully reviewed): full README cross-check found 4 stale claims against the shipped 1.4.0 mechanism — the "Ghostty 1.2+" requirement bullet (now 1.4.0+ quick mode with gdbus / 1.3.1+ dedicated fallback / version-free binary, aligned with docs/install.md), the kdotool bullet and the v1.7.2 toggle paragraph (kdotool is legacy pre-1.4-only now; quick hosts + kitty relay natively, issues #134/#108), and the Run detached recipe whose systemctl status/stop semantics are one-shot under quick mode (stop = `q` in the panel; pre-1.4 keeps unit semantics). install.md's kdotool row updated to "pre-1.4 Ghostty dedicated-window path only". Docs lane follow-up PR.
+- L13 (post-install owner feedback, release v1.10.0): real install done with the
+  curl one-liner; both hosts verified live by the owner — the ghostty quick
+  panel rides the native mechanism (smaller panel anchored right, slide-in
+  hide via the global keybind ctrl+alt+m) and the kitty panel spans
+  full-height on the right. The owner is happy with BOTH geometries as-shipped:
+  the px parity-tuning round is ARCHIVED (no longer pending); the safe-area
+  residual note in docs/ghostty.md stands as the final disposition.
