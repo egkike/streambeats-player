@@ -33,20 +33,20 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   wrapper resets `XDG_CONFIG_HOME` for the player child (issue #80 contract);
   spawn-if-not-claimed → toggles via gdbus `org.gtk.Actions.Activate
   toggle-quick-terminal`; falls back to the dedicated-window flow when the
-  claim/toggle fails or ghostty lacks the action. Commit: logged in L5.
+  claim/toggle fails or ghostty lacks the action. Commit: bbad579 (L5).
 - T2 `scripts/streambeats-panel` ghostty relay mirroring `kitty_host` (issue
   #108 S2): every press relays the launcher, detached, before the unit guard.
   Commit: logged in L6.
 - T3 presets: valid dotted per-side `class`; KWin window-rule matching
   re-checked (`assets/kwin/window-rules.md`); stale 1.3.1-only comments
-  removed. Commit: TBD.
+  removed. Commit: c0460de (L7).
 - T4 docs: `docs/ghostty.md` rewritten for 1.4.0 (limitation §2 resolved; CLI
   `--class` defect documented as upstream status), KDE integration docs,
-  `scripts/tests` coverage. Commit: logged in L7.
+  `scripts/tests` coverage. Commit: c74fb6e (L7).
 - T6 presets: explicit `quick-terminal-size` pairs (`22%,100%` vertical
   strips, `30%,100%` horizontal strips) so the secondary axis matches the
   kitty host's full-height/full-width panel instead of the compositor-
-  reported default (owner-reported, S4). Commit: logged in L8.
+  reported default (owner-reported, S4). Commit: 7d4ae4d (L8).
 - T5 (outside the repo): upstream issue to ghostty-org/ghostty —
   `+toggle-quick-terminal` parses `Options.class` but `run()` ignores it
   (hardcoded `.detect` target), so `--class` cannot address a custom instance.
@@ -125,3 +125,26 @@ like the kitty host since v1.9.0. Ghostty binary under test on the desktop:
   a surfaceless instance is never leaked into mid-handshake failures
   (scenario 15 pins the quit-call; scenario 13 keeps the pre-spawn die-loud
   contract).
+- L10 (second review pass, lineage review-c8ac065e61473adc): the same three
+  lenses ran on the corrected tree; the refuter confirmed the R3-001 residual
+  (the quit-path kill could fire after ANY failed quit call) →
+  correction_required → bounded correction plan (17 diff lines) → commit
+  0e84656 (retire_host TERMs only when the quit failure proves nobody holds
+  the bus claim: ServiceUnknown = surfaceless wedged spawn; a claim holder
+  survives a lost quit reply and the next press retries — scenario 16 pins
+  the surviving host pid, 71/71) → targeted validator APPROVED →
+  acknowledgement burned: receipt lineage review-c8ac065e61473adc,
+  consumed revision
+  sha256:21c28e833eb6ffb5d8aaf4b4bb9e57ba719c5134066237bed5e732cbdaf36896,
+  target sha256:9508c4d4ac903a36e126f9a17cf060fca4fa248101e37fed2d44c5d6ff4a0d82.
+  Advisory findings (non-blocking, later follow-ups): R2-001
+  scripts/streambeats-quick:282, R2-002 docs/ghostty.md:86-89, R4-001
+  scripts/streambeats-panel:161-165 (R4-001 doctrine note is already in the
+  docs, L9).
+- L11 (delivery prep): the full cycle totals ~1290 authored lines across 9
+  commits (each work-unit ≤ 362 lines, inside the per-commit advisory; the
+  PR exceeds the 400-line advisory because one feature spans launcher +
+  wrapper + presets + docs + both test harnesses) — `size:exception` is
+  declared in the PR with this rationale. The upstream `--class` issue
+  could not be filed (upstream restricts issue creation for our identity);
+  the full report travels in the PR body for the owner to file.
