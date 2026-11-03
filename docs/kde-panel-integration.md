@@ -48,3 +48,19 @@ minimized-state query, so the decision uses the ACTIVE window only. The
 installer warns with both install paths when kdotool is missing (Linux +
 ghostty). Plain `streambeats-panel <side>` keeps the spawn-and-guard
 behavior, and quitting inside the panel (`q`) still stops the world.
+
+### Ghostty 1.4.0+ hosts relay instead (issue #134)
+
+On a Ghostty build with the quick-terminal mechanism (see `docs/ghostty.md`),
+the wrapper detects the host the same way the launcher does, relays
+`streambeats-quick <side>` detached on EVERY press and never engages the
+unit guard or kdotool: the launcher's quick mode spawns/claims the per-side
+panel on first press and toggles it after. Pre-1.4 ghostty hosts fail the
+zero-side-effect capability probe (`ghostty +help | grep
+toggle-quick-terminal`) and keep the legacy toggle exactly as documented
+above — same wrapper, same shortcut.
+
+The relay's notification is unconditional by design (matches the kitty
+relay, issue #108): the press always dispatched a detached launcher and the
+launcher owns its own failure messaging (native review R4-001, issue #134
+escalated-closure disposition).

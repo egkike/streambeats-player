@@ -82,6 +82,33 @@ kitty_host() {
 	[ "$(settings_terminal)" = "kitty" ]
 }
 
+# Issue #134: ghostty 1.4.0+ hosts get kitty's launch model — the same
+# command opens the panel on the first press and toggles it on every later
+# press (the launcher drives the quick terminal; see docs/ghostty.md). The
+# host resolves to ghostty via ONE contract source: the shared helper's
+# anchored settings read, with the builtin order behind it (ghostty first).
+# The capability probe is the zero-side-effect one the launcher uses: the
+# +toggle-quick-terminal CLI action and the GAction ship in the same
+# upstream commit, so the +help listing is a faithful fingerprint — a
+# pre-1.4 ghostty keeps the legacy unit-guard path below.
+ghostty_quick_host() {
+	[ -f "$script_dir/panel-terminal" ] || return 1
+	. "$script_dir/panel-terminal"
+	term=$(settings_terminal) || term=""
+	if [ "$term" = "kitty" ]; then
+		return 1
+	fi
+	if [ "$term" != "ghostty" ] && [ -n "$term" ]; then
+		return 1
+	fi
+	if [ -z "$term" ] && ! command -v ghostty >/dev/null 2>&1; then
+		return 1
+	fi
+	ghostty_bin=$(command -v ghostty 2>/dev/null || true)
+	[ -n "$ghostty_bin" ] || return 1
+	"$ghostty_bin" +help 2>/dev/null | grep -q 'toggle-quick-terminal'
+}
+
 notify() {
 	# Best-effort user feedback; never fatal.
 	if command -v notify-send >/dev/null 2>&1; then
@@ -124,6 +151,21 @@ if kitty_host; then
 		"$launcher" "$SIDE" >/dev/null 2>&1 &
 	fi
 	notify "kitty panel toggled (spawn/relay on every press)"
+	exit 0
+fi
+
+# Issue #134 (S2): ghostty quick hosts relay BEFORE the unit guard — the
+# launcher's quick mode toggles per press (spawn-if-not-claimed inside) and
+# a layer-shell panel is not a targetable KWin window, so the unit guard /
+# kdotool never apply. Pre-1.4 ghostty hosts fail the probe and reach the
+# legacy dedicated-window path below unchanged.
+if ghostty_quick_host; then
+	if command -v setsid >/dev/null 2>&1; then
+		setsid "$launcher" "$SIDE" >/dev/null 2>&1 &
+	else
+		"$launcher" "$SIDE" >/dev/null 2>&1 &
+	fi
+	notify "ghostty quick panel toggled (spawn/relay on every press)"
 	exit 0
 fi
 

@@ -533,6 +533,127 @@ SECOND=$( [ -f "$KITTY_ROOT/launcher.log" ] && grep -c 'launcher-argv:' "$KITTY_
 assert_eq "$SECOND" 2 "kitty second press relays again (native re-run toggle)"
 
 
+# --- scenario 10: ghostty 1.4.0+ hosts relay the launcher (issue #134) -------
+# The ghostty quick-terminal host gets kitty's launch model: the same command
+# opens the panel on the first press and toggles it on every later press.
+# The wrapper resolves the hosting terminal, probes the quick capability
+# (ghostty +help listing; zero side effects), relays the launcher detached
+# and NEVER consults the systemd unit guard or kdotool for quick hosts.
+# A pre-1.4 ghostty (no +toggle-quick-terminal listing) keeps the legacy
+# unit-guard path (fallback doctrine of the dedicated window).
+say "scenario 10: ghostty quick hosts relay the launcher (kitty parity)"
+GTTY_ROOT="$Fx/ghostty-root"
+mkdir -p "$GTTY_ROOT/scripts" "$GTTY_ROOT/bin" "$GTTY_ROOT/xdg/streambeats"
+cp "$PANEL_UNDER_TEST" "$GTTY_ROOT/scripts/streambeats-panel"
+cp "$REPO_ROOT/scripts/panel-terminal" "$GTTY_ROOT/scripts/panel-terminal"
+chmod 0755 "$GTTY_ROOT/scripts"/*
+cat >"$GTTY_ROOT/scripts/streambeats-quick" <<EOF
+#!/bin/sh
+echo launcher-argv:\$* >> "$GTTY_ROOT/launcher.log"
+exit 0
+EOF
+chmod 0755 "$GTTY_ROOT/scripts/streambeats-quick"
+printf '#!/bin/sh\necho player\n' >"$GTTY_ROOT/bin/streambeats"
+chmod 0755 "$GTTY_ROOT/bin/streambeats"
+printf '{\n  "theme": "oscuro",\n  "panelTerminal": "ghostty"\n}\n' >"$GTTY_ROOT/xdg/streambeats/settings.json"
+SG_BIN10="$Fx/stubs10"
+mkdir "$SG_BIN10"
+cat >"$SG_BIN10/systemd-run" <<EOF
+#!/bin/sh
+echo "systemd-run \$*" >> "$GTTY_ROOT/systemd.log"
+exit 0
+EOF
+cat >"$SG_BIN10/systemctl" <<EOF
+#!/bin/sh
+case "\$*" in
+	*show-environment*) exit 0 ;;
+	*is-active*) echo active; exit 0 ;;
+esac
+exit 0
+EOF
+cat >"$SG_BIN10/kdotool" <<EOF
+#!/bin/sh
+echo "kdotool \$*" >> "$GTTY_ROOT/kdotool.log"
+exit 0
+EOF
+cat >"$SG_BIN10/notify-send" <<EOF
+#!/bin/sh
+echo "notify \$*" >> "$GTTY_ROOT/notify.log"
+exit 0
+EOF
+cat >"$SG_BIN10/ghostty" <<EOF
+#!/bin/sh
+if [ "\$1" = "+help" ]; then
+	printf '%s\n' '+new-window' '+new-tab' '+toggle-quick-terminal'
+	exit 0
+fi
+exit 0
+EOF
+chmod 0755 "$SG_BIN10"/*
+: >"$GTTY_ROOT/launcher.log"
+: >"$GTTY_ROOT/kdotool.log"
+: >"$GTTY_ROOT/systemd.log"
+: >"$GTTY_ROOT/notify.log"
+PANEL_UNDER_GHOSTTY="$GTTY_ROOT/scripts/streambeats-panel"
+if env XDG_CONFIG_HOME="$GTTY_ROOT/xdg" PATH="$SG_BIN10:/usr/bin:/bin" \
+	"$PANEL_UNDER_GHOSTTY" toggle right >/dev/null 2>&1; then
+	pass "ghostty toggle first press exits 0"
+else
+	fail "ghostty toggle first press exited nonzero"
+fi
+sleep 1
+FIRST10=$( [ -f "$GTTY_ROOT/launcher.log" ] && grep -c 'launcher-argv:' "$GTTY_ROOT/launcher.log" | tr -d ' ' || echo 0 )
+assert_eq "$FIRST10" 1 "ghostty first press relays the launcher (kitty parity)"
+assert_eq "$( [ -f "$GTTY_ROOT/kdotool.log" ] && grep -c . "$GTTY_ROOT/kdotool.log" | tr -d ' ' || echo 0 )" 0 "kdotool NEVER consulted for the ghostty quick host"
+assert_eq "$( [ -f "$GTTY_ROOT/systemd.log" ] && grep -c . "$GTTY_ROOT/systemd.log" | tr -d ' ' || echo 0 )" 0 "the unit guard is never consulted for the ghostty quick host"
+if env XDG_CONFIG_HOME="$GTTY_ROOT/xdg" PATH="$SG_BIN10:/usr/bin:/bin" \
+	"$PANEL_UNDER_GHOSTTY" toggle right >/dev/null 2>&1; then
+	pass "ghostty toggle second press exits 0"
+else
+	fail "ghostty toggle second press exited nonzero"
+fi
+sleep 1
+SECOND10=$( [ -f "$GTTY_ROOT/launcher.log" ] && grep -c 'launcher-argv:' "$GTTY_ROOT/launcher.log" | tr -d ' ' || echo 0 )
+assert_eq "$SECOND10" 2 "ghostty second press relays again (native re-run toggle)"
+
+# 10b: pre-1.4 ghostty (no quick terminal capability) → legacy unit path
+: >"$GTTY_ROOT/launcher.log"
+: >"$GTTY_ROOT/systemd.log"
+touch "$GTTY_ROOT/no_quick_action"
+cat >"$GTTY_ROOT/scripts/ghostty-probe" <<'EOF'
+EOF
+cat >"$SG_BIN10/ghostty" <<EOF
+#!/bin/sh
+if [ "\$1" = "+help" ]; then
+	if [ -f "$GTTY_ROOT/no_quick_action" ]; then
+		printf '%s\n' '+new-window' '+new-tab'
+	else
+		printf '%s\n' '+new-window' '+new-tab' '+toggle-quick-terminal'
+	fi
+	exit 0
+fi
+exit 0
+EOF
+chmod 0755 "$SG_BIN10/ghostty"
+if env XDG_CONFIG_HOME="$GTTY_ROOT/xdg" PATH="$SG_BIN10:/usr/bin:/bin" \
+	"$PANEL_UNDER_GHOSTTY" toggle right >/dev/null 2>&1; then
+	pass "pre-1.4 ghostty host falls back to the legacy path (exit 0)"
+else
+	fail "pre-1.4 ghostty host exited nonzero"
+fi
+sleep 1
+if [ -s "$GTTY_ROOT/kdotool.log" ]; then
+	pass "pre-1.4 ghostty keeps the legacy toggle path (kdotool engaged)"
+else
+	fail "pre-1.4 ghostty lost the legacy toggle: $(cat "$GTTY_ROOT/kdotool.log" 2>/dev/null)"
+fi
+if [ -s "$GTTY_ROOT/launcher.log" ]; then
+	fail "pre-1.4 ghostty relayed the launcher — quick mode must be gated"
+else
+	pass "pre-1.4 ghostty never relays into quick mode"
+fi
+rm -f "$GTTY_ROOT/no_quick_action"
+
 # --- scenario 9: helper missing -> LOUD advisory + explicit ghostty path -----
 # (issue #122 S4): a wrapper whose shared helper is absent MUST announce
 # the degraded assumption to the user (kitty relay unavailable) instead of
