@@ -14,11 +14,16 @@ pinned floating sheet. Two places matter:
 ## Keybind (System Settings → Keyboard → Shortcuts → Add New → Command or Script…)
 
 ```sh
-$HOME/.local/bin/streambeats-panel right
+# RECOMMENDED: fully keyboard-driven usage — the owner's verified combo:
+#   Ctrl+Alt+M → toggle right (no conflicts with default Ghostty/Plasma
+#   keybinds on KDE Plasma Wayland); any free combo works.
+$HOME/.local/bin/streambeats-panel toggle right
 ```
 
-Second press: no duplicate — the per-side lock answers with a notification.
-Different sides are separate units on purpose (you may keep two panels).
+Press it anywhere: Ghostty 1.4.0+ quick hosts and kitty toggle the panel
+natively (first press opens, next press hides — the wrapper relay handles
+it); a pre-1.4 Ghostty host spawns the detached unit on the first press and
+the legacy kdotool toggle takes over afterwards.
 
 ## KRunner / Application Launcher
 

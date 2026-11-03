@@ -17,6 +17,10 @@ Script…** and bind it to your shortcut (e.g. `Meta+S`):
 $HOME/.local/bin/streambeats-panel toggle right
 ```
 
+(Suggested shortcut example: `Ctrl+Alt+M` — the README's verified combo on
+KDE Plasma Wayland; any free combo works. On Ghostty 1.4.0+ quick hosts and
+kitty every press toggles natively via the wrapper relay.)
+
 - `toggle` makes the keybind the full show/hide switch (v1.7.1+): a focused
   panel minimizes (audio keeps playing); a minimized or unfocused panel is
   restored/raised. Requires kdotool — without it the installer advisory
