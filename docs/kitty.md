@@ -81,8 +81,8 @@ for the edge's primary axis and leave the other axis maximized:
 | --- | --- | --- | --- |
 | `assets/kitty/streambeats-top.conf` | top | `lines 324px` | `quick-terminal-size = 30%` (1080-equivalent) |
 | `assets/kitty/streambeats-bottom.conf` | bottom | `lines 324px` | `30%` height |
-| `assets/kitty/streambeats-left.conf` | left | `columns 424px` | `quick-terminal-size = 22%` (1920-equivalent) |
-| `assets/kitty/streambeats-right.conf` | right | `columns 424px` | `22%` width |
+| `assets/kitty/streambeats-left.conf` | left | `columns 560px` | `quick-terminal-size = 22%` (1920-equivalent) |
+| `assets/kitty/streambeats-right.conf` | right | `columns 560px` | `22%` width |
 
 Edit the px value in the preset (or `~/.config/kitty/quick-access-terminal.conf`
 for your personal defaults) if your monitor differs. The presets mirror the
