@@ -153,6 +153,49 @@ func TestConfigScreenSaveFailureIsFriendly(t *testing.T) {
 	}
 }
 
+// Issue #140 S4 (T2, owner decision "el usuario podría seleccionar lo que
+// más le guste"): one flat cursor walks ambient + artboard themes, Enter
+// commits the artboard pick through the SAME single Settings.Theme field —
+// no new persisted keys, the artboard palette applies immediately.
+func TestConfigScreenNavigatesAndPersistsAnArtboardTheme(t *testing.T) {
+	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
+	m := NewModel(Options{Theme: "system", ThemeDark: true, SettingsStore: store})
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	cm := m2.(Model)
+	if got := cm.configTheme(); got != theme.System {
+		t.Fatalf("config opens on %q, want system", got)
+	}
+	// system (index 2) -> 4 downs -> cute (index 6).
+	for i := 0; i < 4; i++ {
+		x, _ := cm.Update(tea.KeyMsg{Type: tea.KeyDown})
+		cm = x.(Model)
+	}
+	if got := cm.configTheme(); got != theme.Cute {
+		t.Fatalf("after 4 downs the selection is %q, want cute", got)
+	}
+	committed, cmd := cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	ncm := committed.(Model)
+	if ncm.palette != theme.Resolve(theme.Cute, true) {
+		t.Errorf("cute palette did not apply: %+v", ncm.palette)
+	}
+	if cmd == nil {
+		t.Fatalf("commit produced no persistence command")
+	}
+	if msg := cmd(); msg == nil {
+		t.Fatalf("persistence command returned no message")
+	}
+	saved, err := store.Load()
+	if err != nil {
+		t.Fatalf("reload settings: %v", err)
+	}
+	if saved.Theme != "cute" {
+		t.Errorf("persisted theme = %q, want cute (single Settings.Theme field)", saved.Theme)
+	}
+	if saved.LibraryRoot != "" || saved.PanelTerminal != "" {
+		t.Errorf("unexpected extra persisted keys: %+v", saved)
+	}
+}
+
 // T3: playback bindings must not fire while the config screen is open.
 func TestConfigScreenIgnoresPlaybackKeys(t *testing.T) {
 	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))

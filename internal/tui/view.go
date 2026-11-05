@@ -104,8 +104,10 @@ func (m Model) statusOrNavLine() string {
 
 // navHints is the compact navigation reference shown when the status slot
 // is empty. Only keys NOT shown in the keycaps row (no playback repeats).
+// Issue #140 S5: the hint advertises c settings — the screen has managed
+// panel terminal selection since issue #90, so the old label under-described it.
 func navHints() string {
-	return "↑↓ k/j  enter open  esc back  l lib  c theme  q quit"
+	return "↑↓ k/j  enter open  esc back  l lib  c settings  q quit"
 }
 
 // Solo Teclado width calibration (issue #60 S6/L8, CPR probe): ghostty
@@ -267,24 +269,33 @@ func (m Model) listRows() []string {
 
 	rows := make([]string, 0, height)
 	switch {
+	// Settings screen, issue #140 S4: three labeled sections on ONE flat
+	// cursor — the ambient trio under the mode header, the five artboard
+	// themes under the themes header, then the existing terminal section.
+	// Headers are dim dividers the cursor never lands on.
 	case m.mode == ModeConfig:
-		for i, id := range configThemeIDs {
+		all := configAllThemes()
+		for i, id := range all {
+			if i == 0 {
+				rows = append(rows, m.dimStyle().Render("  mode:"))
+			} else if i == len(configThemeIDs) {
+				rows = append(rows, m.dimStyle().Render("  themes:"))
+			}
 			label := configLabels[id]
 			if id == m.theme {
 				label += "  (current)"
 			}
-			row := m.renderRow(i == m.configIndex, false, label, width)
-			rows = append(rows, row)
-			if i == len(configThemeIDs)-1 {
-				// Terminal section header (issue #90): visual-only divider, the
-				// cursor does not land on it.
+			rows = append(rows, m.renderRow(i == m.configIndex, false, label, width))
+			// Terminal section header (issue #90): visual-only divider, the
+			// cursor does not land on it.
+			if i == len(all)-1 {
 				rows = append(rows, m.dimStyle().Render("  panel terminal:"))
 				for j, terminalID := range m.panelOffer {
 					label := terminalID
 					if terminalID == m.panelTerminal {
 						label += "  (current)"
 					}
-					rows = append(rows, m.renderRow(len(configThemeIDs)+j == m.configIndex, false, label, width))
+					rows = append(rows, m.renderRow(len(all)+j == m.configIndex, false, label, width))
 				}
 				if len(m.panelOffer) == 0 {
 					rows = append(rows, m.dimStyle().Render("  no panel terminal installed"))

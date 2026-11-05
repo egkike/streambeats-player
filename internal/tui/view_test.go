@@ -350,12 +350,45 @@ var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // playback action or its key.
 func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 	hints := navHints()
-	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c theme  q quit" {
-		t.Fatalf("nav hints = %q, want the approved Alt 3 line", hints)
+	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c settings  q quit" {
+		t.Fatalf("nav hints = %q, want the approved Alt 3 line with the issue #140 S5 c settings rename", hints)
 	}
 	for _, repeated := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a", "\u2423", "\u00b1", "\u2795", "\u2796"} {
 		if strings.Contains(hints, repeated) {
 			t.Fatalf("nav hints repeat the keycap token %q: %q", repeated, hints)
 		}
+	}
+}
+
+// Issue #140 S5: the settings screen manages more than themes since the
+// panel terminal section (issue #90); the approved rename is "c settings".
+func TestNavHintsRenameToCSettings(t *testing.T) {
+	hints := navHints()
+	if !strings.Contains(hints, "c settings") {
+		t.Fatalf("nav hints lost the approved c settings rename: %q", hints)
+	}
+	if strings.Contains(hints, "c theme") {
+		t.Fatalf("nav hints still advertise the old c theme label: %q", hints)
+	}
+}
+
+// Issue #140 S4 (T2): the settings screen renders the three labeled
+// sections — ambient themes first, artboard themes after — and every theme
+// row carries its owner-approved display name.
+func TestSettingsScreenListsAllThemesInSections(t *testing.T) {
+	m := NewModel(Options{Theme: "system", ThemeDark: true})
+	m.mode = ModeConfig
+	view := stripANSI(m.View())
+	for _, want := range []string{"mode:", "Claro", "Oscuro", "System", "themes:",
+		"Vinyl dark", "Synthwave night", "Quiet ink", "Cute", "Sexy", "panel terminal:"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("settings view is missing %q:\n%s", want, view)
+		}
+	}
+	// Section order is pinned: mode: before themes:, themes: before the
+	// panel terminal rows.
+	idx := func(s string) int { return strings.Index(view, s) }
+	if !(idx("mode:") < idx("themes:") && idx("themes:") < idx("panel terminal:")) {
+		t.Errorf("section headers out of order:\n%s", view)
 	}
 }
