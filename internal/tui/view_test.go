@@ -351,8 +351,8 @@ var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // playback action or its key.
 func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 	hints := navHints()
-	if hints != "\u2191\u2193 k/j \u00b7 enter open  esc back  l lib  c settings  q quit" {
-		t.Fatalf("nav hints = %q, want the approved single-dot line (issue #146 S15)", hints)
+	if hints != "\u2191\u2193 k/j \u00b7 enter open esc back l lib c settings q quit" {
+		t.Fatalf("nav hints = %q, want the approved compact line (issue #151 S19)", hints)
 	}
 	for _, repeated := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a", "\u2423", "\u00b1", "\u2795", "\u2796"} {
 		if strings.Contains(hints, repeated) {
@@ -366,7 +366,7 @@ func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 // (55 runes) clips its tail and the owner saw "q qui". It must fit any
 // painted width: no wrap, no clipped tail.
 func TestNavHintsFitThePaintedWidthAtEveryTier(t *testing.T) {
-	for _, w := range []int{84, 56, 55, 50, 49, 47, 46, 26, 25, 10} {
+	for _, w := range []int{84, 52, 51, 47, 46, 43, 26, 25, 10} {
 		m := NewModel(Options{Theme: "system", ThemeDark: true, Width: w, Height: 24})
 		// The empty-catalog boot message is pre-existing status behavior;
 		// this test pins the NAV row, not status rendering.
@@ -381,13 +381,13 @@ func TestNavHintsFitThePaintedWidthAtEveryTier(t *testing.T) {
 // Issue #143 S10: the approved tier ladder, wired through statusOrNavLine
 // via a stub for this RED run (the real ladder replaces it in GREEN).
 func TestNavHintTiersArePinned(t *testing.T) {
-	// Issue #146 S12 + #149 S17: the full tier carries the single dot
-	// (56 runes); the ladder gains the 43-rune library tier between 47
-	// and 26 so narrow panels (kitty's ≤42-column strips, owner field
-	// report) keep the move pair and the library/setings controls.
+	// Issue #146 S12 + #149 S17 + #151 S19: the full tier is the compact
+	// form — the single dot between the move pair and the rest, single
+	// spaces everywhere else (52 runes) — so the dot survives narrow
+	// ghostty side panels (~51-55 columns, owner's retest evidence).
+	// The 56 and 50 tiers dissolve into it.
 	wantTiers := []string{
-		"\u2191\u2193 k/j \u00b7 enter open  esc back  l lib  c settings  q quit",
-		"\u2191\u2193 k/j enter open esc back l lib c settings q quit",
+		"\u2191\u2193 k/j \u00b7 enter open esc back l lib c settings q quit",
 		"k/j enter open esc back l lib c settings q quit",
 		"enter open esc back l lib c settings q quit",
 		"enter open esc back q quit",
@@ -398,18 +398,15 @@ func TestNavHintTiersArePinned(t *testing.T) {
 		want  string
 	}{
 		{84, wantTiers[0]},
-		{56, wantTiers[0]},
-		{55, wantTiers[1]},
-		{50, wantTiers[1]},
-		{49, wantTiers[2]},
-		{47, wantTiers[2]},
-		{46, wantTiers[3]},
-		{45, wantTiers[3]},
-		{43, wantTiers[3]},
-		{42, wantTiers[4]},
-		{26, wantTiers[4]},
-		{25, wantTiers[5]},
-		{6, wantTiers[5]},
+		{52, wantTiers[0]},
+		{51, wantTiers[1]},
+		{47, wantTiers[1]},
+		{46, wantTiers[2]},
+		{43, wantTiers[2]},
+		{42, wantTiers[3]},
+		{26, wantTiers[3]},
+		{25, wantTiers[4]},
+		{6, wantTiers[4]},
 	}
 	for _, tt := range cases {
 		if got := navHintsFor(tt.width); got != tt.want {
@@ -433,8 +430,8 @@ func TestNavRowBadgesByTheme(t *testing.T) {
 	if !strings.Contains(row, "48;2;40;18;30") {
 		t.Fatalf("cute nav row lost the #28121E badge band:\n%s", row)
 	}
-	if runes := len([]rune(stripANSI(row))); runes != 56 {
-		t.Errorf("cute nav row paints %d runes, want exactly 56 (badge is zero-width)", runes)
+	if runes := len([]rune(stripANSI(row))); runes != 52 {
+		t.Errorf("cute nav row paints %d runes, want exactly 52 (badge is zero-width, issue #151 S19)", runes)
 	}
 	legacy := themedAlbumModel(t, "system")
 	legacy.status = ""
@@ -457,8 +454,8 @@ func TestNavDotPaintsInTheStatusHue(t *testing.T) {
 	if !strings.Contains(row, "38;2;242;184;109") {
 		t.Fatalf("the dot lost the Status hue (want #F2B86D 38;2;242;184;109):\n%s", row)
 	}
-	if runes := len([]rune(stripANSI(row))); runes != 56 {
-		t.Errorf("full nav row paints %d runes, want 56 with the dot (zero-width SGR)", runes)
+	if runes := len([]rune(stripANSI(row))); runes != 52 {
+		t.Errorf("full nav row paints %d runes, want 52 with the dot (zero-width SGR, issue #151 S19)", runes)
 	}
 }
 
