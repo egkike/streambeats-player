@@ -243,3 +243,10 @@ L24. Review receipt (issue #151): lineage review-6bbe1a3626e78c26
      (medium, readability + reliability, owner-authorized 2 runs) —
      approved, authority burned (store rev sha256:f1c20713...ede6);
      no advisories this time.
+L26. Owner choice flush with the kitty field test at 560px (cols=60
+     measured with tput inside the panel; full row with Status dot +
+     badges rendered): wide the shipped kitty left/right presets to
+     560px so the tier-52 nav row (S12/S19) fits both terminals.
+     Issue #153 (status:approved, standing grant — owner "Dale con el
+     A"). New specs S21-S23; no applicable RED (passive config value
+     + docs; no unit harness for pixel widths).
