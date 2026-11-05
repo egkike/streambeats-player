@@ -220,3 +220,26 @@ L21. Review receipt: native committed-only review lineage
      WARNING/informational): recorded as separate later work — likely
      the doc's kitty-boundary wording vs the true panel geometry, to
      verify with the owner's retest numbers.
+L22. Owner retest of v1.12.1 (verbatim: "En ghostty sigue sin salir el
+     punto... En kitty solo sale esto: enter open esc back l lib c
+     settings q quit. Creo que acá ya no hay espacio") corrected the
+     #149 diagnosis: the ghostty side panel paints ~51-55 columns —
+     BELOW the 56-rune full tier — so the dot never rendered; the hue
+     change never executed. The kitty panel renders exactly the
+     43-rune library tier (working as shipped; resolves the
+     R2-kitty-tier-mismatch advisory observation with real geometry).
+     Owner choice: "Implemento el tier de 52". Issue #151 opened
+     (status:approved): S19 compact full tier (52 runes, dot between
+     move pair and rest, singles elsewhere), S20 boundary guards,
+     ladder 52/47/43/26/6. Release v1.12.2 carries it.
+L23. T7 done (issue #151): RED observed on the compact-tier pins, both
+     painted-count pins (56 -> 52) and the navHints() pin; GREEN =
+     full-tier separator run "  " -> " " in navRowFor/navHintsFor and
+     the standalone 50-rune arrows tier dissolved (S19). Ladder is now
+     52/47/43/26/6; the cute full row paints exactly 52 runes with the
+     Status dot (zero-width badge SGR). Full pipeline green incl race.
+     Release v1.12.2 carries it for the owner's next retest.
+L24. Review receipt (issue #151): lineage review-6bbe1a3626e78c26
+     (medium, readability + reliability, owner-authorized 2 runs) —
+     approved, authority burned (store rev sha256:f1c20713...ede6);
+     no advisories this time.

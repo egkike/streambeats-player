@@ -728,7 +728,9 @@ var (
 		{"↑↓ k/j", ""}, {"enter", "open"}, {"esc", "back"},
 		{"l", "lib"}, {"c", "settings"}, {"q", "quit"},
 	}
-	// Single-space tier: same vocabulary, one space between pairs (50).
+	// Single-space tier: same vocabulary, one space between pairs. Issue
+	// #151 S19: the standalone 50-rune arrows tier dissolved into the
+	// compact full tier; the pair set stays for the badge render path.
 	navPairsArrows = navPairsFull
 	// Arrows dropped (47).
 	navPairsCompact = []navHintPair{
@@ -789,10 +791,10 @@ func (m Model) navKeyStyle() lipgloss.Style {
 // the stripANSI of every tier equals navHintsFor's text exactly (S14).
 func (m Model) navRowFor(width int) string {
 	switch {
-	case width >= 56:
-		return m.renderNavPairs(navPairsFull, true, "  ")
-	case width >= 50:
-		return m.renderNavPairs(navPairsArrows, false, " ")
+	case width >= 52:
+		// Issue #151 S19: the compact full tier — single spaces make the
+		// dot affordable at ~52-column side panels (owner retest).
+		return m.renderNavPairs(navPairsFull, true, " ")
 	case width >= 47:
 		return m.renderNavPairs(navPairsCompact, false, " ")
 	case width >= 43:
@@ -829,10 +831,10 @@ func navRowText(pairs []navHintPair, dotFirst bool, sep string) string {
 // text, which the S14 contract pins).
 func navHintsFor(width int) string {
 	switch {
-	case width >= 56:
-		return navRowText(navPairsFull, true, "  ")
-	case width >= 50:
-		return navRowText(navPairsArrows, false, " ")
+	case width >= 52:
+		// Issue #151 S19: the compact full tier — single spaces make the
+		// dot affordable at ~52-column side panels (owner retest).
+		return navRowText(navPairsFull, true, " ")
 	case width >= 47:
 		return navRowText(navPairsCompact, false, " ")
 	case width >= 43:
