@@ -132,3 +132,9 @@ L14. Owner field report after v1.11.0: the nav hint row clips its tail
      the nav row); GREEN ladder implemented (commit follows). Issue
      #143, status:approved via the standing grant (in-conversation
      bugfix cycle).
+L15. Cycle #143 delivered: PR #144 merged by the owner (merge commit
+     ae6532f, merge-commit CI green run 42105718211). Owner-authorized
+     tag v1.11.1 annotated on that SHA: release.yml green (run
+     42108506256), release published with the 5 archives + checksums.txt.
+     The local install is the owner's to run (scripts/install.sh
+     --version v1.11.1 applies, checksum-verified, idempotent).
