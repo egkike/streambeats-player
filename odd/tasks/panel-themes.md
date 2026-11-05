@@ -56,6 +56,22 @@ S10. Tier ladder (issue #143): longest tier that fits — 55 (the
     #60 S4 keeps holding).
 S11. navHints() (no-arg) keeps returning the approved full line; the
     pinned byte-exact test keeps holding (S5's approved wording).
+S12. Issue pending (handoff cycle, artboard 05 — owner-refined): the
+    nav row repaints as: ONE dot separator between the move pair and
+    the rest, keys rendered as badges (bold, Selected fg, theme band
+    bg), actions dim. Owner words: "Yo pondría el · solo entre:
+    ↑↓ k/j · enter ... el resto lo dejaría sin ·" — full tier 56
+    runes, ladder recalibrates to 56/50/47/26/6 (tier 1 keeps the 50-
+    single-space vocabulary; the old 55 tier disappears under the new
+    full).
+S13. Badge bands per theme, deterministic: quiet #1c2433 (its own
+    band), cute #28121E, sexy #28121E (gentle-pi selection tokens,
+    from the artboard spec card), vinyl #241b12 and synthwave #2a2350
+    (their artboard border tokens as the design-language equivalent);
+    legacy claro/oscuro/system render NO band — their row keeps the
+    plain dim paint, changing only by the inserted dot (+1 rune).
+S14. The badge SGR is zero painted width: painted byte counts and the
+    width-fit contract of S9-S10 hold for every theme.
 
 ## Tasks
 
@@ -68,6 +84,8 @@ T3 (S3, S6, S7): gated per-theme structure (leaders, cyan voice, band,
     check vs pre-change HEAD. Commit.
 T4 (S2): commit design assets under design/streambeats-panel-look/ and
     docs touch-ups; ODD log entries. Commit.
+T5 (S12-S14): nav row repaint — single dot ladder recalibration +
+    badged keys (nav-row-look/05 artboard handoff). Commit.
 
 ## Log
 
@@ -138,3 +156,14 @@ L15. Cycle #143 delivered: PR #144 merged by the owner (merge commit
      42108506256), release published with the 5 archives + checksums.txt.
      The local install is the owner's to run (scripts/install.sh
      --version v1.11.1 applies, checksum-verified, idempotent).
+L16. Handoff (design/nav-row-look/05-single-dot-badges.html, chosen;
+     canvas alternatives 01-04 explored first): owner refined the nav
+     row to one dot + badged keys. Feature doc extended with S12-S14
+     and task T5; implementation cycle opened as issue first (issue
+     #146, status:approved).
+L17. T5 done (commit follows): ladder rebuilt as pairs with the
+     single-dot full tier (56) — navRowFor paints badges (SGR zero
+     width), navHintsFor/navRowText pin the exact tier text, badge map
+     per S13 (quiet reuses its band; legacy trio stays bandless).
+     RED observed on tier pins + badge band + navHints nav pinned
+     line; suite green incl race and 56/55/50/… fit boundaries.

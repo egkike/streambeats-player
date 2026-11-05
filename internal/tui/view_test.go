@@ -351,8 +351,8 @@ var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // playback action or its key.
 func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 	hints := navHints()
-	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c settings  q quit" {
-		t.Fatalf("nav hints = %q, want the approved Alt 3 line with the issue #140 S5 c settings rename", hints)
+	if hints != "\u2191\u2193 k/j \u00b7 enter open  esc back  l lib  c settings  q quit" {
+		t.Fatalf("nav hints = %q, want the approved single-dot line (issue #146 S15)", hints)
 	}
 	for _, repeated := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a", "\u2423", "\u00b1", "\u2795", "\u2796"} {
 		if strings.Contains(hints, repeated) {
@@ -366,7 +366,7 @@ func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 // (55 runes) clips its tail and the owner saw "q qui". It must fit any
 // painted width: no wrap, no clipped tail.
 func TestNavHintsFitThePaintedWidthAtEveryTier(t *testing.T) {
-	for _, w := range []int{84, 55, 54, 50, 49, 47, 46, 26, 25, 10} {
+	for _, w := range []int{84, 56, 55, 50, 49, 47, 46, 26, 25, 10} {
 		m := NewModel(Options{Theme: "system", ThemeDark: true, Width: w, Height: 24})
 		// The empty-catalog boot message is pre-existing status behavior;
 		// this test pins the NAV row, not status rendering.
@@ -381,8 +381,10 @@ func TestNavHintsFitThePaintedWidthAtEveryTier(t *testing.T) {
 // Issue #143 S10: the approved tier ladder, wired through statusOrNavLine
 // via a stub for this RED run (the real ladder replaces it in GREEN).
 func TestNavHintTiersArePinned(t *testing.T) {
+	// Issue #146 S12: the full tier gains the single dot (+1 rune, 56);
+	// the old 55 tier dissolves under it (55 now renders the 50 one).
 	wantTiers := []string{
-		"\u2191\u2193 k/j  enter open  esc back  l lib  c settings  q quit",
+		"\u2191\u2193 k/j \u00b7 enter open  esc back  l lib  c settings  q quit",
 		"\u2191\u2193 k/j enter open esc back l lib c settings q quit",
 		"k/j enter open esc back l lib c settings q quit",
 		"enter open esc back q quit",
@@ -392,8 +394,9 @@ func TestNavHintTiersArePinned(t *testing.T) {
 		width int
 		want  string
 	}{
-		{55, wantTiers[0]},
-		{54, wantTiers[1]},
+		{84, wantTiers[0]},
+		{56, wantTiers[0]},
+		{55, wantTiers[1]},
 		{50, wantTiers[1]},
 		{49, wantTiers[2]},
 		{47, wantTiers[2]},
@@ -406,6 +409,31 @@ func TestNavHintTiersArePinned(t *testing.T) {
 		if got := navHintsFor(tt.width); got != tt.want {
 			t.Errorf("navHintsFor(%d) = %q, want %q", tt.width, got, tt.want)
 		}
+	}
+}
+
+// Issue #146 S13/S14: badged keys paint a theme band under the mapped
+// themes — cute carries the gentle-pi selection token #28121E (SGR
+// 48;2;40;18;30); legacy themes paint NO band (their row differs only by
+// the dot). The badge SGR is zero painted width (S14).
+func TestNavRowBadgesByTheme(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
+	cute := themedAlbumModel(t, "cute")
+	cute.status = ""
+	row := cute.statusOrNavLine()
+	if !strings.Contains(row, "48;2;40;18;30") {
+		t.Fatalf("cute nav row lost the #28121E badge band:\n%s", row)
+	}
+	if runes := len([]rune(stripANSI(row))); runes != 56 {
+		t.Errorf("cute nav row paints %d runes, want exactly 56 (badge is zero-width)", runes)
+	}
+	legacy := themedAlbumModel(t, "system")
+	legacy.status = ""
+	if strings.Contains(legacy.statusOrNavLine(), ";48;2;") {
+		t.Fatalf("legacy system nav row must paint no band:\n%s", legacy.statusOrNavLine())
 	}
 }
 
