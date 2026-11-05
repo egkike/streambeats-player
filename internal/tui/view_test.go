@@ -3,6 +3,7 @@ package tui
 // Unit tests for the pure rendering helpers (no terminal involved).
 
 import (
+	"fmt"
 	"math"
 	"regexp"
 	"strings"
@@ -350,12 +351,133 @@ var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 // playback action or its key.
 func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 	hints := navHints()
-	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c theme  q quit" {
-		t.Fatalf("nav hints = %q, want the approved Alt 3 line", hints)
+	if hints != "\u2191\u2193 k/j  enter open  esc back  l lib  c settings  q quit" {
+		t.Fatalf("nav hints = %q, want the approved Alt 3 line with the issue #140 S5 c settings rename", hints)
 	}
 	for _, repeated := range []string{"\u23ee\ufe0f", "\u23ef\ufe0f", "\u23f9\ufe0f", "\u23ed\ufe0f", "\U0001f50a", "\u2423", "\u00b1", "\u2795", "\u2796"} {
 		if strings.Contains(hints, repeated) {
 			t.Fatalf("nav hints repeat the keycap token %q: %q", repeated, hints)
 		}
+	}
+}
+
+// Issue #140 S5: the settings screen manages more than themes since the
+// panel terminal section (issue #90); the approved rename is "c settings".
+func TestNavHintsRenameToCSettings(t *testing.T) {
+	hints := navHints()
+	if !strings.Contains(hints, "c settings") {
+		t.Fatalf("nav hints lost the approved c settings rename: %q", hints)
+	}
+	if strings.Contains(hints, "c theme") {
+		t.Fatalf("nav hints still advertise the old c theme label: %q", hints)
+	}
+}
+
+// Issue #140 S4 (T2): the settings screen renders the three labeled
+// sections — ambient themes first, artboard themes after — and every theme
+// row carries its owner-approved display name.
+func TestSettingsScreenListsAllThemesInSections(t *testing.T) {
+	m := NewModel(Options{Theme: "system", ThemeDark: true})
+	m.mode = ModeConfig
+	view := stripANSI(m.View())
+	for _, want := range []string{"mode:", "Claro", "Oscuro", "System", "themes:",
+		"Vinyl dark", "Synthwave night", "Quiet ink", "Cute", "Sexy", "panel terminal:"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("settings view is missing %q:\n%s", want, view)
+		}
+	}
+	// Section order is pinned: mode: before themes:, themes: before the
+	// panel terminal rows.
+	idx := func(s string) int { return strings.Index(view, s) }
+	if !(idx("mode:") < idx("themes:") && idx("themes:") < idx("panel terminal:")) {
+		t.Errorf("section headers out of order:\n%s", view)
+	}
+}
+
+// --- per-theme structure (issue #140 S3, owner scope decision: palette +
+// --- structure per theme; every branch is gated to its own theme id so the
+// --- legacy claro/oscuro/system bytes never move).
+
+// themedAlbumModel builds a catalog model of the given theme id with two
+// albums (9 and 8 tracks) so every structure branch below sees real counts
+// in its rows. Uses NewModel directly — no fakes needed for rendering.
+func themedAlbumModel(t testing.TB, themeID string) Model {
+	t.Helper()
+	mk := func(title string, tracks int) catalog.AlbumEntry {
+		a := catalog.AlbumEntry{Slug: title, Title: title, Artist: "StreamBeats"}
+		for i := 0; i < tracks; i++ {
+			a.Tracks = append(a.Tracks, catalog.Track{Title: fmt.Sprintf("Track %02d", i+1), DurationSeconds: 200})
+		}
+		return a
+	}
+	m := NewModel(Options{
+		Theme:     themeID,
+		ThemeDark: true,
+		Width:     80,
+		Catalog:   &catalog.Catalog{Albums: []catalog.AlbumEntry{mk("Cold Front", 9), mk("Neon Alley", 8)}},
+	})
+	return m
+}
+
+// Issue #140 S3: vinyl rows fill the gap between the label and its count
+// tail with dotted leaders. The artist stays in place (artboard fidelity),
+// so the leader run anchors on the whole label head.
+func TestVinylRowsUseDottedLeaders(t *testing.T) {
+	view := stripANSI(themedAlbumModel(t, "vinyl").View())
+	if !strings.Contains(view, `StreamBeats ·`) || !strings.Contains(view, `···`) {
+		t.Fatalf("vinyl album row is missing dotted leaders after the label:\n%s", view)
+	}
+	if !strings.Contains(view, ` 9 tracks`) {
+		t.Fatalf("vinyl album row lost its leader-tail format:\n%s", view)
+	}
+}
+
+// Issue #140 S3: synthwave speaks with the cyan second voice — markered
+// album counts and a dot separator in the title line.
+func TestSynthwaveRowsUseTheSecondVoiceMarkers(t *testing.T) {
+	view := stripANSI(themedAlbumModel(t, "synthwave").View())
+	if !strings.Contains(view, `» 8 tracks`) {
+		t.Fatalf("synthwave album row lost the markered count:\n%s", view)
+	}
+	if !strings.Contains(view, `◉`) {
+		t.Fatalf("synthwave title line lost the dot separator:\n%s", view)
+	}
+}
+
+// Issue #140 S3: quiet reads through one band — the selected row carries a
+// subtle background fill; legacy themes never emit any background SGR.
+func TestQuietSelectedRowCarriesABandLegacyDoesNot(t *testing.T) {
+	// Background SGR arrives only with a color profile: force truecolor for
+	// this test like the keycap pins do (restored afterwards).
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
+	quiet := themedAlbumModel(t, "quiet")
+	// lipgloss merges fg+bg into one SGR run: pin the band's own composite
+	// code (48;2;28;36;51 = #1c2433) instead of a generic 48 prefix.
+	if !strings.Contains(quiet.View(), "48;2;28;36;51") {
+		t.Fatalf("quiet selected row lost the background band:\n%s", quiet.View())
+	}
+	legacy := themedAlbumModel(t, "system")
+	if strings.Contains(legacy.View(), "\x1b[48;") {
+		t.Fatalf("legacy system view must not paint any background SGR:\n%s", legacy.View())
+	}
+}
+
+// Issue #140 S3: quiet drops the keycap boxes for a weightless inline
+// transport — one line of ascii tokens + keys; legacy themes keep the box
+// caps exactly as calibrated (issue #60/#64).
+func TestQuietTransportIsBoxlessInline(t *testing.T) {
+	quietView := stripANSI(themedAlbumModel(t, "quiet").View())
+	if strings.Contains(quietView, "╭") {
+		t.Fatalf("quiet transport must not render the keycap boxes:\n%s\n", quietView)
+	}
+	if !strings.Contains(quietView, `|< p   || spc   >| n`) {
+		t.Fatalf("quiet inline transport is missing the token groups:\n%s\n", quietView)
+	}
+	legacyView := stripANSI(themedAlbumModel(t, "system").View())
+	if !strings.Contains(legacyView, "╭") {
+		t.Fatalf("legacy system transport lost the calibrated box caps:\n%s", legacyView)
 	}
 }

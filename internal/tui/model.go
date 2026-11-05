@@ -585,10 +585,11 @@ func saveSettingsCmd(store settings.Store, set settings.Settings, notice string)
 	}
 }
 
-// configRowCount counts the selectable rows of the settings screen: the
-// theme list plus the installed terminal rows (issue #90 combined cursor).
+// configRowCount counts the selectable rows of the settings screen (issue
+// #90 combined cursor, #140 S4): ALL theme rows — the ambient trio plus the
+// five artboard themes — plus the installed terminal rows.
 func configRowCount(m Model) int {
-	return len(configThemeIDs) + len(m.panelOffer)
+	return len(configAllThemes()) + len(m.panelOffer)
 }
 
 // openConfig enters the settings screen, remembering where the user came
@@ -702,18 +703,44 @@ func listLibraryCmd(dir string) tea.Cmd {
 
 // Config screen data (Phase A): the ordered theme list the config
 // screen offers, imported from the theme registry so labels never fork.
+// Issue #140 S4: the screen splits into two labeled theme sections — the
+// ambient trio keeps its historical order first, the five artboard themes
+// follow under their own header. ONE flat cursor and ONE persisted field
+// (Settings.Theme) own the whole list.
 var configThemeIDs = []theme.Theme{theme.Claro, theme.Oscuro, theme.System}
 
-// configLabels is the display name for each configThemeIDs entry.
+// configArtboardIDs is the owner-approved additions section (issue #140
+// S2/§S): display order mirrors the artboard approval flow — vinyl,
+// synthwave, quiet, then the two shell ports.
+var configArtboardIDs = []theme.Theme{theme.Vinyl, theme.Synthwave, theme.Quiet, theme.Cute, theme.Sexy}
+
+// configAllThemes returns the full ordered, selectable theme list of the
+// settings screen: ambient trio, then artboard additions. A fresh slice is
+// returned every call so callers cannot persist aliasing mutations.
+func configAllThemes() []theme.Theme {
+	all := make([]theme.Theme, 0, len(configThemeIDs)+len(configArtboardIDs))
+	all = append(all, configThemeIDs...)
+	all = append(all, configArtboardIDs...)
+	return all
+}
+
+// configLabels is the display name for each settings-theme row. Artboard
+// names are the owner-approved artboard titles (Tui mockups 01..03); the
+// shell ports keep the owner's short names (cute is the daily one).
 var configLabels = map[theme.Theme]string{
-	theme.Claro:  "Claro",
-	theme.Oscuro: "Oscuro",
-	theme.System: "System",
+	theme.Claro:     "Claro",
+	theme.Oscuro:    "Oscuro",
+	theme.System:    "System",
+	theme.Vinyl:     "Vinyl dark",
+	theme.Synthwave: "Synthwave night",
+	theme.Quiet:     "Quiet ink",
+	theme.Cute:      "Cute",
+	theme.Sexy:      "Sexy",
 }
 
 // configIndexFor maps a resolved theme onto its config list position.
 func configIndexFor(t theme.Theme) int {
-	for i, id := range configThemeIDs {
+	for i, id := range configAllThemes() {
 		if id == t {
 			return i
 		}
@@ -725,17 +752,18 @@ func configIndexFor(t theme.Theme) int {
 
 // configTheme is the theme currently highlighted on the config screen.
 func (m Model) configTheme() theme.Theme {
-	return configThemeIDs[clampCursor(m.configIndex, len(configThemeIDs))]
+	all := configAllThemes()
+	return all[clampCursor(m.configIndex, len(all))]
 }
 
 // configTerminalChoice reports the terminal row under the settings cursor,
 // when the cursor sits in the terminal section (issue #90): theme rows come
 // first, the installed terminal rows follow in canonical order.
 func (m Model) configTerminalChoice() (string, bool) {
-	if m.configIndex < len(configThemeIDs) {
+	if m.configIndex < len(configAllThemes()) {
 		return "", false
 	}
-	idx := m.configIndex - len(configThemeIDs)
+	idx := m.configIndex - len(configAllThemes())
 	if idx >= len(m.panelOffer) {
 		return "", false
 	}

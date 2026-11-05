@@ -125,8 +125,8 @@ go build -o bin/streambeats ./cmd/streambeats
 TUI keys: `j/k` move, `enter` play/open, `l` library browser (navigate
 folders; `u` goes up; the root defaults to your XDG music dir, editable
 via `libraryRoot` in settings.json), `space` pause,
-`s` stop, `+/-` volume, `>` next song, `<` previous song, `esc` back,
-`q` quit. The transport row at the bottom is visual only — the keyboard
+`s` stop, `+/-` volume, `>` next song, `<` previous song, `c` settings,
+`esc` back, `q` quit. The transport row at the bottom is visual only — the keyboard
 does the work — and is terminal-adaptive (detected once at launch):
 ghostty shows the emoji keycaps (⏮ ⏯ ⏹ ⏭ 🔊), any other terminal shows
 width-stable ASCII tokens (`|<` `||` `>|` `[]` `vol`) so the frames stay
@@ -134,6 +134,17 @@ aligned. The player auto-advances to the next item of the list when a
 track ends; the end of the queue shows `playlist ended` in the status
 line. Tracks always resolve a fresh stream URL right before playing
 (Bandcamp tokens expire).
+
+`c` opens the settings screen (the nav hints advertise it as `c settings`):
+three labeled sections on one flat cursor — `mode:`
+(Claro / Oscuro / System), `themes:` (five artboard themes — Vinyl
+dark, Synthwave night, Quiet ink, Cute, Sexy), and the installed
+`panel terminal:` rows. The choice persists as a single `theme` id in
+settings.json; the artboard themes are authored once for dark surfaces
+(no per-theme background detection), so run them on a (near-)black
+terminal background — the shipped panel presets do exactly that. Old
+settings files keep working: unknown or historical ids fall back to the
+default theme instead of breaking the TUI.
 
 ## Floating quick terminal
 

@@ -151,11 +151,17 @@ func TestConfigScreenTerminalCommitNoticesRestart(t *testing.T) {
 	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
 	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "")
 	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	// Themes occupy indices 0..2; the terminal rows start right after. From
-	// the current theme (index 1) two-down reaches the ghostty row.
-	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Terminal rows start at index 8 (issue #140 S4); seven downs from the
+	// current ambient row land on the ghostty terminal row.
+	cur := opened.(Model)
+	for i := 0; i < 7; i++ {
+		next, _ := cur.Update(tea.KeyMsg{Type: tea.KeyDown})
+		cur = next.(Model)
+	}
+	if id, ok := cur.configTerminalChoice(); !ok || id != "ghostty" {
+		t.Fatalf("7 downs landed on terminal %q (ok=%v), want ghostty", id, ok)
+	}
+	commit, persist := cur.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	cm := commit.(Model)
 	if cm.panelTerminal != "ghostty" {
 		t.Errorf("committed panel terminal = %q, want ghostty", cm.panelTerminal)
@@ -187,9 +193,14 @@ func TestConfigScreenTerminalRecommitCurrentIsNoOp(t *testing.T) {
 	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
 	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "ghostty")
 	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Issue #140 S4: terminal rows live at 8; seven downs from the ambient
+	// row land on the ghostty row, matching the persisted current choice.
+	cur := opened.(Model)
+	for i := 0; i < 7; i++ {
+		next, _ := cur.Update(tea.KeyMsg{Type: tea.KeyDown})
+		cur = next.(Model)
+	}
+	commit, persist := cur.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	cm := commit.(Model)
 	if strings.Contains(strings.ToLower(cm.View()), "restart") {
 		t.Errorf("re-committing the current terminal must NOT announce a restart:\n%s", cm.View())
@@ -242,9 +253,14 @@ func TestSaveNoticeArmsExpiryWindow(t *testing.T) {
 	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
 	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "")
 	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Issue #140 S4: terminal rows start at index 8; seven downs reach the
+	// ghostty terminal row.
+	cur := opened.(Model)
+	for i := 0; i < 7; i++ {
+		next, _ := cur.Update(tea.KeyMsg{Type: tea.KeyDown})
+		cur = next.(Model)
+	}
+	commit, persist := cur.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if persist == nil {
 		t.Fatalf("terminal commit returned no persistence cmd")
 	}
@@ -261,9 +277,14 @@ func TestSaveNoticeSurvivesFeedbackWindow(t *testing.T) {
 	store := settings.NewStore(filepath.Join(t.TempDir(), "settings.json"))
 	m := newTerminalChoiceModel(t, store, lookupFor("ghostty", "kitty"), "")
 	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	d1, _ := opened.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	d2, _ := d1.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
-	commit, persist := d2.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Issue #140 S4: terminal row navigation now needs seven downs from the
+	// ambient block (themes occupy indices 0..7).
+	cur := opened.(Model)
+	for i := 0; i < 7; i++ {
+		next, _ := cur.Update(tea.KeyMsg{Type: tea.KeyDown})
+		cur = next.(Model)
+	}
+	commit, persist := cur.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if persist == nil {
 		t.Fatalf("terminal commit returned no persistence cmd")
 	}

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — Quiet ink panel mockup</title>
+<style>
+  :root {
+    --desk-bg: #08090a;
+    --panel-bg: #101214;
+    --panel-fg: #c9ced6;
+    --ink-blue: #7aa2f7;
+    --dim: #5c6370;
+    --green: #9ece6a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--desk-bg);
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 100vh;
+  }
+  .desk-note {
+    padding: 24px 32px;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .desk-note h1 {
+    font-size: 15px;
+    color: var(--ink-blue);
+    margin-bottom: 6px;
+  }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #1c1f24;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .title { color: #e6e9ef; font-weight: 700; }
+  .dim { color: var(--dim); }
+  .accent { color: var(--ink-blue); }
+  .selected { color: #eaf0ff; background: #1c2433; font-weight: 700; }
+  .playing { color: var(--green); }
+  .bar { color: var(--ink-blue); }
+  .row { margin-left: 2px; }
+  .row.sel { margin-left: 0; }
+  .spec {
+    background: #0c0e10;
+    border-left: 3px solid #33415e;
+    max-width: 760px;
+    margin: 0 32px 20px;
+    padding: 14px 18px;
+  }
+  .spec h2 { font-size: 13px; color: var(--ink-blue); margin-bottom: 8px; }
+  .spec table { border-collapse: collapse; font-size: 12.5px; }
+  .spec td { padding: 1px 14px 1px 0; vertical-align: top; }
+  .swatch { display: inline-block; width: 11px; height: 11px; vertical-align: -1px; margin-right: 6px; }
+  code { color: #6b7897; }
+</style>
+</head>
+<body>
+
+<section class="desk-note">
+  <h1>Direction 3 — Quiet ink</h1>
+  <p>Near-monochrome ink panel with a single blue accent, used only on the cursor row,
+  the progress and the transport. The selected row is highlighted with a subtle
+  background band, and the transport drops the keycap boxes for one weightless
+  inline line.</p>
+</section>
+
+<div class="panel" role="img" aria-label="Mockup of the streambeats panel in the quiet ink theme">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="dim">ALBUMS</span> <span class="accent">6</span><span class="dim">  esc: back</span>
+<span class="selected"> ▸ 01 Cold Front      9   </span>
+<span class="row">   02 Neon Alley      8   </span>
+<span class="row">   03 Rooftop Rain    10  </span>
+<span class="row">   04 Tape Hiss       7   </span>
+<span class="row">   05 Deep Focus      12  </span>
+<span class="row">   06 Slow Burn       9   </span>
+
+<span class="playing">▶</span>  Deep Focus 08  <span class="dim">   vol 70%</span>
+<span class="bar">███████████████</span><span class="dim">░░░░░░░░░░░░░░░░░░</span> <span class="dim">1:47 / 3:12</span>
+<span class="dim">|&lt;</span><span class="dim"> p</span>   <span class="accent">||</span><span class="dim"> spc</span>   <span class="dim">&gt;|</span><span class="dim"> n</span>   <span class="dim">[]</span><span class="dim"> s</span>   <span class="dim">vol</span><span class="dim"> +/-</span>
+<span class="dim">↑↓ k/j  enter open  esc back  l lib  c theme  q quit</span>
+</div>
+
+<section class="spec">
+  <h2>Spec — what changes if you pick this</h2>
+  <table>
+    <tr><td><span class="swatch" style="background:#7aa2f7"></span>Accent (cursor, bar, active key)</td><td>new slot <code>111</code> ink blue <code>#7aa2f7</code>, used sparingly</td></tr>
+    <tr><td><span class="swatch" style="background:#1c2433"></span>Selected row</td><td>bold + background band instead of color swap</td></tr>
+    <tr><td><span class="swatch" style="background:#c9ced6"></span>Plain text</td><td><code>7</code> → cool ink <code>#c9ced6</code></td></tr>
+    <tr><td><span class="swatch" style="background:#5c6370"></span>Dim text</td><td>slot <code>241</code> → cool gray <code>#5c6370</code>; counts no longer right after titles</td></tr>
+    <tr><td><span class="swatch" style="background:#101214"></span>Panel background</td><td>ghostty / kitty preset: <code>background = 101214</code></td></tr>
+  </table>
+  <p style="margin-top:8px; font-size:12px; color:#5c6370">The boxless transport replaces <code>keycapsView</code>'s 3-row border build with a single line (same ASCII tokens). It also quietly kills the ghostty-only emoji width calibration for the transport — one code path everywhere instead of two.</p>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "title": "streambeats panel look",
+  "brief": "Visual redesign directions for the streambeats floating TUI panel (Ghostty and Kitty). Each artboard mocks the real 84x30 bottom panel: title line, header, album list, player bar, keycap transport and status slot, plus a spec card with the concrete theme tokens (lipgloss palette role + hex) and the terminal preset settings that would carry it. Chosen outcome: all five palettes ship as panel themes with per-theme structure (issue #140).",
+  "feature": "odd/tasks/panel-themes.md",
+  "artboards": [
+    { "file": "01-vinyl-dark.html", "title": "Vinyl dark", "tradeoff": "Warm, distinctive, easy on the eyes for a long live-coding session; less playful than a neon look", "width": 1440, "height": 900 },
+    { "file": "02-synthwave.html", "title": "Synthwave night", "tradeoff": "High energy and strong identity, closest to the current pink accent; heavier at night, more chroma", "width": 1440, "height": 900 },
+    { "file": "03-quiet-ink.html", "title": "Quiet ink", "tradeoff": "Most readable and restrained, single accent, boxless transport; loses some of the playful keycap look", "width": 1440, "height": 900 },
+    { "file": "04-gentle-cute.html", "title": "Gentle-Cute (shell)", "tradeoff": "Near-1:1 port of the gentle-shell theme the owner already uses; soft pink family, mint playing, shared #060407 surface", "width": 1440, "height": 900 },
+    { "file": "05-gentle-sexy.html", "title": "Gentle-Sexy (shell)", "tradeoff": "Hot pink port of the second shell theme; violet playing, champagne status, same shared surface — high chroma at night", "width": 1440, "height": 900 }
+  ]
+}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — Gentleman-Sexy panel mockup</title>
+<style>
+  :root {
+    --desk-bg: #030203;
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F43888;
+    --deepPink: #BF0F50;
+    --activePink: #FF4F9A;
+    --violet: #C49BFF;
+    --dim: #76616B;
+    --muted: #A78E9B;
+    --champagne: #E0C27A;
+    --selection: #28121E;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--desk-bg);
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 100vh;
+  }
+  .desk-note {
+    padding: 24px 32px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .desk-note h1 {
+    font-size: 15px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .title { color: var(--accent); font-weight: 700; }
+  .dim { color: var(--dim); }
+  .selected { color: var(--activePink); font-weight: 700; }
+  .playing { color: var(--violet); }
+  .bar { color: var(--deepPink); }
+  .row { margin-left: 2px; }
+  .row.selbg { margin-left: 0; }
+  .label { color: var(--champagne); }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 760px;
+    margin: 0 32px 20px;
+    padding: 14px 18px;
+  }
+  .spec h2 { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+  .spec table { border-collapse: collapse; font-size: 12.5px; }
+  .spec td { padding: 1px 14px 1px 0; vertical-align: top; }
+  .swatch { display: inline-block; width: 11px; height: 11px; vertical-align: -1px; margin-right: 6px; }
+  code { color: #F43888; }
+</style>
+</head>
+<body>
+
+<section class="desk-note">
+  <h1>Direction 5 — Gentle-Sexy (from gentle-shell's Gentleman-Sexy)</h1>
+  <p>The same warm near-black surface as Cute, but the pink goes hot: F43888 accent,
+  #FF4F9A selection, #BF0F50 progress. Violet takes the "playing" role and champagne
+  only the status label. Where Cute is soft, Sexy shouts.</p>
+</section>
+
+<div class="panel" role="img" aria-label="Mockup of the streambeats panel in the Gentle-Sexy theme">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="row selbg"><span class="selected">▸ </span><span class="selected">01  Cold Front</span></span><span class="dim">  StreamBeats (9 tracks)</span>
+<span class="row">  02  Neon Alley</span><span class="dim"> (8 tracks)</span>
+<span class="row">  03  Rooftop Rain</span><span class="dim"> (10 tracks)</span>
+<span class="row">  04  Tape Hiss</span><span class="dim"> (7 tracks)</span>
+<span class="row">  05  Deep Focus</span><span class="dim"> (12 tracks)</span>
+<span class="row">  06  Slow Burn</span><span class="dim"> (9 tracks)</span>
+
+<span class="playing">▶</span>  Deep Focus 08  <span class="dim">   vol 70%</span>
+<span class="bar">███████████████</span><span class="dim">░░░░░░░░░░░░░░░░░░</span> <span class="dim">1:47 / 3:12</span>
+<span class="bar">╭──────╮</span><span class="bar">╭───────╮</span><span class="bar">╭──────╮</span><span class="bar">╭──────╮</span><span class="bar">╭────────╮</span>
+<span class="bar">│</span> <span class="title">|&lt;</span> <span class="dim">p</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">||</span> <span class="dim">spc</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">&gt;|</span> <span class="dim">n</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">[]</span> <span class="dim">s</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">vol</span> <span class="dim">+/-</span> <span class="bar">│</span>
+<span class="bar">╰──────╯</span><span class="bar">╰───────╯</span><span class="bar">╰──────╯</span><span class="bar">╰──────╯</span><span class="bar">╰────────╯</span>
+<span class="label">synced 6 albums — 122 tracks cached</span>
+</div>
+
+<section class="spec">
+  <h2>Spec — token map (all hexes straight from Gentleman-Sexy.json)</h2>
+  <table>
+    <tr><td><span class="swatch" style="background:#F43888"></span>Title / keycap accent</td><td><code>accent</code>  #F43888</td></tr>
+    <tr><td><span class="swatch" style="background:#FF4F9A"></span>Selected row</td><td><code>activePink</code>  #FF4F9A</td></tr>
+    <tr><td><span class="swatch" style="background:#76616B"></span>Dim text</td><td><code>dim</code>  #76616B</td></tr>
+    <tr><td><span class="swatch" style="background:#C49BFF"></span>Playing row ♪</td><td><code>violet</code>  #C49BFF — Sexy has no mint; violet keeps "now playing" clearly distinct from the pink accent</td></tr>
+    <tr><td><span class="swatch" style="background:#E0C27A"></span>Status message</td><td><code>champagne</code>  #E0C27A (same as Champagne tool labels)</td></tr>
+    <tr><td><span class="swatch" style="background:#BF0F50"></span>Progress fill</td><td><code>deepPink</code>  #BF0F50</td></tr>
+    <tr><td><span class="swatch" style="background:#060407"></span>Panel background</td><td><code>bg</code>  #060407 — same surface as Cute, so switching themes never flickers the panel background</td></tr>
+  </table>
+  <p style="margin-top:8px; font-size:12px; color:#76616B">Both shell themes share bg #060407: the theme switch changes only chroma, never the panel surface — cheaper renders, zero repaint flash while cycling with <code>c</code>.</p>
+</section>
+
+</body>
+</html>

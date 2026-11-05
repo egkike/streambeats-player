@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"streambeats/internal/catalog"
+	"streambeats/internal/theme"
 )
 
 // Theme styles (Phase A): the palette lives on the Model (resolved at
@@ -27,6 +28,14 @@ func (m Model) dimStyle() lipgloss.Style {
 }
 
 func (m Model) selectedStyle() lipgloss.Style {
+	// Issue #140 S3: quiet reads through one band — the selected row paints
+	// a subtle background fill instead of relying on the fg color alone;
+	// legacy themes keep the plain bold-fg style (zero added SGR).
+	if m.theme == theme.Quiet {
+		return lipgloss.NewStyle().Bold(true).
+			Foreground(lipgloss.Color(m.palette.Selected)).
+			Background(lipgloss.Color(quietBandColor))
+	}
 	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(m.palette.Selected))
 }
 
@@ -45,6 +54,10 @@ func (m Model) barStyle() lipgloss.Style {
 const (
 	minListHeight = 3
 	defaultWidth  = 80
+	// quietBandColor (issue #140 S3): the background of the selected-row
+	// band under the Quiet theme, straight from the artboard spec card. It
+	// is structural, never persisted: only the quiet theme renders it.
+	quietBandColor = "#1c2433"
 	// chromeLines is the vertical space OUTSIDE the list viewport, computed
 	// exactly: title(1) + separator(1) + header(1) + player bar(2) +
 	// keycaps(3, incl. borders) + reserved status slot(1). The keyboard-only
@@ -74,9 +87,18 @@ func (m Model) View() string {
 		return ""
 	}
 
+	// Title line, issue #140 S3 gated: synthwave adds the cyan second-voice
+	// dot between the app name and its description; legacy lines stay
+	// byte-identical to the pre-#140 tree.
+	title := m.titleStyle().Render("streambeats") + m.dimStyle().Render("  terminal music player")
+	if m.theme == theme.Synthwave {
+		title = m.titleStyle().Render("streambeats") + m.statusStyle().Render(" ◉") +
+			m.dimStyle().Render(" terminal music player")
+	}
+
 	lines := make([]string, 0, m.totalViewLines())
 	lines = append(lines,
-		m.titleStyle().Render("streambeats")+m.dimStyle().Render("  terminal music player"),
+		title,
 		"",
 		m.headerView(),
 	)
@@ -104,8 +126,10 @@ func (m Model) statusOrNavLine() string {
 
 // navHints is the compact navigation reference shown when the status slot
 // is empty. Only keys NOT shown in the keycaps row (no playback repeats).
+// Issue #140 S5: the hint advertises c settings — the screen has managed
+// panel terminal selection since issue #90, so the old label under-described it.
 func navHints() string {
-	return "↑↓ k/j  enter open  esc back  l lib  c theme  q quit"
+	return "↑↓ k/j  enter open  esc back  l lib  c settings  q quit"
 }
 
 // Solo Teclado width calibration (issue #60 S6/L8, CPR probe): ghostty
@@ -192,14 +216,20 @@ func (m Model) capInterior(c keycapSpec) int {
 	return 3 + m.capWidth(c) + len([]rune(c.key))
 }
 
-// keycapsView renders the playback transport as rounded keycaps (Alt A):
-// one cap per icon+key pair, visual only — the keyboard does the work. The
-// borders are HAND-BUILT along the calibrated interior widths (S6). A2
-// (issue #60 S8/L11, owner pick after rejecting the filled look): the ICON
-// is the accent — bold over the plain panel background; the key stays dim;
-// NO fill. SGR carries no background: zero cell-width change, the
-// calibrated table stays the single width source.
+// keycapsView renders the playback transport. Issue #140 S3: under the
+// quiet theme it is one weightless inline line of ASCII tokens and keys —
+// no boxes, so the ghostty emoji-width calibration is simply not reached;
+// every other theme keeps the bordered caps with the calibrated widths.
 func (m Model) keycapsView() string {
+	if m.theme == theme.Quiet {
+		accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar)).Bold(true)
+		hint := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Dim))
+		parts := make([]string, 0, len(keycaps))
+		for _, c := range keycaps {
+			parts = append(parts, accent.Render(asciiTokens[c.icon])+" "+hint.Render(c.key))
+		}
+		return strings.Join(parts, "   ")
+	}
 	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Bar))
 	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Playing)).Bold(true)
 	hint := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Dim))
@@ -267,24 +297,33 @@ func (m Model) listRows() []string {
 
 	rows := make([]string, 0, height)
 	switch {
+	// Settings screen, issue #140 S4: three labeled sections on ONE flat
+	// cursor — the ambient trio under the mode header, the five artboard
+	// themes under the themes header, then the existing terminal section.
+	// Headers are dim dividers the cursor never lands on.
 	case m.mode == ModeConfig:
-		for i, id := range configThemeIDs {
+		all := configAllThemes()
+		for i, id := range all {
+			if i == 0 {
+				rows = append(rows, m.dimStyle().Render("  mode:"))
+			} else if i == len(configThemeIDs) {
+				rows = append(rows, m.dimStyle().Render("  themes:"))
+			}
 			label := configLabels[id]
 			if id == m.theme {
 				label += "  (current)"
 			}
-			row := m.renderRow(i == m.configIndex, false, label, width)
-			rows = append(rows, row)
-			if i == len(configThemeIDs)-1 {
-				// Terminal section header (issue #90): visual-only divider, the
-				// cursor does not land on it.
+			rows = append(rows, m.renderRow(i == m.configIndex, false, label, width))
+			// Terminal section header (issue #90): visual-only divider, the
+			// cursor does not land on it.
+			if i == len(all)-1 {
 				rows = append(rows, m.dimStyle().Render("  panel terminal:"))
 				for j, terminalID := range m.panelOffer {
 					label := terminalID
 					if terminalID == m.panelTerminal {
 						label += "  (current)"
 					}
-					rows = append(rows, m.renderRow(len(configThemeIDs)+j == m.configIndex, false, label, width))
+					rows = append(rows, m.renderRow(len(all)+j == m.configIndex, false, label, width))
 				}
 				if len(m.panelOffer) == 0 {
 					rows = append(rows, m.dimStyle().Render("  no panel terminal installed"))
@@ -335,10 +374,7 @@ func (m Model) listRows() []string {
 		}
 		for i := start; i < end; i++ {
 			track := album.Tracks[i]
-			label := fmt.Sprintf("%02d  %s", i+1, trackTitle(track))
-			if track.DurationSeconds > 0 {
-				label += "  " + formatDuration(track.DurationSeconds)
-			}
+			label := m.trackRowLabel(i, track)
 			playing := m.nowPlaying != "" && m.nowPlaying == trackTitle(track)
 			rows = append(rows, m.renderRow(i == clampCursor(m.trackCursor, len(album.Tracks)), playing, label, width))
 		}
@@ -352,15 +388,69 @@ func (m Model) listRows() []string {
 		start, end := windowBounds(len(m.albums), m.albumCursor, height)
 		for i := start; i < end; i++ {
 			album := m.albums[i]
-			label := fmt.Sprintf("%02d  %s", i+1, album.Title)
-			if album.Artist != "" {
-				label += "  " + album.Artist
-			}
-			label += fmt.Sprintf("  (%d tracks)", len(album.Tracks))
-			rows = append(rows, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false, label, width))
+			rows = append(rows, m.renderRow(i == clampCursor(m.albumCursor, len(m.albums)), false,
+				m.albumRowLabel(i, album), width))
 		}
 		return padRows(rows, height)
 	}
+}
+
+// albumRowLabel formats one album row; the artboard themes own three
+// layouts (issue #140 S3), all gated to their theme id so the legacy
+// formats never move:
+//   - vinyl: dotted leaders fill the gap between the label and the count;
+//   - synthwave: the count takes the second-voice marker;
+//   - quiet: the count aligns to a fixed column.
+func (m Model) albumRowLabel(i int, album catalog.AlbumEntry) string {
+	count := len(album.Tracks)
+	switch m.theme {
+	case theme.Vinyl:
+		head := fmt.Sprintf("%02d  %s", i+1, album.Title)
+		// The artboard keeps the artist as the dim middle chunk; plain is
+		// faithful enough (rows are single-styled).
+		if album.Artist != "" {
+			head += "  " + album.Artist
+		}
+		tail := fmt.Sprintf("%d tracks", count)
+		prefixWidth := 2 + len([]rune(head)) + 1 + len([]rune(tail)) + 2
+		if dots := m.contentWidth() - prefixWidth; dots > 0 {
+			return head + " " + strings.Repeat("·", dots) + " " + tail
+		}
+		return head + " … " + tail
+	case theme.Synthwave:
+		return fmt.Sprintf("%02d  %s  » %d tracks", i+1, album.Title, count)
+	case theme.Quiet:
+		return fmt.Sprintf("%02d  %-24s %2d", i+1, album.Title, count)
+	default:
+		// Legacy byte-parity contract: the shipped format, artist included.
+		label := fmt.Sprintf("%02d  %s", i+1, album.Title)
+		if album.Artist != "" {
+			label += "  " + album.Artist
+		}
+		return label + fmt.Sprintf("  (%d tracks)", count)
+	}
+}
+
+// trackRowLabel formats one track row with the theme's tail layout (issue
+// #140 S3): vinyl fills with leaders, synthwave markers the duration with
+// the second voice, the rest keep the plain two-space tail.
+func (m Model) trackRowLabel(i int, track catalog.Track) string {
+	head := fmt.Sprintf("%02d  %s", i+1, trackTitle(track))
+	if track.DurationSeconds <= 0 {
+		return head
+	}
+	tail := formatDuration(track.DurationSeconds)
+	if m.theme == theme.Vinyl {
+		prefixWidth := 2 + len([]rune(head)) + 1 + len([]rune(tail)) + 2
+		if dots := m.contentWidth() - prefixWidth; dots > 0 {
+			return head + " " + strings.Repeat("·", dots) + " " + tail
+		}
+		return head + " … " + tail
+	}
+	if m.theme == theme.Synthwave {
+		return head + "  » " + tail
+	}
+	return head + "  " + tail
 }
 
 // padRows fills rows up to height with blank lines (viewport padding).
@@ -371,7 +461,9 @@ func padRows(rows []string, height int) []string {
 	return rows
 }
 
-// renderRow draws one list row with cursor/playing markers.
+// renderRow draws one list row with cursor/playing markers. Under the
+// quiet theme the selected row pads to full width so its background band
+// reads as one calm bar (issue #140 S3); other themes are untouched.
 func (m Model) renderRow(selected, playing bool, label string, width int) string {
 	marker := "  "
 	if selected {
@@ -381,6 +473,11 @@ func (m Model) renderRow(selected, playing bool, label string, width int) string
 		label = "♪ " + label
 	}
 	line := truncate(marker+label, width)
+	if selected && m.theme == theme.Quiet {
+		if pad := width - len([]rune(line)); pad > 0 {
+			line += strings.Repeat(" ", pad)
+		}
+	}
 	switch {
 	case selected:
 		return m.selectedStyle().Render(line)
@@ -417,7 +514,13 @@ func (m Model) playerBarLines() []string {
 	}
 	progress := progressBar(m.position, m.duration, barWidth)
 	times := fmt.Sprintf("%s / %s", formatDuration(m.position), formatDuration(m.duration))
-	return []string{line, m.barStyle().Render(progress) + " " + m.dimStyle().Render(times)}
+	// Issue #140 S3: under synthwave the second voice (the status palette,
+	// cyan) carries the timestamps; legacy lines keep the dim style.
+	timesStyle := m.dimStyle()
+	if m.theme == theme.Synthwave {
+		timesStyle = m.statusStyle()
+	}
+	return []string{line, m.barStyle().Render(progress) + " " + timesStyle.Render(times)}
 }
 
 // listHeight is how many rows fit below the header.
