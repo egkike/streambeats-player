@@ -72,6 +72,23 @@ S13. Badge bands per theme, deterministic: quiet #1c2433 (its own
     plain dim paint, changing only by the inserted dot (+1 rune).
 S14. The badge SGR is zero painted width: painted byte counts and the
     width-fit contract of S9-S10 hold for every theme.
+S16. Issue #149 field cycle: the tier-0 dot paints in `palette.Status`
+    (distinct hue from the badge keys, high contrast on the dark
+    surface) instead of `Bar`; painted width unchanged (56 runes full
+    tier, stripANSI keeps the dot). Owner field report: "en terminal
+    ghostty no sale el · entre ↑↓ k/j · enter" — the dot bytes were
+    pinned present; this is the visibility fix.
+S17. Issue #149 field cycle: a 43-rune tier lands between 47 and 26:
+    `enter open esc back l lib c settings q quit`, single-space
+    separators, badges included. Ladder becomes 56 / 50 / 47 / 43 /
+    26 / 6; widths 43-46 paint the new tier, ≤42 fall to essentials.
+    Owner field report: "en terminal kitty solo salen estos controles:
+    enter open esc back q quit. Parece haber menos espacio en kitty
+    pero mejor verifica" — the kitty panel paints ≤42 usable columns
+    (denser cell grid at the same quick-terminal geometry).
+S18. Regression guards (issue #149): the #143 fit contract passes at
+    the new boundaries; badge band/no-band pins unchanged; legacy
+    trio keeps no-band + only the dot.
 
 ## Tasks
 
@@ -180,3 +197,26 @@ L18. Post-merge (PR #147, merge d2ab8d4, CI green) advisory
      by no realistic panel; NOT absorbed by #146's rewrite, and no fix
      is warranted. Both advisories verified-informational, no fix
      cycle; observe receipts stand as approved.
+L19. Owner field test on release v1.12.0 (PR #147 cycle): ghostty does
+     not SHOW the dot (bytes pinned present — visibility problem: the
+     Bar-tone dot is ~4:1 on the dark surface between bright badges)
+     and kitty compresses to the 26-rune essentials tier (panel paints
+     ≤42 columns — denser cell grid at the same quick-terminal
+     geometry). Fix cycle opened as issue #149 (status:approved,
+     standing grant): new specs S16 (dot hue -> palette.Status),
+     S17 (43-rune tier, ladder 56/50/47/43/26/6), S18 (regression
+     guards). Release for this cycle: v1.12.1 (fix).
+L20. T6 done (issue #149 field fix): RED observed on the 43-tier pins
+     and the Status-hue dot; GREEN = navPairsLibrary tier between 47
+     and 26 (ladder 56/50/47/43/26/6), dot rides statusStyle (S16).
+     Full pipeline green incl race; the cute full row still paints
+     exactly 56 runes with the dot (zero-width SGR, S14/S18). Release
+     v1.12.1 carries this fix for the owner's retest.
+L21. Review receipt: native committed-only review lineage
+     review-ce51aa268860090e (medium, lenses readability + reliability,
+     owner-authorized 2 runs) — approved, authority burned (store rev
+     sha256:f9983464...595c). One non-blocking advisory
+     (R2-kitty-tier-mismatch, readability, odd/tasks/panel-themes.md:86,
+     WARNING/informational): recorded as separate later work — likely
+     the doc's kitty-boundary wording vs the true panel geometry, to
+     verify with the owner's retest numbers.
