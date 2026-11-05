@@ -106,3 +106,7 @@ L11. Step 2 done: native committed-only review, lineage
 L12. Step 3 done: pushed feature/panel-themes; PR #141 (Closes #140,
      type:feature) opened for owner review and squash merge. Steps 4-5
      (owner merge + sync) remain the owner's.
+L13. Steps 4-5 done: owner merged PR #141 (merge commit 0bf2eff on
+     main, 2026-11-05); merge-commit CI ran green (run 42101213584)
+     before any further push — the release-shipping recipe evidence for
+     this exact SHA. No release tag: PR #141 was not release-bound.
