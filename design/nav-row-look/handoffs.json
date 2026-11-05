@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "05-single-dot-badges.html",
+  "handoffs": {
+    "05-single-dot-badges.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-05T21:55:38.557Z",
+      "startedAt": "2026-11-05T21:56:56.565Z",
+      "implementedAt": "2026-11-05T22:02:31.096Z",
+      "feature": "odd/tasks/panel-themes.md",
+      "previewUrl": "http://127.0.0.1:40995/"
+    }
+  }
+}

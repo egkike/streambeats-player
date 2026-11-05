@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — nav row: key badges</title>
+<style>
+  :root {
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F095C8;
+    --deepPink: #C96AA2;
+    --dim: #76616B;
+    --badge: #28121E;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #030203;
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  .note { color: #A78E9B; font-size: 13px; margin-bottom: 28px; max-width: 780px; text-align: center; }
+  .zoom { white-space: pre; font-size: 22px; margin-bottom: 8px; }
+  .badge { background: var(--badge); color: var(--accent); font-weight: 700; padding: 0 4px; border-radius: 3px; }
+  .tick { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    width: 100%;
+    max-width: 780px;
+    overflow: hidden;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .panel .dim, .dim { color: var(--dim); }
+  .panel .title { color: var(--accent); font-weight: 700; }
+  .narrowbox { max-width: 480px; margin-bottom: 26px; }
+  .narrow { white-space: pre; font-size: 14px; overflow: hidden; }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 640px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #A78E9B;
+  }
+  .spec code { color: var(--deepPink); }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td { padding: 2px 16px 2px 0; }
+</style>
+</head>
+<body>
+<h1>Alternativa 2 — Key badges</h1>
+<p class="note">Las teclas llevan una banda sutil (SGR background, cero ancho pintado): la TECLA se lee como botón, la ACIÓN queda dim. El vocabulario y los 55 runes de la fila no cambian — la escalera de tiers queda EXACTAMENTE como está.</p>
+
+<div class="zoom" role="img" aria-label="Nav row with badge keys">
+<span class="badge">k/j</span> <span class="dim">enter</span> <span class="badge">enter</span> <span class="dim">open</span> ...
+</div>
+<div class="tick">
+<span class="dim">
+<span class="badge">↑↓</span> <span class="badge">k/j</span>  enter open  <span class="badge">esc</span> back  <span class="badge">l</span> lib  <span class="badge">c</span> settings  <span class="badge">q</span> quit
+</span>
+</div>
+<div class="tick" style="margin-top:-18px;"><span class="dim">…整齐 55 runes painted — SAME ladder (55/50/47/26/6), byte-identical text, only SGR added</span></div>
+
+<div class="panel">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="title">▸</span><span class="title"> 01  Cold Front  StreamBeats</span><span class="dim"> ····························· 9 tracks</span>
+
+<span class="badge">↑↓</span><span class="badge"> k/j</span><span class="dim">  enter open  </span><span class="badge">esc</span><span class="dim"> back  </span><span class="badge">l</span><span class="dim"> lib  </span><span class="badge">c</span><span class="dim"> settings  </span><span class="badge">q</span><span class="dim"> quit</span>
+</div>
+
+<div class="spec narrowbox">
+  <div style="color:#F095C8; margin-bottom:6px;">Tu panel lateral (~52 cols): badge en tier de compresión</div>
+  <span class="narrow"><span class="badge">k/j</span><span class="dim"> enter open </span><span class="badge">esc</span><span class="dim"> back </span><span class="badge">l</span><span class="dim"> lib </span><span class="badge">c</span><span class="dim"> settings </span><span class="badge">q</span><span class="dim"> quit</span></span>
+  <div style="color:#76616B; margin-top:6px; font-size:12.5px;">La estética del badge sobrevive a |-ACIÓN completa — netted compra en cada tier.</div>
+</div>
+
+<div class="spec">
+<b style="color:#F095C8;">Spec — cero geometría nueva</b>
+<table>
+<tr><td>Fila completa</td><td>55 runes, EXACTA a #143 S10 tier 0 — solo cambia el SGR de las teclas</td></tr>
+<tr><td>Tier ladder</td><td>Los mismos 55/50/47/26/6 — el fix #143 sigue funcionando byte-idéntico</td></tr>
+<tr><td>Banda de badge</td><td>El color de <code>selection</code> de cada theme (Cute: #28121E — mismo token que usa la terminal)<br>Respetado por "badge" en todos los themes; para el <code>quiet</code> theme es el mismo estilo que su banda de selección</td></tr>
+<tr><td>Servilleta</td><td>La ROSE destaca teclas respecto acciones — la MÁS-robusta contra anchos distintos por theme.</td></tr>
+</table>
+<i style="color:#76616B;">Tradeoff: sin separador explícito — la lectura se separa por las BANDAS (pictos) — en tiers comprimidos hay que fijarse un poquito más en los pares.</i>
+</div>
+</body>
+</html>

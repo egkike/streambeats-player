@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — nav row: hybrid (dots + badges)</title>
+<style>
+  :root {
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F095C8;
+    --deepPink: #C96AA2;
+    --dim: #76616B;
+    --badge: #28121E;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #030203;
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  .note { color: #A78E9B; font-size: 13px; margin-bottom: 28px; max-width: 780px; text-align: center; }
+  .zoom { white-space: pre; font-size: 22px; margin-bottom: 8px; }
+  .badge { background: var(--badge); color: var(--accent); font-weight: 700; padding: 0 4px; border-radius: 3px; }
+  .sep { color: var(--deepPink); }
+  .tick { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    width: 100%;
+    max-width: 780px;
+    overflow: hidden;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .panel .dim, .dim, .dim2 { color: var(--dim); }
+  .panel .title { color: var(--accent); font-weight: 700; }
+  .narrowbox { max-width: 480px; margin-bottom: 26px; }
+  .narrow { white-space: pre; font-size: 14px; overflow: hidden; }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 640px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #A78E9B;
+  }
+  .spec code { color: var(--deepPink); }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td { padding: 2px 16px 2px 0; }
+</style>
+</head>
+<body>
+<h1>Alternativa 4 — Híbrido (tu versión): dots + badges</h1>
+<p class="note">Separador <code style="color:#C96AA2">·</code> entre controles + tecla con banda SGR + acción dim. Tomamos el ritmo de la 01 y la robustez de la 02: cuando el ancho comprime y los puntos caen, el badge SGR sigue en TODOS los tiers (costo pintado: cero).</p>
+
+<div class="zoom" role="img" aria-label="Nav row hybrid: dot separators with badge keys">
+<span class="badge">↑↓</span> <span class="badge">k/j</span> <span class="sep">·</span> <span class="badge">enter</span> <span class="dim">open</span> <span class="sep">·</span> <span class="badge">esc</span> <span class="dim">back</span> <span class="sep">·</span> <span class="badge">l</span> <span class="dim">lib</span> <span class="sep">·</span> <span class="badge">c</span> <span class="dim">settings</span> <span class="sep">·</span> <span class="badge">q</span> <span class="dim">quit</span>
+</div>
+<div class="tick"><span class="dim">60 runes painted — nuevo tier completo (60/55/50/47/26/6 recalibrado)</span></div>
+
+<div class="panel">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="title">▸</span><span class="title"> 01  Cold Front  StreamBeats</span><span class="dim"> ····························· 9 tracks</span>
+
+<span class="badge">↑↓</span><span class="badge"> k/j</span><span class="sep"> · </span><span class="badge">enter</span><span class="dim"> open </span><span class="sep">·</span><span class="dim"> </span><span class="badge">esc</span><span class="dim"> back </span><span class="sep">·</span><span class="dim"> </span><span class="badge">l</span><span class="dim"> lib </span><span class="sep">·</span><span class="dim"> </span><span class="badge">c</span><span class="dim"> settings </span><span class="sep">·</span><span class="dim"> </span><span class="badge">q</span><span class="dim"> quit</span>
+</div>
+
+<div class="spec narrowbox">
+  <div style="color:#F095C8; margin-bottom:6px;">Tu panel lateral (~52 cols): dots caen, BADGES QUEDAN</div>
+  <span class="narrow"><span class="badge">k/j</span><span class="dim"> enter open </span><span class="badge">esc</span><span class="dim"> back </span><span class="badge">l</span><span class="dim"> lib </span><span class="badge">c</span><span class="dim"> settings </span><span class="badge">q</span><span class="dim"> quit</span></span>
+  <div style="color:#76616B; margin-top:6px; font-size:12.5px;">El column staple de tecla band-aje downgrade: en 52 cols la fila pasa al tier de 50 con badges — la identidad visual no se pierde (esto es lo que mata de la 01 sola).</div>
+</div>
+
+<div class="spec">
+<b style="color:#F095C8;">Spec — híbrido</b>
+<table>
+<tr><td>Tier 0 (≥60)</td><td>dots <code>·</code> + badges — el full tier nuevo</td></tr>
+<tr><td>Tier 1 (≥55)</td><td>doble espacio + badges (la fila de v1.11.1 con SGR)</td></tr>
+<tr><td>Tier 2+ …</td><td>50/47/26/6 con badges — SGR cero costo, la identidad vive en todos</td></tr>
+<tr><td>Banda</td><td>el token <code>selection</code> de cada theme (cute #28121E); en <code>quiet</code> reutiliza su banda ya existente</td></tr>
+<tr><td>SGR extras</td><td>cero cambios de ancho pintado — la geometría es todos los textos</td></tr>
+</table>
+<i style="color:#76616B;">Tradeoff: recalibrar los 6 tiers + un ciclo más de tests de anchos — es lo único que cuesta el dolor agcode.</i>
+</div>
+</body>
+</html>
