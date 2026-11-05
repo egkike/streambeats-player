@@ -45,6 +45,17 @@ S7. Phase A invariant preserved: a theme switch is a pure state
     spawn, no config writes, no terminal background repaint.
 S8. Settings robustness intact: unknown ids resolve to the default
     without crashing; `claro`/`oscuro` remain valid persisted ids.
+S9. Issue #143: the nav hint row paints within the painted width — for
+    any panel width the rendered line (sans SGR) is ≤ that width; no
+    wrap, no clipped tail. Owner report: "q qui se come la t final de
+    quit (queda fuera de pantalla y solo se ve qui)".
+S10. Tier ladder (issue #143): longest tier that fits — 55 (the
+    approved line, double separators), 50 (single-space separators),
+    47 (arrows dropped), 26 (essentials), floor "q quit"; vocabulary
+    order preserved, no keycap playback tokens ever repeated (issue
+    #60 S4 keeps holding).
+S11. navHints() (no-arg) keeps returning the approved full line; the
+    pinned byte-exact test keeps holding (S5's approved wording).
 
 ## Tasks
 
@@ -109,4 +120,15 @@ L12. Step 3 done: pushed feature/panel-themes; PR #141 (Closes #140,
 L13. Steps 4-5 done: owner merged PR #141 (merge commit 0bf2eff on
      main, 2026-11-05); merge-commit CI ran green (run 42101213584)
      before any further push — the release-shipping recipe evidence for
-     this exact SHA. No release tag: PR #141 was not release-bound.
+     this exact SHA. Release v1.11.0 pushed onto the sync tip 2609d22
+     with owner authorization: release.yml green (run 42102305206),
+     release published with 5 archives + checksums.txt; local install
+     verified via scripts/install.sh --version v1.11.0.
+L14. Owner field report after v1.11.0: the nav hint row clips its tail
+     on side-anchored panels ("q qui"). Root cause: the row never had a
+     painted-width budget; the S5 rename grew it 52 → 55 runes. RED
+     tests on tier boundaries observed (after discarding a first RED
+     run that measured the pre-existing boot status message instead of
+     the nav row); GREEN ladder implemented (commit follows). Issue
+     #143, status:approved via the standing grant (in-conversation
+     bugfix cycle).
