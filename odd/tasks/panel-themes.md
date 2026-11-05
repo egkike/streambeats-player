@@ -96,3 +96,13 @@ L10. T4 done: commit 2ce18f5 (docs(odd): design assets, README theme
      cycle: 1c2c80f, bcfbe78, b2be093, 2ce18f5. Next: RDD native review
      on the committed candidate, then push + PR referencing the burned
      receipt.
+L11. Step 2 done: native committed-only review, lineage
+     review-23685e2ccc38498c (tier medium, lenses readability +
+     reliability, owner-authorized 2 runs). Result: approved;
+     authority burned (gentle-ai.review-acknowledged/v1, store revision
+     sha256:c68c8fd3...). One non-blocking advisory (R3-001, WARNING,
+     informational, internal/tui/view.go:424-425) is recorded as
+     separate later work — never a correction on this candidate.
+L12. Step 3 done: pushed feature/panel-themes; PR #141 (Closes #140,
+     type:feature) opened for owner review and squash merge. Steps 4-5
+     (owner merge + sync) remain the owner's.
