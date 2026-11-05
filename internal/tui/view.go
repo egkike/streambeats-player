@@ -728,10 +728,6 @@ var (
 		{"↑↓ k/j", ""}, {"enter", "open"}, {"esc", "back"},
 		{"l", "lib"}, {"c", "settings"}, {"q", "quit"},
 	}
-	// Single-space tier: same vocabulary, one space between pairs. Issue
-	// #151 S19: the standalone 50-rune arrows tier dissolved into the
-	// compact full tier; the pair set stays for the badge render path.
-	navPairsArrows = navPairsFull
 	// Arrows dropped (47).
 	navPairsCompact = []navHintPair{
 		{"k/j", ""}, {"enter", "open"}, {"esc", "back"},
