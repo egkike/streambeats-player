@@ -15,9 +15,14 @@ type Theme string
 
 // Supported themes.
 const (
-	Claro  Theme = "claro"
-	Oscuro Theme = "oscuro"
-	System Theme = "system"
+	Claro     Theme = "claro"
+	Oscuro    Theme = "oscuro"
+	System    Theme = "system"
+	Vinyl     Theme = "vinyl"
+	Synthwave Theme = "synthwave"
+	Quiet     Theme = "quiet"
+	Cute      Theme = "cute"
+	Sexy      Theme = "sexy"
 )
 
 // Default is used when settings are absent or invalid.
@@ -44,6 +49,33 @@ var darkPalette = Palette{
 	Playing:  "42",
 	Status:   "214",
 	Bar:      "205",
+}
+
+// artboardPalettes (issue #140 S2): the five owner-approved panel themes,
+// each pinned coordinate for coordinate to its design artboard spec card
+// (design/streambeats-panel-look/01..05). Values are 24-bit hex strings —
+// lipgloss.Color accepts them and Ghostty/Kitty host them in truecolor;
+// 256-color terminals degrade gracefully through the SGR negotiation. These
+// palettes are authored for DARK surfaces and ignore background detection
+// (TestNewThemeIdsAreValid pins detection independence): explicit owner
+// choice replaces the legacy automatic light/dark adaptation.
+var artboardPalettes = map[Theme]Palette{
+	// 01-vinyl-dark.html: warm amber accent, cream-surface intent, moss
+	// green playing, coral status.
+	Vinyl: {Title: "#e8a33d", Dim: "#8a7a5f", Selected: "#e8a33d", Playing: "#7fae5c", Status: "#d9704f", Bar: "#e8a33d"},
+	// 02-synthwave.html: hot magenta accent over violet night, spring
+	// green playing, cyan second voice on the status/messages slot.
+	Synthwave: {Title: "#ff5ec8", Dim: "#8b7fd4", Selected: "#ff5ec8", Playing: "#6dff9c", Status: "#4fd6e0", Bar: "#ff5ec8"},
+	// 03-quiet-ink.html: near-monochrome ink, one sparing blue accent
+	// (Bar/status), near-white titles, calm green playing.
+	Quiet: {Title: "#e6e9ef", Dim: "#5c6370", Selected: "#eaf0ff", Playing: "#9ece6a", Status: "#7aa2f7", Bar: "#7aa2f7"},
+	// 04-gentle-cute.html: soft pink accents straight from gentle-pi's
+	// Gentleman-Cute.json (accent/activePink/mint/peach/deepPink). Owner's
+	// daily shell theme.
+	Cute: {Title: "#F095C8", Dim: "#76616B", Selected: "#FFB1DD", Playing: "#B4E7C7", Status: "#F2B86D", Bar: "#C96AA2"},
+	// 05-gentle-sexy.html: hot pink accents straight from gentle-pi's
+	// Gentleman-Sexy.json (accent/activePink/violet/champagne/deepPink).
+	Sexy: {Title: "#F43888", Dim: "#76616B", Selected: "#FF4F9A", Playing: "#C49BFF", Status: "#E0C27A", Bar: "#BF0F50"},
 }
 
 // oscuroPalette is the explicit dark theme: same ambient as the shipped
@@ -79,6 +111,16 @@ func Lookup(name string) (Theme, bool) {
 		return Oscuro, true
 	case System:
 		return System, true
+	case Vinyl:
+		return Vinyl, true
+	case Synthwave:
+		return Synthwave, true
+	case Quiet:
+		return Quiet, true
+	case Cute:
+		return Cute, true
+	case Sexy:
+		return Sexy, true
 	default:
 		return "", false
 	}
@@ -102,6 +144,11 @@ func Resolve(t Theme, dark bool) Palette {
 			return darkPalette
 		}
 		return lightPalette
+	case Vinyl, Synthwave, Quiet, Cute, Sexy:
+		// Artboard themes are tinned for dark surfaces and authored exactly
+		// once by the owner: detection is ignored, the palette is constant
+		// (issue #140 S2/S7).
+		return artboardPalettes[t]
 	default:
 		return Resolve(Default, dark)
 	}

@@ -94,6 +94,67 @@ func TestDefaultThemeIsSystem(t *testing.T) {
 	}
 }
 
+// TestNewThemeIdsAreValid pins the five added panel themes (issue #140,
+// specs S2/S8): every id is a valid persisted settings value, its canonical
+// form round-trips, and resolution ignores terminal background detection —
+// these palettes are authored for dark surfaces, not adapted per boot.
+func TestNewThemeIdsAreValid(t *testing.T) {
+	for _, id := range []string{"vinyl", "synthwave", "quiet", "cute", "sexy"} {
+		th, ok := Lookup(id)
+		if !ok || th != Theme(id) {
+			t.Errorf("Lookup(%q) = %q (ok=%v), want the same id back", id, th, ok)
+			continue
+		}
+		light := Resolve(th, false)
+		dark := Resolve(th, true)
+		if !reflect.DeepEqual(light, dark) {
+			t.Errorf("theme %q must ignore background detection; %+v vs %+v", id, light, dark)
+		}
+		if reflect.DeepEqual(light, goldenDark) {
+			t.Errorf("theme %q resolves to the shipped System palette; the switch would be invisible", id)
+		}
+	}
+}
+
+// expectedNewPalettes is the owner-approved coordinate table (issue #140
+// S2): hex values read verbatim from the artboard spec cards
+// (design/streambeats-panel-look/01..05). Each row is a Palette, not a
+// guess. The shell pairs (cute, sexy) carry the gentle-pi theme vars.
+var expectedNewPalettes = map[Theme]Palette{
+	Vinyl:     {Title: "#e8a33d", Dim: "#8a7a5f", Selected: "#e8a33d", Playing: "#7fae5c", Status: "#d9704f", Bar: "#e8a33d"},
+	Synthwave: {Title: "#ff5ec8", Dim: "#8b7fd4", Selected: "#ff5ec8", Playing: "#6dff9c", Status: "#4fd6e0", Bar: "#ff5ec8"},
+	Quiet:     {Title: "#e6e9ef", Dim: "#5c6370", Selected: "#eaf0ff", Playing: "#9ece6a", Status: "#7aa2f7", Bar: "#7aa2f7"},
+	Cute:      {Title: "#F095C8", Dim: "#76616B", Selected: "#FFB1DD", Playing: "#B4E7C7", Status: "#F2B86D", Bar: "#C96AA2"},
+	Sexy:      {Title: "#F43888", Dim: "#76616B", Selected: "#FF4F9A", Playing: "#C49BFF", Status: "#E0C27A", Bar: "#BF0F50"},
+}
+
+// TestNewThemePalettesMatchArtboards pins each new palette to its artboard
+// spec card coordinate by coordinate (issue #140 S2). A drift here is a
+// visible regression to the owner's approved look.
+func TestNewThemePalettesMatchArtboards(t *testing.T) {
+	for id, want := range expectedNewPalettes {
+		th, ok := Lookup(string(id))
+		if !ok {
+			t.Fatalf("theme %q is not registered", id)
+		}
+		got := Resolve(th, true)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("palette %q = %+v, want %+v", id, got, want)
+		}
+	}
+}
+
+// TestLegacyThemeIdsStillValid guards S8 (issue #140): removing nothing
+// means the historical persisted ids keep resolving.
+func TestLegacyThemeIdsStillValid(t *testing.T) {
+	for _, id := range []string{"claro", "oscuro", "system"} {
+		th, ok := Lookup(id)
+		if !ok || string(th) != id {
+			t.Errorf("legacy id %q no longer resolves (ok=%v) — settings compat broke", id, ok)
+		}
+	}
+}
+
 func TestNamesMatchLowercaseStorage(t *testing.T) {
 	// The name persisted in settings.json is the canonical lowercase id.
 	names := []Theme{Claro, Oscuro, System}
