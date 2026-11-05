@@ -381,12 +381,15 @@ func TestNavHintsFitThePaintedWidthAtEveryTier(t *testing.T) {
 // Issue #143 S10: the approved tier ladder, wired through statusOrNavLine
 // via a stub for this RED run (the real ladder replaces it in GREEN).
 func TestNavHintTiersArePinned(t *testing.T) {
-	// Issue #146 S12: the full tier gains the single dot (+1 rune, 56);
-	// the old 55 tier dissolves under it (55 now renders the 50 one).
+	// Issue #146 S12 + #149 S17: the full tier carries the single dot
+	// (56 runes); the ladder gains the 43-rune library tier between 47
+	// and 26 so narrow panels (kitty's ≤42-column strips, owner field
+	// report) keep the move pair and the library/setings controls.
 	wantTiers := []string{
 		"\u2191\u2193 k/j \u00b7 enter open  esc back  l lib  c settings  q quit",
 		"\u2191\u2193 k/j enter open esc back l lib c settings q quit",
 		"k/j enter open esc back l lib c settings q quit",
+		"enter open esc back l lib c settings q quit",
 		"enter open esc back q quit",
 		"q quit",
 	}
@@ -401,9 +404,12 @@ func TestNavHintTiersArePinned(t *testing.T) {
 		{49, wantTiers[2]},
 		{47, wantTiers[2]},
 		{46, wantTiers[3]},
-		{26, wantTiers[3]},
-		{25, wantTiers[4]},
-		{6, wantTiers[4]},
+		{45, wantTiers[3]},
+		{43, wantTiers[3]},
+		{42, wantTiers[4]},
+		{26, wantTiers[4]},
+		{25, wantTiers[5]},
+		{6, wantTiers[5]},
 	}
 	for _, tt := range cases {
 		if got := navHintsFor(tt.width); got != tt.want {
@@ -434,6 +440,25 @@ func TestNavRowBadgesByTheme(t *testing.T) {
 	legacy.status = ""
 	if strings.Contains(legacy.statusOrNavLine(), ";48;2;") {
 		t.Fatalf("legacy system nav row must paint no band:\n%s", legacy.statusOrNavLine())
+	}
+}
+
+// Issue #149 S16: the tier-0 dot paints in the Status hue (distinct
+// from the badge keys, high contrast) — cute's #F2B86D paints SGR
+// 38;2;242;184;109; the painted width stays exactly 56 (S16/S14).
+func TestNavDotPaintsInTheStatusHue(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
+	cute := themedAlbumModel(t, "cute")
+	cute.status = ""
+	row := cute.statusOrNavLine()
+	if !strings.Contains(row, "38;2;242;184;109") {
+		t.Fatalf("the dot lost the Status hue (want #F2B86D 38;2;242;184;109):\n%s", row)
+	}
+	if runes := len([]rune(stripANSI(row))); runes != 56 {
+		t.Errorf("full nav row paints %d runes, want 56 with the dot (zero-width SGR)", runes)
 	}
 }
 

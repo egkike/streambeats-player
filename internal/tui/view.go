@@ -735,6 +735,13 @@ var (
 		{"k/j", ""}, {"enter", "open"}, {"esc", "back"},
 		{"l", "lib"}, {"c", "settings"}, {"q", "quit"},
 	}
+	// Narrow-panel tier for the <=46-column strips (issue #149 S17):
+	// the move vocabulary compresses away but the library/settings keys
+	// stay. 43 runes, single-space separators.
+	navPairsLibrary = []navHintPair{
+		{"enter", "open"}, {"esc", "back"}, {"l", "lib"},
+		{"c", "settings"}, {"q", "quit"},
+	}
 	// Bare navigation essentials for tight strips (26).
 	navPairsEssential = []navHintPair{{"enter", "open"}, {"esc", "back"}, {"q", "quit"}}
 	// Floor (6): below six painted columns nothing renders (documented
@@ -788,6 +795,8 @@ func (m Model) navRowFor(width int) string {
 		return m.renderNavPairs(navPairsArrows, false, " ")
 	case width >= 47:
 		return m.renderNavPairs(navPairsCompact, false, " ")
+	case width >= 43:
+		return m.renderNavPairs(navPairsLibrary, false, " ")
 	case width >= 26:
 		return m.renderNavPairs(navPairsEssential, false, " ")
 	default:
@@ -826,6 +835,8 @@ func navHintsFor(width int) string {
 		return navRowText(navPairsArrows, false, " ")
 	case width >= 47:
 		return navRowText(navPairsCompact, false, " ")
+	case width >= 43:
+		return navRowText(navPairsLibrary, false, " ")
 	case width >= 26:
 		return navRowText(navPairsEssential, false, " ")
 	default:
@@ -843,7 +854,10 @@ func (m Model) renderNavPairs(pairs []navHintPair, dotFirst bool, sep string) st
 		if i > 0 {
 			run := sep
 			if dotFirst && i == 1 {
-				run = " " + m.barStyle().Render("·") + " "
+				// Issue #149 S16: the dot rides the Status hue (distinct
+				// from the badge keys, high contrast on the dark
+				// surface) — the Bar tone read too dark in ghostty.
+				run = " " + m.statusStyle().Render("·") + " "
 			}
 			b.WriteString(run)
 		}
