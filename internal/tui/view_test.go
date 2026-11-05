@@ -361,6 +361,54 @@ func TestNavHintsExcludeTheKeycapKeys(t *testing.T) {
 	}
 }
 
+// Issue #143 S9: the nav row is the one view row that never ran a painted-
+// width budget — on side-anchored panels (~50-56 columns) the v1.11.0 line
+// (55 runes) clips its tail and the owner saw "q qui". It must fit any
+// painted width: no wrap, no clipped tail.
+func TestNavHintsFitThePaintedWidthAtEveryTier(t *testing.T) {
+	for _, w := range []int{84, 55, 54, 50, 49, 47, 46, 26, 25, 10} {
+		m := NewModel(Options{Theme: "system", ThemeDark: true, Width: w, Height: 24})
+		// The empty-catalog boot message is pre-existing status behavior;
+		// this test pins the NAV row, not status rendering.
+		m.status = ""
+		got := stripANSI(m.statusOrNavLine())
+		if runes := len([]rune(got)); runes > w {
+			t.Errorf("width %d: nav row paints %d runes, must fit (no wrap, no clip):\n%q", w, runes, got)
+		}
+	}
+}
+
+// Issue #143 S10: the approved tier ladder, wired through statusOrNavLine
+// via a stub for this RED run (the real ladder replaces it in GREEN).
+func TestNavHintTiersArePinned(t *testing.T) {
+	wantTiers := []string{
+		"\u2191\u2193 k/j  enter open  esc back  l lib  c settings  q quit",
+		"\u2191\u2193 k/j enter open esc back l lib c settings q quit",
+		"k/j enter open esc back l lib c settings q quit",
+		"enter open esc back q quit",
+		"q quit",
+	}
+	cases := []struct {
+		width int
+		want  string
+	}{
+		{55, wantTiers[0]},
+		{54, wantTiers[1]},
+		{50, wantTiers[1]},
+		{49, wantTiers[2]},
+		{47, wantTiers[2]},
+		{46, wantTiers[3]},
+		{26, wantTiers[3]},
+		{25, wantTiers[4]},
+		{6, wantTiers[4]},
+	}
+	for _, tt := range cases {
+		if got := navHintsFor(tt.width); got != tt.want {
+			t.Errorf("navHintsFor(%d) = %q, want %q", tt.width, got, tt.want)
+		}
+	}
+}
+
 // Issue #140 S5: the settings screen manages more than themes since the
 // panel terminal section (issue #90); the approved rename is "c settings".
 func TestNavHintsRenameToCSettings(t *testing.T) {

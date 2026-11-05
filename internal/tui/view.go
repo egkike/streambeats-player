@@ -121,7 +121,10 @@ func (m Model) statusOrNavLine() string {
 	if m.status != "" {
 		return m.statusStyle().Render(m.status)
 	}
-	return m.dimStyle().Render(navHints())
+	// Issue #143 S9/S10: the nav row obeys the painted width budget on one
+	// flat control — the longest approved tier that fits, so the tail never
+	// clips on side-anchored panels.
+	return m.dimStyle().Render(navHintsFor(m.contentWidth()))
 }
 
 // navHints is the compact navigation reference shown when the status slot
@@ -710,4 +713,34 @@ func joinStatus(current, note string) string {
 		return note
 	}
 	return current + " — " + note
+}
+
+// navHintTiers is the approved vocabulary ladder (issue #143 S10): the nav
+// row picks the longest tier whose rune count fits the painted width, so a
+// narrow side panel compresses the line instead of letting the terminal
+// clip its tail (the owner's "q qui" report). Every tier keeps the SAME
+// key vocabulary order and never repeats a keycap playback token (issue
+// #60 S4). Measured rune widths: 55 / 50 / 47 / 26 / 6.
+var navHintTiers = []string{
+	// The approved full line (issue #140 S5): byte-identical to v1.11.0.
+	"↑↓ k/j  enter open  esc back  l lib  c settings  q quit",
+	// Compressed separators, same vocabulary.
+	"↑↓ k/j enter open esc back l lib c settings q quit",
+	// Arrows dropped.
+	"k/j enter open esc back l lib c settings q quit",
+	// Bare navigation essentials for tight strips.
+	"enter open esc back q quit",
+	// Floor: below six painted columns nothing renders; the terminal clips
+	// and does not wrap (S10 leaves this degenerate case documented).
+	"q quit",
+}
+
+// navHintsFor returns the longest nav tier that fits width runes.
+func navHintsFor(width int) string {
+	for _, tier := range navHintTiers {
+		if len([]rune(tier)) <= width {
+			return tier
+		}
+	}
+	return navHintTiers[len(navHintTiers)-1]
 }
