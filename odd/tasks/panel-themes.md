@@ -75,3 +75,24 @@ L4. Scope question asked (palette-only / palette+structure / hybrid);
     S3 and T3.
 L5. Issue #140 opened with status:approved (standing grant, issue #25
     model). Branch feature/panel-themes off main.
+L6. T1 done: commit 1c2c80f (feat(theme): register five panel themes
+    with artboard palettes). Registry tests RED->GREEN; pipeline
+    (gofmt/build/vet/test/tidy) green before committing.
+L7. T2 done: commit bcfbe78 (feat(tui): settings sections, artboard
+    theme rows, c settings hint). Three RED tests observed before
+    implementation; two historical terminal-navigation pins and the
+    pinned nav-hint test updated to the approved new cursor map.
+L8. T3 done: commit b2be093 (feat(tui): per-theme row structure).
+    Four RED tests observed; legacy differential byte check ran in both
+    trees (throwaway dumper, uncommitted): claro/oscuro/system View()
+    output identical against bcfbe78 across catalog/config/tracks
+    states. One catch fixed: the legacy default album format kept the
+    artist suffix; vinyl also carries it per the artboard.
+L9. Work-unit slice boundary: the three T1-T3 commits total 618
+    authored lines across the ~400-line advisory; each is a separate
+    reviewable behavior unit (registry / screen / structure).
+L10. T4 done: commit 2ce18f5 (docs(odd): design assets, README theme
+     docs, log entries). Four work-unit commits hold the whole feature
+     cycle: 1c2c80f, bcfbe78, b2be093, 2ce18f5. Next: RDD native review
+     on the committed candidate, then push + PR referencing the burned
+     receipt.

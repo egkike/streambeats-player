@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — Vinyl dark panel mockup</title>
+<style>
+  :root {
+    --desk-bg: #0c0a08;
+    --panel-bg: #14100c;
+    --panel-fg: #e8dcc8;
+    --amber: #e8a33d;
+    --amber-soft: #b37c2c;
+    --dim: #8a7a5f;
+    --green: #7fae5c;
+    --coral: #d9704f;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--desk-bg);
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 100vh;
+  }
+  .desk-note {
+    padding: 24px 32px;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .desk-note h1 {
+    font-size: 15px;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #241b12;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .title { color: var(--amber); font-weight: 700; }
+  .dim { color: var(--dim); }
+  .accent { color: var(--amber); }
+  .selected { color: var(--amber); font-weight: 700; }
+  .playing { color: var(--green); }
+  .bar { color: var(--amber); }
+  .coral { color: var(--coral); }
+  .row { margin-left: 2px; }
+  .row.sel { margin-left: 0; }
+  .leader { color: var(--dim); }
+  .progress { display: inline; }
+  .spec {
+    background: #100d0a;
+    border-left: 3px solid var(--amber-soft);
+    max-width: 760px;
+    margin: 0 32px 20px;
+    padding: 14px 18px;
+  }
+  .spec h2 { font-size: 13px; color: var(--amber); margin-bottom: 8px; }
+  .spec table { border-collapse: collapse; font-size: 12.5px; }
+  .spec td { padding: 1px 14px 1px 0; vertical-align: top; }
+  .swatch { display: inline-block; width: 11px; height: 11px; vertical-align: -1px; margin-right: 6px; }
+  code { color: var(--amber-soft); }
+</style>
+</head>
+<body>
+
+<section class="desk-note">
+  <h1>Direction 1 — Vinyl dark</h1>
+  <p>Warm brown-black panel, amber accent for everything that matters, cream text.
+  Feels like a record bar at night, not a dashboard. One accent does all the work.</p>
+</section>
+
+<div class="panel" role="img" aria-label="Mockup of the streambeats panel in the vinyl dark theme">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="selected">▸ </span><span class="selected">01  Cold Front</span><span class="dim">  StreamBeats</span><span class="leader">·············</span><span class="dim"> (9 tracks)</span>
+<span class="row">  02  Neon Alley</span><span class="leader">·······················</span><span class="dim"> (8 tracks)</span>
+<span class="row">  03  Rooftop Rain</span><span class="leader">·····················</span><span class="dim"> (10 tracks)</span>
+<span class="row">  04  Tape Hiss</span><span class="leader">······················</span><span class="dim"> (7 tracks)</span>
+<span class="row">  05  Deep Focus</span><span class="leader">·····················</span><span class="dim"> (12 tracks)</span>
+<span class="row">  06  Slow Burn</span><span class="leader">······················</span><span class="dim"> (9 tracks)</span>
+
+<span class="playing">▶</span>  Deep Focus 08  <span class="dim">   vol 70%</span>
+<span class="bar">███████████████</span><span class="dim">░░░░░░░░░░░░░░░░░░</span> <span class="dim">1:47 / 3:12</span>
+<span class="bar">╭──────╮</span><span class="bar">╭───────╮</span><span class="bar">╭──────╮</span><span class="bar">╭──────╮</span><span class="bar">╭────────╮</span>
+<span class="bar">│</span> <span class="accent">|&lt;</span> <span class="dim">p</span> <span class="bar">│</span><span class="bar">│</span> <span class="accent">||</span> <span class="dim">spc</span> <span class="bar">│</span><span class="bar">│</span> <span class="accent">&gt;|</span> <span class="dim">n</span> <span class="bar">│</span><span class="bar">│</span> <span class="accent">[]</span> <span class="dim">s</span> <span class="bar">│</span><span class="bar">│</span> <span class="accent">vol</span> <span class="dim">+/-</span> <span class="bar">│</span>
+<span class="bar">╰──────╯</span><span class="bar">╰───────╯</span><span class="bar">╰──────╯</span><span class="bar">╰──────╯</span><span class="bar">╰────────╯</span>
+<span class="dim">↑↓ k/j  enter open  esc back  l lib  c theme  q quit</span>
+</div>
+
+<section class="spec">
+  <h2>Spec — what changes if you pick this</h2>
+  <table>
+    <tr><td><span class="swatch" style="background:#e8a33d"></span>Title / selected / bar</td><td>lipgloss slot <code>214</code> → amber <code>#e8a33d</code></td><td>was pink 205</td></tr>
+    <tr><td><span class="swatch" style="background:#e8dcc8"></span>Plain text</td><td><code>7</code> default → warm cream <code>#e8dcc8</code></td></tr>
+    <tr><td><span class="swatch" style="background:#8a7a5f"></span>Dim text</td><td>slot <code>241</code> → warm gray <code>#8a7a5f</code></td></tr>
+    <tr><td><span class="swatch" style="background:#7fae5c"></span>Playing row ♪</td><td>slot <code>42</code> → moss green <code>#7fae5c</code></td></tr>
+    <tr><td><span class="swatch" style="background:#14100c"></span>Panel background</td><td>ghostty / kitty preset: <code>background = 14100c</code></td></tr>
+  </table>
+  <p style="margin-top:8px; font-size:12px; color:#8a7a5f">Dotted leaders in the list are part of <code>renderRow</code>'s label, pure text — no terminal trickery. The progress bar stays the existing █/░ blocks.</p>
+</section>
+
+</body>
+</html>

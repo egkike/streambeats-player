@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — Synthwave night panel mockup</title>
+<style>
+  :root {
+    --desk-bg: #05040c;
+    --panel-bg: #0d0a1a;
+    --panel-fg: #d8d4ee;
+    --magenta: #ff5ec8;
+    --cyan: #4fd6e0;
+    --violet: #8b7fd4;
+    --green: #6dff9c;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--desk-bg);
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 100vh;
+  }
+  .desk-note {
+    padding: 24px 32px;
+    color: var(--violet);
+    font-size: 13px;
+  }
+  .desk-note h1 {
+    font-size: 15px;
+    color: var(--magenta);
+    margin-bottom: 6px;
+  }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2a2350;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .title { color: var(--magenta); font-weight: 700; }
+  .dim { color: var(--violet); }
+  .cyan { color: var(--cyan); }
+  .selected { color: var(--magenta); font-weight: 700; }
+  .playing { color: var(--green); }
+  .bar { color: var(--magenta); }
+  .row { margin-left: 2px; }
+  .row.sel { margin-left: 0; }
+  .highlight { color: var(--cyan); }
+  .spec {
+    background: #080613;
+    border-left: 3px solid #7a4fa3;
+    max-width: 760px;
+    margin: 0 32px 20px;
+    padding: 14px 18px;
+  }
+  .spec h2 { font-size: 13px; color: var(--magenta); margin-bottom: 8px; }
+  .spec table { border-collapse: collapse; font-size: 12.5px; }
+  .spec td { padding: 1px 14px 1px 0; vertical-align: top; }
+  .swatch { display: inline-block; width: 11px; height: 11px; vertical-align: -1px; margin-right: 6px; }
+  code { color: #9d8fd6; }
+</style>
+</head>
+<body>
+
+<section class="desk-note">
+  <h1>Direction 2 — Synthwave night</h1>
+  <p>Evolution of the current pink theme, not a break from it: magenta stays the
+  accent, cyan joins as a second voice for structure (header metadata, folder marks),
+  and the whole panel drops onto a deep violet night background.</p>
+</section>
+
+<div class="panel" role="img" aria-label="Mockup of the streambeats panel in the synthwave night theme">
+<span class="title">streambeats</span><span class="dim"> </span><span class="cyan">◉</span><span class="dim"> terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="selected">▸ </span><span class="selected">01  Cold Front</span><span class="cyan">» 9 tracks</span>
+<span class="row">  02  Neon Alley</span><span class="cyan">» 8 tracks</span>
+<span class="row">  03  Rooftop Rain</span><span class="cyan">» 10 tracks</span>
+<span class="row">  04  Tape Hiss</span><span class="cyan">» 7 tracks</span>
+<span class="row">  05  Deep Focus</span><span class="cyan">» 12 tracks</span>
+<span class="row">  06  Slow Burn</span><span class="cyan">» 9 tracks</span>
+
+<span class="playing">▶</span>  Deep Focus 08  <span class="dim">   vol 70%</span>
+<span class="bar">███████████████</span><span class="dim">░░░░░░░░░░░░░░░░░░</span> <span class="cyan">1:47 / 3:12</span>
+<span class="bar">╭──────╮</span><span class="bar">╭───────╮</span><span class="bar">╭──────╮</span><span class="bar">╭──────╮</span><span class="bar">╭────────╮</span>
+<span class="bar">│</span> <span class="title">|&lt;</span> <span class="dim">p</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">||</span> <span class="dim">spc</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">&gt;|</span> <span class="dim">n</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">[]</span> <span class="dim">s</span> <span class="bar">│</span><span class="bar">│</span> <span class="title">vol</span> <span class="dim">+/-</span> <span class="bar">│</span>
+<span class="bar">╰──────╯</span><span class="bar">╰───────╯</span><span class="bar">╰──────╯</span><span class="bar">╰──────╯</span><span class="bar">╰────────╯</span>
+<span class="dim">↑↓ k/j</span> <span class="cyan">·</span> <span class="dim">enter open</span> <span class="cyan">·</span> <span class="dim">esc back</span> <span class="cyan">·</span> <span class="dim">l lib</span> <span class="cyan">·</span> <span class="dim">c theme</span> <span class="cyan">·</span> <span class="dim">q quit</span>
+</div>
+
+<section class="spec">
+  <h2>Spec — what changes if you pick this</h2>
+  <table>
+    <tr><td><span class="swatch" style="background:#ff5ec8"></span>Title / selected / bar</td><td>keeps today's slot <code>205</code> pink, one step brighter</td></tr>
+    <tr><td><span class="swatch" style="background:#4fd6e0"></span>Second voice (·  » times)</td><td>new slot <code>80</code> cyan — counts, separators, progress timestamps</td></tr>
+    <tr><td><span class="swatch" style="background:#8b7fd4"></span>Dim text</td><td>slot <code>241</code> → violet-gray <code>#8b7fd4</code></td></tr>
+    <tr><td><span class="swatch" style="background:#6dff9c"></span>Playing row ♪</td><td>slot <code>42</code> → spring green <code>#6dff9c</code></td></tr>
+    <tr><td><span class="swatch" style="background:#0d0a1a"></span>Panel background</td><td>ghostty / kitty preset: <code>background = 0d0a1a</code></td></tr>
+  </table>
+  <p style="margin-top:8px; font-size:12px; color:#9d8fd6">The cyan dot after the title and the » track counts are the only structural edits: small <code>headerView</code> and <code>renderRow</code> label tweaks, no layout contract touched.</p>
+</section>
+
+</body>
+</html>
