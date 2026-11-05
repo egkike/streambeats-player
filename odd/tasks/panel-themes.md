@@ -167,3 +167,16 @@ L17. T5 done (commit follows): ladder rebuilt as pairs with the
      per S13 (quiet reuses its band; legacy trio stays bandless).
      RED observed on tier pins + badge band + navHints nav pinned
      line; suite green incl race and 56/55/50/… fit boundaries.
+L18. Post-merge (PR #147, merge d2ab8d4, CI green) advisory
+     verification, owner-requested, empirical via throwaway probes:
+     (a) R3-001@view.go:424-425 (themes review): long-title rows clip
+     the count tail with "…" IDENTICALLY across synthwave/quiet/legacy
+     — shipped truncate policy, uniform, no defect (pinned bytes were
+     not at risk); a keep-the-tail-truncate-the-middle policy remains
+     an optional owner-driven future design decision. (b)
+     R2-nav-floor-overflow + R3-001@view.go:744-746 (nav fix review):
+     the nav floor paints 6 runes at panels narrower than 6 columns
+     only — a degenerate domain documented deliberately (S10), reached
+     by no realistic panel; NOT absorbed by #146's rewrite, and no fix
+     is warranted. Both advisories verified-informational, no fix
+     cycle; observe receipts stand as approved.
