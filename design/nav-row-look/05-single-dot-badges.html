@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — nav row: single dot + badges</title>
+<style>
+  :root {
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F095C8;
+    --deepPink: #C96AA2;
+    --dim: #76616B;
+    --badge: #28121E;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #030203;
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  .note { color: #A78E9B; font-size: 13px; margin-bottom: 28px; max-width: 780px; text-align: center; }
+  .zoom { white-space: pre; font-size: 22px; margin-bottom: 8px; }
+  .badge { background: var(--badge); color: var(--accent); font-weight: 700; padding: 0 4px; border-radius: 3px; }
+  .sep { color: var(--deepPink); }
+  .tick { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    width: 100%;
+    max-width: 780px;
+    overflow: hidden;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .panel .dim, .dim { color: var(--dim); }
+  .panel .title { color: var(--accent); font-weight: 700; }
+  .narrowbox { max-width: 480px; margin-bottom: 26px; }
+  .narrow { white-space: pre; font-size: 14px; overflow: hidden; }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 640px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #A78E9B;
+  }
+  .spec code { color: var(--deepPink); }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td { padding: 2px 16px 2px 0; }
+</style>
+</head>
+<body>
+<h1>Alternativa 5 — Single dot + badges (tu segunda pasada)</h1>
+<p class="note">Un único <code style="color:#C96AA2">·</code> entre el par de navegación (<code>↑↓ k/j</code> = moverse) y el resto de la fila — el resto conserva el doble espacio clásico. Teclas con banda SGR, acciones dim. Cambio mínimo: <b>el full tier crece un solo rune (55 → 56)</b>.</p>
+
+<div class="zoom" role="img" aria-label="Nav row: single dot separator with badge keys">
+<span class="badge">↑↓</span> <span class="badge">k/j</span> <span class="sep">·</span> <span class="badge">enter</span> <span class="dim">open</span>  <span class="badge">esc</span> <span class="dim">back</span>  <span class="badge">l</span> <span class="dim">lib</span>  <span class="badge">c</span> <span class="dim">settings</span>  <span class="badge">q</span> <span class="dim">quit</span>
+</div>
+<div class="tick">
+<span class="dim">56 runes painted — ladder recalibrated 56 / 50 / 47 / 26 / 6</span>
+</div>
+
+<div class="panel">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="title">▸</span><span class="title"> 01  Cold Front  StreamBeats</span><span class="dim"> ····························· 9 tracks</span>
+
+<span class="badge">↑↓</span><span class="badge"> k/j</span><span class="sep"> · </span><span class="badge">enter</span><span class="dim"> open  </span><span class="badge">esc</span><span class="dim"> back  </span><span class="badge">l</span><span class="dim"> lib  </span><span class="badge">c</span><span class="dim"> settings  </span><span class="badge">q</span><span class="dim"> quit</span>
+</div>
+
+<div class="spec narrowbox">
+  <div style="color:#F095C8; margin-bottom:6px;">Tu panel lateral (~52 cols): badges intactos</div>
+  <span class="narrow"><span class="badge">k/j</span><span class="sep">·</span><span class="dim"> </span><span class="badge">enter</span><span class="dim"> open </span><span class="badge">esc</span><span class="dim"> back </span><span class="badge">l</span><span class="dim"> lib </span><span class="badge">c</span><span class="dim"> settings </span><span class="badge">q</span><span class="dim"> quit</span></span>
+  <div style="color:#76616B; margin-top:6px; font-size:12.5px;">En 52 cols cae al tier de 50 (separadores simples) — el badge vive igual, la identidad no se pierde.</div>
+</div>
+
+<div class="spec">
+<b style="color:#F095C8;">Spec — single dot + badges</b>
+<table>
+<tr><td>Rune cost</td><td><b>+1</b> al full tier (55 → 56) — rebalance de ladder mínimo</td></tr>
+<tr><td>Ti e r 0 (≥56)</td><td><code>↑↓ k/j · enter open  esc back  l lib  c settings  q quit</code> + badges</td></tr>
+<tr><td>Tier 1 (≥50)</td><td>vocabulary sin flechas… <b>50</b> con badges inherited from #143 — la ajuste de ancho zigun sigue</td></tr>
+<tr><td>Resto</td><td>47/26/6 con badges — geometry unchanged from #143</td></tr>
+<tr><td>Banda</td><td>token <code>selection</code> de cada theme; <code>quiet</code> reutiliza su banda existente</td></tr>
+</table>
+<i style="color:#76616B;">Por qué el punto único: rodar el par "move" (muy diferente en naturaleza que "open/back/lib/quit") — es la semántica que apagé el enemigo 01 full-todo</i>
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "title": "streambeats nav row look",
+  "brief": "Alternatives for the settings-screen nav hint row (↑↓ k/j · enter open · esc back · l lib · c settings · q quit): nicer separation between controls while honoring the painted-width tier ladder (issue #143 S9-S10, measured rune budgets 55/50/47/26/6). Each artboard shows the row at full tier and inside the owner's ~52-column side panel, with the tier cost.",
+  "feature": "odd/tasks/panel-themes.md",
+  "artboards": [
+    { "file": "01-dot-rhythm.html", "title": "Dot rhythm", "tradeoff": "Calm visible rhythm on wide panels; +5 runes at the full tier (60), so a 52-55 col side panel drops to the compressed tier more often — exactly where the owner reads the row", "width": 1440, "height": 900 },
+    { "file": "02-key-badges.html", "title": "Key badges", "tradeoff": "Zero painted-width change (SGR-only keys on a dim band): the tier ladder stays untouched everywhere; loses the explicit separator, states by color instead", "width": 1440, "height": 900 },
+    { "file": "03-zoned-groups.html", "title": "Zoned groups", "tradeoff": "Most scannable zones (navigate / settings / quit) with a divider bar; widest full tier (62, +7) — the tier ladder needs the biggest recalibration", "width": 1440, "height": 900 },
+    { "file": "04-hybrid-dots-badges.html", "title": "Hybrid dots + badges", "tradeoff": "Owner hybrid: dot separators + SGR-badged keys; full tier grows to 60 (ladder recalibrates to 60/55/50/47/26/6) but the badge survives every tier at zero painted width", "width": 1440, "height": 900 },
+    { "file": "05-single-dot-badges.html", "title": "Single dot + badges", "tradeoff": "Owner's finalized refinement: one dot between the move pair and the rest, badges everywhere; smallest possible ladder recalibration (55→56 full tier) with zero badge degradation", "width": 1440, "height": 900 }
+  ]
+}

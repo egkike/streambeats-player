@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — nav row: dot rhythm</title>
+<style>
+  :root {
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F095C8;
+    --deepPink: #C96AA2;
+    --dim: #76616B;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #030203;
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  .note { color: #A78E9B; font-size: 13px; margin-bottom: 28px; max-width: 760px; text-align: center; }
+  .zoom { white-space: pre; font-size: 22px; margin-bottom: 8px; }
+  .tick { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    width: 100%;
+    max-width: 780px;
+    overflow: hidden;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .panel .dim, .dim { color: var(--dim); }
+  .panel .title { color: var(--accent); font-weight: 700; }
+  .narrowbox { max-width: 480px; margin-bottom: 26px; }
+  .narrow { white-space: pre; font-size: 14px; overflow: hidden; }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 640px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #A78E9B;
+  }
+  .spec code { color: var(--deepPink); }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td { padding: 2px 16px 2px 0; }
+</style>
+</head>
+<body>
+<h1>Alternativa 1 — Dot rhythm</h1>
+<p class="note">Un <code style="color:#C96AA2">·</code> entre cada control: ritmo visual en la fila más leída del panel. El costo es real: la escala completa pasa de 55 a <b>60 runes</b>.</p>
+
+<div class="zoom" role="img" aria-label="Nav row with dot separators">
+<span class="dim">↑↓ k/j</span> <span class="dim">·</span> <span class="dim">enter open</span> <span class="dim">·</span> <span class="dim">esc back</span> <span class="dim">·</span> <span class="dim">l lib</span> <span class="dim">·</span> <span class="dim">c settings</span> <span class="dim">·</span> <span class="dim">q quit</span>
+</div>
+<div class="tick"><span class="dim">61 runes painted (today: 55) — full tier needs ≥60 painted columns</span></div>
+
+<div class="panel">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="title">▸</span><span class="title"> 01  Cold Front  StreamBeats</span><span class="dim"> ····························· 9 tracks</span>
+
+<span class="dim">↑↓ k/j</span> <span class="dim">·</span> <span class="dim">enter open</span> <span class="dim">·</span> <span class="dim">esc back</span> <span class="dim">·</span> <span class="dim">l lib</span> <span class="dim">·</span> <span class="dim">c settings</span> <span class="dim">·</span> <span class="dim">q quit</span>
+</div>
+
+<div class="spec narrowbox">
+  <div style="color:#F095C8; margin-bottom:6px;">Tu panel lateral (~52 cols): cae al tier comprimido</div>
+  <span class="narrow"><span class="dim">↑↓ k/j · enter open · esc back · l lib · c settings · q quit</span></span>
+  <div style="color:#76616B; margin-top:6px; font-size:12.5px;">En 52 columnas el tier de 61 runes NO entra → esta fila vuelve al doble-espacio clásico… exactamente donde hizo falta el fix.</div>
+</div>
+
+<div class="spec">
+<b style="color:#F095C8;">Spec de tiers con puntos (rebalance)</b>
+<table>
+<tr><td>≥61</td><td>pointed full (arriba)</td></tr>
+<tr><td>≥56</td><td>sin flechas, puntos (58)</td></tr>
+<tr><td>≥53</td><td>doble espacio clásico (55)</td></tr>
+<tr><td>…</td><td>resto de la escalera actual intacta</td></tr>
+</table>
+<i style="color:#76616B;">Tradeoff: el ritmo bonito vive solo en paneles ≥61 — en tu panel lateral la fila vuelve a verse como hoy.</i>
+</div>
+</body>
+</html>

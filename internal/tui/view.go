@@ -121,18 +121,19 @@ func (m Model) statusOrNavLine() string {
 	if m.status != "" {
 		return m.statusStyle().Render(m.status)
 	}
-	// Issue #143 S9/S10: the nav row obeys the painted width budget on one
-	// flat control — the longest approved tier that fits, so the tail never
-	// clips on side-anchored panels.
-	return m.dimStyle().Render(navHintsFor(m.contentWidth()))
+	// Issue #143 S9/S10 + #146 S12-S14: the nav row obeys the painted-width
+	// budget on one flat control — longest approved tier that fits — and
+	// repaints as the artboard: single-dot separator, badged keys, dim
+	// actions.
+	return m.navRowFor(m.contentWidth())
 }
 
 // navHints is the compact navigation reference shown when the status slot
-// is empty. Only keys NOT shown in the keycaps row (no playback repeats).
-// Issue #140 S5: the hint advertises c settings — the screen has managed
-// panel terminal selection since issue #90, so the old label under-described it.
+// is empty (the approved full line TEXT — badges live in navRowFor).
+// Only keys NOT shown in the keycaps row (no playback repeats);
+// issue #146 S15 carries the single dot.
 func navHints() string {
-	return "↑↓ k/j  enter open  esc back  l lib  c settings  q quit"
+	return navHintsFor(1000)
 }
 
 // Solo Teclado width calibration (issue #60 S6/L8, CPR probe): ghostty
@@ -715,32 +716,141 @@ func joinStatus(current, note string) string {
 	return current + " — " + note
 }
 
-// navHintTiers is the approved vocabulary ladder (issue #143 S10): the nav
-// row picks the longest tier whose rune count fits the painted width, so a
-// narrow side panel compresses the line instead of letting the terminal
-// clip its tail (the owner's "q qui" report). Every tier keeps the SAME
-// key vocabulary order and never repeats a keycap playback token (issue
-// #60 S4). Measured rune widths: 55 / 50 / 47 / 26 / 6.
-var navHintTiers = []string{
-	// The approved full line (issue #140 S5): byte-identical to v1.11.0.
-	"↑↓ k/j  enter open  esc back  l lib  c settings  q quit",
-	// Compressed separators, same vocabulary.
-	"↑↓ k/j enter open esc back l lib c settings q quit",
-	// Arrows dropped.
-	"k/j enter open esc back l lib c settings q quit",
-	// Bare navigation essentials for tight strips.
-	"enter open esc back q quit",
-	// Floor: below six painted columns nothing renders; the terminal clips
-	// and does not wrap (S10 leaves this degenerate case documented).
-	"q quit",
+// navHintPair is one key+action unit of the nav row (issue #146 S12):
+// the key renders as a SGR badge (zero painted width), the action stays
+// plain-dim.
+type navHintPair struct{ key, action string }
+
+var (
+	// Full vocabulary with the arrows; the first separator is the single
+	// painted dot (owner refinement, artboard 05).
+	navPairsFull = []navHintPair{
+		{"↑↓ k/j", ""}, {"enter", "open"}, {"esc", "back"},
+		{"l", "lib"}, {"c", "settings"}, {"q", "quit"},
+	}
+	// Single-space tier: same vocabulary, one space between pairs (50).
+	navPairsArrows = navPairsFull
+	// Arrows dropped (47).
+	navPairsCompact = []navHintPair{
+		{"k/j", ""}, {"enter", "open"}, {"esc", "back"},
+		{"l", "lib"}, {"c", "settings"}, {"q", "quit"},
+	}
+	// Bare navigation essentials for tight strips (26).
+	navPairsEssential = []navHintPair{{"enter", "open"}, {"esc", "back"}, {"q", "quit"}}
+	// Floor (6): below six painted columns nothing renders (documented
+	// degenerate case, issue #143 S10).
+	navPairsFloor = []navHintPair{{"q", "quit"}}
+)
+
+// navBadgeBgs (issue #146 S13): per-theme key-band tokens; unlisted
+// themes render plain-dim keys — their row differs only by the dot.
+var navBadgeBgs = map[theme.Theme]string{
+	theme.Vinyl:     "#241b12",
+	theme.Synthwave: "#2a2350",
+	theme.Quiet:     quietBandColor,
+	theme.Cute:      "#28121E",
+	theme.Sexy:      "#28121E",
 }
 
-// navHintsFor returns the longest nav tier that fits width runes.
-func navHintsFor(width int) string {
-	for _, tier := range navHintTiers {
-		if len([]rune(tier)) <= width {
-			return tier
+// badgeKey renders a key token: every whitespace word is badge-wrapped so
+// multi-token keys (↑↓ k/j) leave their separating space un-styled (the
+// artboard shows two adjacent badges).
+func (m Model) badgeKey(key string) string {
+	style := m.navKeyStyle()
+	fields := make([]string, 0, 2)
+	for _, word := range strings.Fields(key) {
+		fields = append(fields, style.Render(word))
+	}
+	return strings.Join(fields, " ")
+}
+
+// navKeyStyle is the badge look: bold Selected fg over the theme band;
+// themes without a band keep the plain dim paint of v1.11.1.
+func (m Model) navKeyStyle() lipgloss.Style {
+	bg, ok := navBadgeBgs[m.theme]
+	if !ok {
+		return m.dimStyle()
+	}
+	return lipgloss.NewStyle().Bold(true).
+		Foreground(lipgloss.Color(m.palette.Selected)).
+		Background(lipgloss.Color(bg))
+}
+
+// navRowFor paints the longest tier that fits width with badges and the
+// dot ladder of the artboard. Measured rune budgets (issue #146 S12):
+// 56 / 50 / 47 / 26 / floor 6; the badge SGR adds zero painted width, so
+// the stripANSI of every tier equals navHintsFor's text exactly (S14).
+func (m Model) navRowFor(width int) string {
+	switch {
+	case width >= 56:
+		return m.renderNavPairs(navPairsFull, true, "  ")
+	case width >= 50:
+		return m.renderNavPairs(navPairsArrows, false, " ")
+	case width >= 47:
+		return m.renderNavPairs(navPairsCompact, false, " ")
+	case width >= 26:
+		return m.renderNavPairs(navPairsEssential, false, " ")
+	default:
+		return m.renderNavPairs(navPairsFloor, false, " ")
+	}
+}
+
+// navRowText renders the tier geometry without SGR — the exact painted
+// text navHintsFor delegates to (issue #146 S14); tier 0 carries the dot.
+func navRowText(pairs []navHintPair, dotFirst bool, sep string) string {
+	var b strings.Builder
+	for i, p := range pairs {
+		if i > 0 {
+			run := sep
+			if dotFirst && i == 1 {
+				run = " · "
+			}
+			b.WriteString(run)
+		}
+		b.WriteString(p.key)
+		if p.action != "" {
+			b.WriteString(" " + p.action)
 		}
 	}
-	return navHintTiers[len(navHintTiers)-1]
+	return b.String()
+}
+
+// navHintsFor returns the approved tier TEXT for the width (no badges —
+// styling lives in navRowFor; the stripANSI of navRowFor equals this exact
+// text, which the S14 contract pins).
+func navHintsFor(width int) string {
+	switch {
+	case width >= 56:
+		return navRowText(navPairsFull, true, "  ")
+	case width >= 50:
+		return navRowText(navPairsArrows, false, " ")
+	case width >= 47:
+		return navRowText(navPairsCompact, false, " ")
+	case width >= 26:
+		return navRowText(navPairsEssential, false, " ")
+	default:
+		return navRowText(navPairsFloor, false, " ")
+	}
+}
+
+// renderNavPairs joins badges, dim actions and separator runs into one
+// row. tier 0 (dotFirst) puts the single Bar-colored dot between the move
+// pair and the first action, plain double spaces elsewhere; other tiers
+// use the plain single-space run.
+func (m Model) renderNavPairs(pairs []navHintPair, dotFirst bool, sep string) string {
+	var b strings.Builder
+	for i, p := range pairs {
+		if i > 0 {
+			run := sep
+			if dotFirst && i == 1 {
+				run = " " + m.barStyle().Render("·") + " "
+			}
+			b.WriteString(run)
+		}
+		b.WriteString(m.badgeKey(p.key))
+		if p.action != "" {
+			b.WriteString(" " + m.dimStyle().Render(p.action))
+		}
+	}
+	return b.String()
 }

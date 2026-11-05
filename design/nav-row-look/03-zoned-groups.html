@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — nav row: zoned groups</title>
+<style>
+  :root {
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F095C8;
+    --deepPink: #C96AA2;
+    --dim: #76616B;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #030203;
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  .note { color: #A78E9B; font-size: 13px; margin-bottom: 28px; max-width: 780px; text-align: center; }
+  .zoom { white-space: pre; font-size: 22px; margin-bottom: 8px; }
+  .sep { color: var(--deepPink); }
+  .tick { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    width: 100%;
+    max-width: 780px;
+    overflow: hidden;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .panel .dim, .dim { color: var(--dim); }
+  .panel .title { color: var(--accent); font-weight: 700; }
+  .narrowbox { max-width: 480px; margin-bottom: 26px; }
+  .narrow { white-space: pre; font-size: 14px; overflow: hidden; }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 640px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #A78E9B;
+  }
+  .spec code { color: var(--deepPink); }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td { padding: 2px 16px 2px 0; }
+</style>
+</head>
+<body>
+<h1>Alternativa 3 — Zoned groups</h1>
+<p class="note">Tres zonas con divisores de voz: NAVEGACIÓN (↑↓, enter, esc) · AJUSTES/BIBLIOTECA (l, c) · SALIDA (q). Lo más escaneable — pero la fila completa crece a <b>62 runes</b>.</p>
+
+<div class="zoom" role="img" aria-label="Nav row with zoned groups">
+<span class="dim">↑↓ k/j enter open esc back</span> <span class="sep">·</span> <span class="dim">l lib c settings</span> <span class="sep">·</span> <span class="dim">q quit</span>
+</div>
+<div class="tick"><span class="dim">62 runes painted (today 55) — cada divisor con aria.label seo claro</span></div>
+
+<div class="panel">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="title">▸</span><span class="title"> 01  Cold Front  StreamBeats</span><span class="dim"> ····························· 9 tracks</span>
+
+<span class="dim">↑↓ k/j enter open esc back</span> <span class="sep">·</span> <span class="dim">l lib c settings</span> <span class="sep">·</span> <span class="dim">q quit</span>
+</div>
+
+<div class="spec narrowbox">
+  <div style="color:#F095C8; margin-bottom:6px;">Tu panel lateral (~52 cols): el tier completo NO entra</div>
+  <span class="narrow"><span class="dim">k/j enter open esc back · l lib c settings · q quit</span></span>
+  <div style="color:#76616B; margin-top:6px; font-size:12.5px;">59 runes sin flechas — entra justo en ≥59: en tu panel vuelve a cae el tier… y con menos vocabulario si sigue comprimiendo.</div>
+</div>
+
+<div class="spec">
+<b style="color:#F095C8;">Spec de tiers con zonas (rebalance)</b>
+<table>
+<tr><td>≥62</td><td>zonas completas con flechas</td></tr>
+<tr><td>≥59</td><td>zonas sin flechas</td></tr>
+<tr><td>≥55</td><td>doble espacio clásico (fallback; la obsesión del panel lateral - tu viejo preocuprias visible hoy: la geometría actual fondo S9)</td></tr>
+<tr><td>…</td><td>esc $('essentials') q quit' floor</td></tr>
+</table>
+<i style="color:#76616B;">Tradeoff: las zonas lee de miradas — pero la fila es la más ancha de las tres y la división de zonas muere comprimida en paneles angostos.</i>
+</div>
+</body>
+</html>
