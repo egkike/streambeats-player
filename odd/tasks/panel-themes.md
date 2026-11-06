@@ -250,3 +250,20 @@ L26. Owner choice flush with the kitty field test at 560px (cols=60
      Issue #153 (status:approved, standing grant — owner "Dale con el
      A"). New specs S21-S23; no applicable RED (passive config value
      + docs; no unit harness for pixel widths).
+L27. Merged-and-shipped record for the field-fix arc: PR #150 merged
+     (76e7064, CI 42123504411; receipt review-ce51aa268860090e burned,
+     store rev sha256:f9983464...); PR #152 merged (e3319c5, CI
+     42127468311; receipt review-bcc30909b8d6a7e9 burned on the exact
+     final tree, store rev sha256:a684f9c9...; the tab-indented Closes
+     in its first body left #151 unlinked — fixed by editing the body,
+     verified via the issue timeline cross-reference). PR #154 merged
+     (14bbd0a, CI 42132593126; receipt review-5e9d1cab2a0c04db burned,
+     store rev sha256:f5a256c3...; issue #153 auto-closed).
+     Release v1.12.2 tagged on 14bbd0a and published green (run
+     42132829087). Field validation recorded: kitty width test preset
+     560px measured cols=60 with the full dotted row + badges; the
+     shipped 424px strips ladder to the 43-rune tier by design.
+L28. Owner retest remains the last arc step: install v1.12.2, then the
+     kitty daily panel (streambeats-quick --terminal=kitty right, now
+     560px) should render the complete dotted row; the cleanup of the
+     owner's local kitty-right-test.conf is optional (their call).
