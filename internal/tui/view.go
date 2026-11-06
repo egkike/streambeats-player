@@ -420,41 +420,73 @@ func (m Model) albumRowLabel(i int, album catalog.AlbumEntry) string {
 		if dots := m.contentWidth() - prefixWidth; dots > 0 {
 			return head + " " + strings.Repeat("·", dots) + " " + tail
 		}
+		// Issue #158 S28: with a too-long head the dots vanish — middle-
+		// truncate the head so ` … ` + the count tail always paint (the
+		// tail never falls to the generic row truncate).
+		head = truncateMiddle(head, m.contentWidth()-2-len([]rune(" … "))-len([]rune(tail)))
 		return head + " … " + tail
 	case theme.Synthwave:
-		return fmt.Sprintf("%02d  %s  » %d tracks", i+1, album.Title, count)
+		// Issue #158 S26/S27: the count tail is reserved first; the title
+		// middle-truncates when it does not fit (synthwave carries no
+		// artist chunk by design).
+		tail := fmt.Sprintf("  » %d tracks", count)
+		title := truncateMiddle(album.Title, m.contentWidth()-2-4-len([]rune(tail)))
+		return fmt.Sprintf("%02d  %s", i+1, title) + tail
 	case theme.Quiet:
-		return fmt.Sprintf("%02d  %-24s %2d", i+1, album.Title, count)
+		// Issue #158 S30: quiet's count column is fixed; the title column
+		// middle-truncates within its %-24s budget.
+		title := truncateMiddle(album.Title, 24)
+		return fmt.Sprintf("%02d  %-24s %2d", i+1, title, count)
 	default:
 		// Legacy byte-parity contract: the shipped format, artist included.
-		label := fmt.Sprintf("%02d  %s", i+1, album.Title)
+		num := fmt.Sprintf("%02d  ", i+1)
+		tail := fmt.Sprintf("  (%d tracks)", count)
+		title := album.Title
+		artist := ""
 		if album.Artist != "" {
-			label += "  " + album.Artist
+			artist = "  " + album.Artist
 		}
-		return label + fmt.Sprintf("  (%d tracks)", count)
+		budget := m.contentWidth() - 2 - len([]rune(num)) - len([]rune(tail))
+		// Issue #158 S26: on overflow the artist drops first (least-unique
+		// information), then the title middle-truncates; non-overflow rows
+		// keep the shipped bytes exactly.
+		if len([]rune(title))+len([]rune(artist)) > budget {
+			artist = ""
+			if len([]rune(title)) > budget {
+				title = truncateMiddle(title, budget)
+			}
+		}
+		return num + title + artist + tail
 	}
 }
 
 // trackRowLabel formats one track row with the theme's tail layout (issue
 // #140 S3): vinyl fills with leaders, synthwave markers the duration with
-// the second voice, the rest keep the plain two-space tail.
+// the second voice, the rest keep the plain two-space tail. Issue #158
+// S27: the duration tail is reserved first; overflow titles middle-
+// truncate (the vinyl head included) so the tail always paints.
 func (m Model) trackRowLabel(i int, track catalog.Track) string {
 	head := fmt.Sprintf("%02d  %s", i+1, trackTitle(track))
 	if track.DurationSeconds <= 0 {
+		if m.theme == theme.Synthwave {
+			return head
+		}
 		return head
 	}
 	tail := formatDuration(track.DurationSeconds)
+	budget := func(extra int) int { return m.contentWidth() - 2 - 4 - extra - len([]rune(tail)) }
 	if m.theme == theme.Vinyl {
 		prefixWidth := 2 + len([]rune(head)) + 1 + len([]rune(tail)) + 2
 		if dots := m.contentWidth() - prefixWidth; dots > 0 {
 			return head + " " + strings.Repeat("·", dots) + " " + tail
 		}
+		head = truncateMiddle(head, m.contentWidth()-2-len([]rune(" … "))-len([]rune(tail)))
 		return head + " … " + tail
 	}
 	if m.theme == theme.Synthwave {
-		return head + "  » " + tail
+		return fmt.Sprintf("%02d  %s  » %s", i+1, truncateMiddle(trackTitle(track), budget(2)), tail)
 	}
-	return head + "  " + tail
+	return fmt.Sprintf("%02d  %s  %s", i+1, truncateMiddle(trackTitle(track), budget(2)), tail)
 }
 
 // padRows fills rows up to height with blank lines (viewport padding).
@@ -622,6 +654,31 @@ func progressBar(position, duration float64, width int) string {
 	}
 	filled := int(ratio * float64(width))
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+}
+
+// truncateMiddle keeps both ends of an over-long label: head ~3/5 of the
+// remaining budget, an ellipsis, tail ~2/5 (issue #158 S29, artboard
+// long-title-truncate/02 — path-style truncation). Callers reserve the
+// row's count/duration tail FIRST; this helper only sees the title
+// budget. The generic truncate stays the final row guard.
+func truncateMiddle(s string, budget int) string {
+	runes := []rune(s)
+	if budget <= 0 {
+		return ""
+	}
+	if len(runes) <= budget {
+		return s
+	}
+	keep := budget - 1 // the ellipsis glyph itself
+	if keep <= 0 {
+		return "…"
+	}
+	headKeep := keep * 3 / 5
+	if headKeep == 0 {
+		return "…"
+	}
+	tailKeep := keep - headKeep
+	return string(runes[:headKeep]) + "…" + string(runes[len(runes)-tailKeep:])
 }
 
 // truncate cuts a line to at most width runes.
