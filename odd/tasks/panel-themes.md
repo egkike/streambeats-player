@@ -321,3 +321,8 @@ L31. T8 done (issue #158): RED observed on the truncateMiddle table
      quiet count column assertion (bare number by design). Pipeline
      green incl race and tidy; short-title rows byte-identical.
      Release v1.12.3 after merge (owner's call).
+L32. Review receipt (issue #158): lineage review-5ea81069e2ab350c
+     (medium, readability + reliability, owner-authorized 2 runs) —
+     approved, authority burned (store rev sha256:f6519370...170a).
+     Two non-blocking advisories recorded as later work (R2-001
+     SUGGESTION view.go:466, R3-001 WARNING view.go:661).

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streambeats — long title truncation: Tail keep</title>
+<style>
+  :root {
+    --panel-bg: #060407;
+    --panel-fg: #F6EFF3;
+    --accent: #F095C8;
+    --deepPink: #C96AA2;
+    --dim: #76616B;
+    --mint: #B4E7C7;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #030203;
+    color: var(--panel-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 15px;
+    line-height: 1.7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  .note { color: #A78E9B; font-size: 13px; margin-bottom: 24px; max-width: 800px; text-align: center; }
+  .panel {
+    background: var(--panel-bg);
+    padding: 10px 18px 12px;
+    border-top: 1px solid #2A1720;
+    white-space: pre;
+    width: 100%;
+    max-width: 700px;
+    overflow: hidden;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .panel .dim, .dim { color: var(--dim); }
+  .panel .title { color: var(--accent); font-weight: 700; }
+  .panel .selected { color: #FFB1DD; font-weight: 700; }
+  .panel .playing { color: var(--mint); }
+  .panel .bar { color: var(--deepPink); }
+  .spec {
+    background: #0A070B;
+    border-left: 3px solid #563040;
+    max-width: 680px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: #A78E9B;
+  }
+  .spec code { color: var(--deepPink); }
+  .before { color: var(--dim); text-decoration: line-through; }
+  .after { color: var(--panel-fg); }
+</style>
+</head>
+<body>
+<h1>Direction 1 — Tail keep</h1>
+<p class="note">Hoy la fila corta por el FINAL: el título entra y la cola (el conteo) muere en <code style="color:#C96AA2">…</code>. En Tail keep se invierte la prioridad: el título se trunca para que el conteo SIEMPRE quede en pantalla. La cuenta es la información que el owner busca en la fila.</p>
+
+<div class="panel" role="img" aria-label="Album rows with the tail-keep truncation policy, cute theme">
+<span class="title">streambeats</span><span class="dim">  terminal music player</span>
+
+<span class="title">Albums (6)</span><span class="dim">  esc: back</span>
+<span class="selected">▸ </span><span class="selected">01  An Extremely Long Album Ti  </span><span class="dim"> 8 tracks</span>
+<span class="title">  02  Cold Front</span><span class="dim">  StreamBeats</span><span class="dim"> ·················  9 tracks</span>
+<span class="dim">  03  Rooftop Rain  StreamBeats ················· 10 tracks</span>
+<span class="playing">  04  Deep Focus 08</span><span class="dim"> ······················</span><span class="dim"> 12 tracks</span>
+
+<span class="playing">▶</span>  Deep Focus 08  <span class="dim">   vol 70%</span>
+<span class="bar">███████████</span><span class="dim">░░░░░░░░░░░░░░</span> <span class="dim">1:47 / 3:12</span>
+<span class="dim">↑↓ k/j · enter open esc back l lib c settings q quit</span>
+</div>
+
+<div style="max-width: 700px; width: 100%; font-size: 13px; color: #A78E9B; margin-bottom: 12px;">
+  <b style="color:#F095C8;">Antes vs después (misma fila, mismo ancho):</b><br>
+  <span class="before">▸ 01  An Extremely Long Album Title That Keeps…</span><br>
+  <span class="after">▸ 01  An Extremely Long Album Ti…</span><span class="dim"> 8 tracks</span>
+</div>
+
+<div class="spec">
+<b style="color:#F095C8;">Spec — Tail keep</b>
+<table>
+<tr><td>Rol</td><td>El conteo y las colas de la fila dejan de ser vícti-mas: se calcula first y el resto del title budget se llena con el título truncable (final ellipsis <code>…</code>).</td></tr>
+<tr><td>Víctimas</td><td>El cantante <code>Tail Keep</code></td></tr>
+<tr><td>Dónde</td><td><code>albumRowLabel</code> / <code>trackRowLabel</code> / <code>renderRow</code>: el label pasa a computarse con presupuesto (tail budget-first), no free-form.</td></tr>
+<tr><td>Contratos TUI</td><td>El ladder de anchos 52/47/43/26/6 no cambia: el badge del conteo es la única parte que NO puede truncar (pinned en tests). Los 6 themes se ven idénticos: política igual, formatos iguales.</td></tr>
+<tr><td><b style="color:#F095C8;">Tradeoff</b></td><td>Los títulos largos pierden su FINAL (se garantiza la PRIMERA parte del nombre + el conteo). Si el album cataloga dos discos con el mismo head pero distinto suffix, el head choca — se ve distinto por el conteo/artistas variando.</td></tr>
+</table>
+</div>
+</body>
+</html>
