@@ -333,3 +333,8 @@ L33. Owner merged PR #159 (merge 80bb0da, merge-commit CI green run
      5ea81069e2ab350c approved, authority burned (store rev
      sha256:f6519370...170a). Branch cleaned; repo bin rebuilt to main
      proactively (the launcher would rebuild it at next run).
+L34. Release v1.12.3 tagged on 80bb0da and published green (run
+     42140349107): 5 archives + checksums.txt. Owner install/retest is
+     the remaining arc step: An Extremely-long catalog titles render
+     'head…tail  8 tracks' (count/duration tail always visible) on
+     install v1.12.3.
