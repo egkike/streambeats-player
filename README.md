@@ -122,6 +122,12 @@ go build -o bin/streambeats ./cmd/streambeats
 ./bin/streambeats help     # key bindings and paths
 ```
 
+The launcher (`streambeats-quick`) auto-rebuilds `bin/streambeats` whenever
+sources are newer than the binary. Direct binary runs (`kitten … ./bin/streambeats`,
+`go run ./cmd/streambeats`, hand-built copies) use the LAST BUILD: run
+`go build -o bin/streambeats ./cmd/streambeats` first, or last week's player
+answers with last week's code.
+
 TUI keys: `j/k` move, `enter` play/open, `l` library browser (navigate
 folders; `u` goes up; the root defaults to your XDG music dir, editable
 via `libraryRoot` in settings.json), `space` pause,
