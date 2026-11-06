@@ -89,6 +89,40 @@ S17. Issue #149 field cycle: a 43-rune tier lands between 47 and 26:
 S18. Regression guards (issue #149): the #143 fit contract passes at
     the new boundaries; badge band/no-band pins unchanged; legacy
     trio keeps no-band + only the dot.
+S19. Issue #151 (compact full tier): `↑↓ k/j · enter open esc back l
+    lib c settings q quit` = 52 runes, single spaces elsewhere; the
+    56/50 tiers dissolve; ladder 52/47/43/26/6; owner quote: "El 60
+    test-preset aplica" / field evidence cols=60 at 560px.
+S20. Issue #151: the #143 fit contract passes at 52/51/47/46/43/42;
+    painted-count pins 56 → 52; navHints() = compact text.
+S21. Issue #153: shipped kitty left/right presets use `columns 560px`
+    (top/bottom keep `lines 324px`); docs/kitty.md mapping reflects it.
+S22. Issue #153: the mapping table keeps the owner-tunables doctrine.
+S23. Issue #153: passive config + docs (no applicable RED; structural
+    grep verification; field evidence cols=60 + the rendered dotted
+    row with Status dot + badges).
+S24. Issue #156 docs cycle (README Use): the auto-rebuild doctrine is
+    `streambeats-quick`'s — direct binary runs (`kitten …`, `go run …`)
+    use the LAST BUILD; the rebuild command is documented. Owner Nov 5
+    field session hit the silent stale binary ("c theme" era).
+S25. Issue #156: docs-only change — no behavior or tests touched.
+S26. Issue #158 (handoff, artboard long-title-truncate/02 — owner
+    choice): overflow album rows drop the artist chunk first
+    (least-unique information, matches the artboard overflow row),
+    then middle-truncate the TITLE (head ~3/5 + `…` + tail ~2/5 of
+    the name) so the count tail always paints. Non-overflow rows stay
+    byte-identical.
+S27. Issue #158: track rows reserve the duration tail and
+    middle-truncate the title on overflow, same helper.
+S28. Issue #158: the vinyl dotted-leader branch keeps its separators;
+    a too-long head middle-truncates before ` … ` + count (the tail
+    never falls to the generic truncate).
+S29. Issue #158: `truncateMiddle(s, budget)` lives with the pure
+    helpers (head ~3/5, `…`, tail ~2/5; table-tested); the generic
+    `truncate` stays as the final row guard.
+S30. Issue #158: settings-screen and library rows keep today's plain
+    truncate (out of scope); ladder/badge/byte contracts untouched;
+    quiet's fixed `%-24s` column truncates within the column.
 
 ## Tasks
 
@@ -267,3 +301,28 @@ L28. Owner retest remains the last arc step: install v1.12.2, then the
      kitty daily panel (streambeats-quick --terminal=kitty right, now
      560px) should render the complete dotted row; the cleanup of the
      owner's local kitty-right-test.conf is optional (their call).
+L29. Docs cycle (issue #156 → PR #157): the auto-rebuild note landed in
+     the README Use section ("direct binary runs use the LAST BUILD");
+     owner merged f996cf67 (CI 42135642005 green); issue #156 auto-
+     closed (Closes at line start verified BEFORE the first merge attempt).
+L30. Handoff received (design/long-title-truncate/02-middle-ellipsis.html,
+     owner choice over Tail keep): middle-ellipsis truncation implemented
+     as issue #158 (status:approved, standing grant); specs S26-S30 +
+     spec addendum S19-S25 reconciled into this doc. Implementation
+     follows (RED first).
+L31. T8 done (issue #158): RED observed on the truncateMiddle table
+     (42/30/2 budgets) and the gated overflow rows (all four themes:
+     count tail died — today's bug); GREEN = truncateMiddle pure
+     helper (head 3/5, …, tail 2/5, ellipsis-only edge at keep=1) +
+     budget-first wiring: default drops the artist then middle-
+     truncates the title; synthwave/quiet reserve their tails; vinyl
+     heads middle-truncate before " … " + count. Two test fixes
+     during GREEN: edge-case literal pinned as ellipsis-only, and the
+     quiet count column assertion (bare number by design). Pipeline
+     green incl race and tidy; short-title rows byte-identical.
+     Release v1.12.3 after merge (owner's call).
+L32. Review receipt (issue #158): lineage review-5ea81069e2ab350c
+     (medium, readability + reliability, owner-authorized 2 runs) —
+     approved, authority burned (store rev sha256:f6519370...170a).
+     Two non-blocking advisories recorded as later work (R2-001
+     SUGGESTION view.go:466, R3-001 WARNING view.go:661).

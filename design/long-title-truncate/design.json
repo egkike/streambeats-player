@@ -1,0 +1,21 @@
+{
+  "title": "long title truncation",
+  "brief": "UX directions for long album/track titles in the panel rows (issues #153/#140 arc leftovers): today every theme truncates the row TAIL, losing the count/duration tail such as '9 tracks' or the 43/52 ladder widths. These artboards show two truncate policies that keep the tail visible, versus today's behavior, using real overflow data from the owner's session probes.",
+  "feature": "odd/tasks/panel-themes.md",
+  "artboards": [
+    {
+      "file": "01-tail-keep.html",
+      "title": "Tail keep",
+      "tradeoff": "Truncates the TITLE so the count tail always renders; the count survives at every width \u2014 the info the owner reads replaces the middle of long names",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-middle-ellipsis.html",
+      "title": "Middle ellipsis",
+      "tradeoff": "Both ends survive: head of the title, then an ellipsis, then the count tail \u2014 classic path-style truncation; the mid part of the name is what gets lost, reads easily as long-name compression",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}

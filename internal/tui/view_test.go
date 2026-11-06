@@ -579,3 +579,93 @@ func TestQuietTransportIsBoxlessInline(t *testing.T) {
 		t.Fatalf("legacy system transport lost the calibrated box caps:\n%s", legacyView)
 	}
 }
+
+// Issue #158 S29: the pure middle-ellipsis helper — head ~3/5, ellipsis,
+// tail ~2/5 of the remaining budget, exact-fit passthrough. Literals are
+// pinned so the policy is visible, not derived from the same math.
+func TestTruncateMiddleKeepsBothEnds(t *testing.T) {
+	long := "An Extremely Long Album Title That Keeps Going Past Reasonable Width Boundaries" // 79 runes
+	tests := []struct {
+		budget int
+		want   string
+	}{
+		{0, ""},
+		{79, long}, // exact fit passes through
+		{42, "An Extremely Long Album … Width Boundaries"},
+		{30, "An Extremely Long…h Boundaries"},
+		{2, "…"},
+	}
+	for _, tt := range tests {
+		if got := truncateMiddle(long, tt.budget); got != tt.want {
+			t.Errorf("truncateMiddle(79-rune title, %d) = %q, want %q", tt.budget, got, tt.want)
+		}
+	}
+	if got := truncateMiddle("Short", 30); got != "Short" {
+		t.Errorf("short titles pass through untouched: %q", got)
+	}
+}
+
+// Issue #158 S26: overflowing album rows drop the artist chunk first,
+// then middle-truncate the title so the count tail ALWAYS paints
+// (stripANSI of the row ends with the count; painted ≤ width).
+func TestOverflowingAlbumRowKeepsTheCountTail(t *testing.T) {
+	a := catalog.AlbumEntry{Slug: "long", Title: "An Extremely Long Album Title That Keeps Going Past Reasonable Width Boundaries", Artist: "StreamBeats"}
+	a.Tracks = append(a.Tracks, catalog.Track{Title: "t"})
+	for _, themeID := range []string{"cute", "system", "synthwave", "quiet"} {
+		m := NewModel(Options{Theme: themeID, ThemeDark: true, Width: 54, Catalog: &catalog.Catalog{Albums: []catalog.AlbumEntry{a}}})
+		m.status = ""
+		view := stripANSI(m.View())
+		var line string
+		for _, l := range strings.Split(view, "\n") {
+			if strings.Contains(l, "01") && strings.Contains(l, "Extrem") {
+				line = l
+				break
+			}
+		}
+		if line == "" {
+			t.Fatalf("theme %s: overflow row missing:\n%s", themeID, view)
+		}
+		if runes := len([]rune(line)); runes > 54 {
+			t.Errorf("theme %s: overflow row paints %d runes at width 54", themeID, runes)
+		}
+		// quiet renders the count as a bare aligned column (no 'tracks'
+		// word by design); the others carry the full count tail.
+		countVisible := strings.Contains(line, " 1 ")
+		if themeID != "quiet" {
+			countVisible = strings.Contains(line, "1 tracks")
+		}
+		if !countVisible {
+			t.Errorf("theme %s: the count tail died on overflow (today's bug):\n%q", themeID, line)
+		}
+		if !strings.Contains(line, "…") {
+			t.Errorf("theme %s: overflow title lost the middle ellipsis:\n%q", themeID, line)
+		}
+	}
+}
+
+// Issue #158 S27: overflow TRACK rows keep the duration tail too.
+func TestOverflowingTrackRowKeepsTheDurationTail(t *testing.T) {
+	m := themedAlbumModel(t, "cute")
+	m.width, m.height = 54, 24
+	m.inTracks = true
+	m.trackCursor = 0
+	// The track list renders selectedAlbum()'s album; swap long titles in.
+	m.albums = []catalog.AlbumEntry{{Slug: "long", Title: "Long Album", Tracks: []catalog.Track{{Title: "An Extremely Long Track Title That Keeps Going Past Every Reasonable Width", DurationSeconds: 200}}}}
+	view := stripANSI(m.View())
+	var line string
+	for _, l := range strings.Split(view, "\n") {
+		if strings.Contains(l, "An Extremely") {
+			line = l
+			break
+		}
+	}
+	if line == "" {
+		t.Fatalf("overflow track row missing:\n%s", view)
+	}
+	if !strings.Contains(line, "…") {
+		t.Errorf("overflow track title lost the middle ellipsis:\n%q", line)
+	}
+	if !strings.Contains(line, "3:20") {
+		t.Errorf("the duration tail died on overflow:\n%q", line)
+	}
+}
