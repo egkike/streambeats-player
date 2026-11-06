@@ -326,3 +326,10 @@ L32. Review receipt (issue #158): lineage review-5ea81069e2ab350c
      approved, authority burned (store rev sha256:f6519370...170a).
      Two non-blocking advisories recorded as later work (R2-001
      SUGGESTION view.go:466, R3-001 WARNING view.go:661).
+L33. Owner merged PR #159 (merge 80bb0da, merge-commit CI green run
+     42139377062): middle-ellipsis truncation shipped to main; issue
+     #158 auto-closed via the line-start Closes + verified cross-
+     reference. Receipt for the exact merged tree: review-
+     5ea81069e2ab350c approved, authority burned (store rev
+     sha256:f6519370...170a). Branch cleaned; repo bin rebuilt to main
+     proactively (the launcher would rebuild it at next run).
