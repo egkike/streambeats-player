@@ -30,7 +30,9 @@ permissions:
 jobs:
   changes:
     name: Detect Go changes
-    runs-on: ubuntu-24.04
+    # issue #161: ubuntu-26.04 is GA (actions/runner-images#14747); explicit pin,
+    # never ubuntu-latest, so image migrations are a visible workflow edit.
+    runs-on: ubuntu-26.04
     outputs:
       code: ${{ steps.filter.outputs.code }}
       installer: ${{ steps.filter.outputs.installer }}
@@ -65,7 +67,8 @@ jobs:
     # filter, and docs-only pushes end in their own satisfying step.
     name: Verify Go code
     needs: changes
-    runs-on: ubuntu-24.04
+    # issue #161: same runner pin as `changes`; see above for the why.
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
 
     steps:
