@@ -22,7 +22,8 @@ permissions:
 jobs:
   release:
     name: Publish release
-    runs-on: ubuntu-24.04
+    # issue #161: same runner pin as the ci.yml jobs; see those for the why.
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
 
     steps:
