@@ -22,6 +22,7 @@ var keys = struct {
 	VolumeDown key.Binding
 	QueueNext  key.Binding
 	QueuePrev  key.Binding
+	Shuffle    key.Binding
 	Quit       key.Binding
 }{
 	Up:         key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("k/up", "up")),
@@ -35,6 +36,7 @@ var keys = struct {
 	VolumeUp:   key.NewBinding(key.WithKeys("+", "="), key.WithHelp("+", "volume up")),
 	QueueNext:  key.NewBinding(key.WithKeys(">", "n"), key.WithHelp("> / n", "next song >>")),
 	QueuePrev:  key.NewBinding(key.WithKeys("<", "p"), key.WithHelp("< / p", "prev song <<")),
+	Shuffle:    key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "shuffle >>")),
 	VolumeDown: key.NewBinding(key.WithKeys("-", "_"), key.WithHelp("-", "volume down")),
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }

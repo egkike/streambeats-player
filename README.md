@@ -131,7 +131,9 @@ answers with last week's code.
 TUI keys: `j/k` move, `enter` play/open, `l` library browser (navigate
 folders; `u` goes up; the root defaults to your XDG music dir, editable
 via `libraryRoot` in settings.json), `space` pause,
-`s` stop, `+/-` volume, `>` next song, `<` previous song, `c` settings,
+`s` stop, `+/-` volume, `>` next song, `<` previous song, `z` shuffles the
+remaining queue (albums stay grouped; the current track keeps playing),
+`c` settings,
 `esc` back, `q` quit. The transport row at the bottom is visual only — the keyboard
 does the work — and is terminal-adaptive (detected once at launch):
 ghostty shows the emoji keycaps (⏮ ⏯ ⏹ ⏭ 🔊), any other terminal shows
