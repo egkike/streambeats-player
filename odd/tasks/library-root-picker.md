@@ -136,6 +136,14 @@ codear"). Issue: egkike/streambeats-player#164 (status:approved + type:feature).
   reliability `internal/tui/view.go:358` — re-derive against merged main
   before fixing (receipts store id+lens+file:line only). PR references this
   receipt as evidence.
+- **L8** (merge evidence): PR #167 MERGED by owner (1d5bf0f merge commit);
+  merge-commit CI GREEN (check-runs: Verify Go code success + Detect Go
+  changes success); branch fix/picker-stale-listing deleted safe -d; local
+  main synced. Discovery during the cycle: the fix PR shipped with Closes
+  #164 instead of its own issue — corrected RETROACTIVELY before merge with
+  issue #168 (status:approved + type:bug, S1-S3 + negative controls) and the
+  PR re-pointed to Closes #168; the step-0 gap and its repair are recorded
+  here as the standing reminder that every code PR needs its own issue.
 - **L7** (advisory dispositions, owner: "Arregla los 2 advisories"):
   - **R3-001 = REAL, FIXED (RED→GREEN)**: the receipts line maps to the
     RootListedMsg handler — a slow listing for a folder the picker already
