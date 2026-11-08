@@ -136,8 +136,9 @@ remaining queue (albums stay grouped; the current track keeps playing),
 `c` settings,
 `esc` back, `q` quit. The transport row at the bottom is visual only — the keyboard
 does the work — and is terminal-adaptive (detected once at launch):
-ghostty shows the emoji keycaps (⏮ ⏯ ⏹ ⏭ 🔊), any other terminal shows
-width-stable ASCII tokens (`|<` `||` `>|` `[]` `vol`) so the frames stay
+ghostty shows the emoji keycaps (⏮ ⏯ ⏹ ⏭ 🔊 🔀), any other terminal
+shows
+width-stable ASCII tokens (`|<` `||` `>|` `[]` `v` `sh`) so the frames stay
 aligned. The player auto-advances to the next item of the list when a
 track ends; the end of the queue shows `playlist ended` in the status
 line. Tracks always resolve a fresh stream URL right before playing

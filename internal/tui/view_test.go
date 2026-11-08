@@ -276,7 +276,11 @@ func TestViewFillsTheWholePanelHeightR31(t *testing.T) {
 // table so the hand-built rows drift-proof; icons outside the table are a
 // test failure, not an auto-guess.
 func TestKeycapWidthsMatchTheCalibratedTable(t *testing.T) {
-	want := map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
+	// 🔀 (U+1F500) is EAW-wide emoji-presentation (no VS16): the CPR doctrine
+	// predicts 2 painted cells on the ghostty panel preset, like 🔊 — issue
+	// #172 S2; the owner's live panel check after GREEN re-confirms (#60
+	// ritual: a mis-measured probe flips the table, never the frame math).
+	want := map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2, "🔀": 2}
 	if len(keycapIconWidths) != len(want) {
 		t.Fatalf("keycapIconWidths = %v, want the calibrated table %v (measured by the CPR probe)", keycapIconWidths, want)
 	}
@@ -316,11 +320,11 @@ func TestKeycapsRowShowsTheApprovedPairs(t *testing.T) {
 	m.width, m.height = 52, 24
 	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
 	caps := stripANSI(strings.Join(rows[20:23], "\n"))
-	// O2 (issue #60 S7): the owner-approved Spotify+stop order — prev, play, next, stop, volume.
+	// O2 (issue #60 S7 + #172 S1): prev, play, next, stop, volume — shuffle LAST.
 	for _, want := range []string{
-		"\u256d─────\u256e\u256d───────\u256e\u256d─────\u256e\u256d─────\u256e\u256d────────\u256e",
-		"│ \u23ee\ufe0f p ││ \u23ef\ufe0f spc ││ \u23ed\ufe0f n ││ \u23f9\ufe0f s ││ \U0001f50a +/- │",
-		"\u2570─────\u256f\u2570───────\u256f\u2570─────\u256f\u2570─────\u256f\u2570────────\u256f",
+		"\u256d─────\u256e\u256d───────\u256e\u256d─────\u256e\u256d─────\u256e\u256d────────\u256e\u256d──────\u256e",
+		"│ \u23ee\ufe0f p ││ \u23ef\ufe0f spc ││ \u23ed\ufe0f n ││ \u23f9\ufe0f s ││ \U0001f50a +/- ││ \U0001f500 z │",
+		"\u2570─────\u256f\u2570───────\u256f\u2570─────\u256f\u2570─────\u256f\u2570────────\u256f\u2570──────\u256f",
 	} {
 		if !strings.Contains(caps, want) {
 			t.Fatalf("keycaps missing %q:\n%s", want, caps)
@@ -668,4 +672,38 @@ func TestOverflowingTrackRowKeepsTheDurationTail(t *testing.T) {
 	if !strings.Contains(line, "3:20") {
 		t.Errorf("the duration tail died on overflow:\n%q", line)
 	}
+}
+
+// Issue #172 S5: the 6-cap transport row must fit the 52-column panel in
+// BOTH render modes (painted columns, SGR-stripped). The emoji probe table
+// assumption (🔀 = 2, like 🔊) is what keeps the emoji frames closed; if a
+// live probe ever flips it down to 1, the table changes — never the frame
+// math (#60 CPR ritual).
+func TestKeycapsRowFitsAtWidth52(t *testing.T) {
+	m := layoutModel("")
+	m.width, m.height = 52, 24
+	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
+	emojiLine := stripANSI(strings.Join(rows[20:23], "\n"))
+	if strings.Contains(emojiLine, "╭") {
+		if widest := maxRuneWidth(emojiLine); widest > 52 {
+			t.Fatalf("emoji keycaps row paints %d runes, must fit 52", widest)
+		}
+	}
+	m.asciiTransport = true
+	rows2 := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
+	asciiLine := stripANSI(strings.Join(rows2[20:23], "\n"))
+	if runes := maxRuneWidth(asciiLine); runes > 52 {
+		t.Fatalf("ASCII keycaps row paints %d runes, must fit 52", runes)
+	}
+}
+
+// maxRuneWidth reports the widest line (rune count) of a multi-line strip.
+func maxRuneWidth(s string) int {
+	widest := 0
+	for _, line := range strings.Split(s, "\n") {
+		if n := len([]rune(line)); n > widest {
+			widest = n
+		}
+	}
+	return widest
 }
