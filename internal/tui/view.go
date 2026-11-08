@@ -121,12 +121,23 @@ func (m Model) statusOrNavLine() string {
 	if m.status != "" {
 		return m.statusStyle().Render(m.status)
 	}
+	// The picker advertises its own vocabulary (issue #164 S2, artboard A):
+	// the browse nav tiers do not apply while a folder chooser owns the keys.
+	if m.mode == ModeRootPicker {
+		return m.dimStyle().Render(truncate(pickerHint, m.contentWidth()))
+	}
 	// Issue #143 S9/S10 + #146 S12-S14: the nav row obeys the painted-width
 	// budget on one flat control — longest approved tier that fits — and
 	// repaints as the artboard: single-dot separator, badged keys, dim
 	// actions.
 	return m.navRowFor(m.contentWidth())
 }
+
+// pickerHint is the picker footer vocabulary (issue #164 S2 / artboard A,
+// English per project convention): the same keys the picker handles. ↑↓ is
+// the glyph pair the browse nav row already ships — no new glyph enters the
+// panel (zero EAW-ambiguous additions).
+const pickerHint = "j/k ↑↓ · enter opens · u up · o fixes · esc back"
 
 // navHints is the compact navigation reference shown when the status slot
 // is empty (the approved full line TEXT — badges live in navRowFor).
@@ -261,6 +272,10 @@ func (m Model) headerView() string {
 	case m.mode == ModeConfig:
 		return m.titleStyle().Render("Settings") +
 			m.dimStyle().Render("  theme / terminal: enter to apply  esc: back")
+	case m.mode == ModeRootPicker:
+		// Artboard A: the header is the current path of the chooser.
+		return m.titleStyle().Render("Library root") +
+			m.dimStyle().Render(" — "+m.pickerDir)
 	case m.mode == ModeLibrary:
 		root := m.libraryRoot
 		if root == "" {
@@ -334,10 +349,28 @@ func (m Model) listRows() []string {
 				}
 			}
 		}
-		// Library root (issue #76): read-only here — edit settings.json
-		// (libraryRoot) to point the navigator elsewhere.
-		if m.libraryRoot != "" {
-			rows = append(rows, m.dimStyle().Render(fmt.Sprintf("  library root: %s (settings.json)", m.libraryRoot)))
+		// Library root (issue #164 S6): ONE row, now the picker affordance —
+		// the same budget, cursor-aware, no extra rows.
+		root := m.libraryRoot
+		if root == "" {
+			root = "not set"
+		}
+		rows = append(rows, m.renderRow(m.configIndex == configRootRowIndex(m), false,
+			fmt.Sprintf("library root: %s (enter to change)", root), width))
+		return padRows(rows, height)
+	case m.mode == ModeRootPicker:
+		// Artboard A: directories only, each with a trailing slash, cursor
+		// ▸, and the fixed root painted by COLOR alone (issue #164 S3).
+		if len(m.pickerDirs) == 0 {
+			rows = append(rows, m.dimStyle().Render("  "+pickerEmptyStatus))
+			return padRows(rows, height)
+		}
+		start, end := windowBounds(len(m.pickerDirs), m.pickerCursor, height)
+		cursor := clampCursor(m.pickerCursor, len(m.pickerDirs))
+		for i := start; i < end; i++ {
+			dir := m.pickerDirs[i]
+			rows = append(rows, m.renderPickerRow(i == cursor, dir == m.libraryRoot,
+				filepath.Base(dir), width))
 		}
 		return padRows(rows, height)
 	case m.mode == ModeLibrary:
@@ -487,6 +520,27 @@ func (m Model) trackRowLabel(i int, track catalog.Track) string {
 		return fmt.Sprintf("%02d  %s  » %s", i+1, truncateMiddle(trackTitle(track), budget(2)), tail)
 	}
 	return fmt.Sprintf("%02d  %s  %s", i+1, truncateMiddle(trackTitle(track), budget(2)), tail)
+}
+
+// renderPickerRow draws one root-picker directory row (issue #164 S3): the
+// cursor marker plus the name and its trailing slash, with the FIXED root
+// painted from an existing palette role (Playing). The marking is color only:
+// identical painted width, zero new glyphs, and it derives from libraryRoot
+// so an old root is unmarked for free. The cursor always wins over the mark.
+func (m Model) renderPickerRow(selected, isRoot bool, name string, width int) string {
+	marker := "  "
+	if selected {
+		marker = "▸ "
+	}
+	line := truncate(marker+name+"/", width)
+	switch {
+	case selected:
+		return m.selectedStyle().Render(line)
+	case isRoot:
+		return m.playingStyle().Render(line)
+	default:
+		return line
+	}
 }
 
 // padRows fills rows up to height with blank lines (viewport padding).
