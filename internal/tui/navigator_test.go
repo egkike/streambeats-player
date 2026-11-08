@@ -723,3 +723,48 @@ func TestQueuePrevAnswersHonestlyWhenLibraryListingReplaced(t *testing.T) {
 		t.Fatalf("status = %q, want the honest listing-changed note", m.status)
 	}
 }
+
+// R3-001 (in-cycle advisory, re-derived as a REAL race on main): a slow
+// listing for a folder the picker already left must mutate nothing — pressing
+// u while a stale listing is still in flight keeps the HEAD listing instead of
+// being clobbered (pickerDir/pickerDirs/cursor reset) by the old message.
+func TestRootPickerStaleListingForAFolderAlreadyLeftDropsMutatesNothing(t *testing.T) {
+	lister := pickerFS{
+		pickerHome:           {dirs: []string{"/home/u/Albums"}},
+		"/home/u/Albums":     {dirs: []string{"/home/u/Albums/One"}},
+		"/home/u/Albums/One": {},
+	}
+	m, _ := pickerModel(t, lister, pickerHome, "/old/root", "system", "")
+	m = openRootPicker(t, m)
+
+	// descend into Albums with its listing applied
+	var cmd tea.Cmd
+	m, cmd = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = applyMsg(t, m, cmd)
+	if m.pickerDir != "/home/u/Albums" {
+		t.Fatalf("descend landed on %q, want /home/u/Albums", m.pickerDir)
+	}
+
+	// ascend back to $HOME: the model moves optimistically and lists $HOME;
+	// the ascend listing is left IN FLIGHT
+	m, ascendCmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	if m.pickerDir != pickerHome {
+		t.Fatalf("ascend landed on %q, want %q", m.pickerDir, pickerHome)
+	}
+
+	// the SLOW listing for /home/u/Albums arrives after we already left
+	stale := RootListedMsg{Dir: "/home/u/Albums", Dirs: []string{"/home/u/Albums/One"}}
+	m, _ = update(t, m, stale)
+	if m.pickerDir != pickerHome {
+		t.Fatalf("stale listing moved the picker to %q, want %q", m.pickerDir, pickerHome)
+	}
+	if len(m.pickerDirs) != 0 {
+		t.Fatalf("stale listing brought folders %v, want empty $HOME rows", m.pickerDirs)
+	}
+
+	// the real $HOME listing (in flight) still applies when it lands
+	m = applyMsg(t, m, ascendCmd)
+	if m.pickerDir != pickerHome || len(m.pickerDirs) != 1 {
+		t.Fatalf("real listing lost: dir %q dirs %v", m.pickerDir, m.pickerDirs)
+	}
+}
