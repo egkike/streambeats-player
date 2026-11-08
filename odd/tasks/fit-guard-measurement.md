@@ -55,3 +55,8 @@ calibrated table, content-anchored block, loud failures. Zero production surface
   WARNING advisories gift-wrapped inside the rewritten guard (the new R-labels are fresh, non-
   blocking later work): R2-001 readability internal/tui/view_test.go:751-755; R3-001 reliability
   internal/tui/view_test.go:747-750.
+- **L5** (merge evidence): PR #176 MERGED by the owner (squash default per governance, ref
+  b2c2cbd on main); merge-commit CI success on b2c2cbd BEFORE any further push to main
+  (AGENTS.md step 5). Cycle closed end-to-end: advisories R2-001/R3-001 from the visible-cap
+  receipt are closed with their own issue-first fix (#175) and native receipts
+  (review-aa104ba311d57817 approved+burned ×1 candidate).
