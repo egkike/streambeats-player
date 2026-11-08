@@ -25,6 +25,30 @@ natively (first press opens, next press hides — the wrapper relay handles
 it); a pre-1.4 Ghostty host spawns the detached unit on the first press and
 the legacy kdotool toggle takes over afterwards.
 
+### Binding styles (Command or Script vs Application)
+
+The global keybind can be attached two ways; the toggle is identical, the
+taskbar differs:
+
+| Style | Where (System Settings → Keyboard → Shortcuts) | On every toggle |
+|-------|------------------------------------------------|-----------------|
+| **Command or Script** → `$HOME/.local/bin/streambeats-panel toggle right` | Add New → Command or Script… | **no icon pulse** — recommended for the daily keybind (owner-verified on Plasma 6) |
+| **Application** → the generated `streambeats panel` entry | that entry's own Custom Shortcut | a transient app icon appears next to the other apps for a few seconds, then drops |
+
+Why the pulse: a `.desktop` Application activation registers the app in
+Plasma's "starting" queue; the panel itself is an overlay/layer-shell
+surface and never becomes a taskbar window, so the pending launcher task
+times out and disappears. Harmless and host-agnostic (kitty quick-access
+and the ghostty quick terminal behave identically; the same single
+quick-host instance serves every toggle — no cold start, no leftover
+process).
+
+Switching styles later: in Shortcuts, empty the shortcut on the entry you
+no longer want and add it to the other one (Custom Shortcut on the command
+entry). The generated `streambeats-panel.desktop` stays installed either
+way — its right-click **Actions** (top/bottom/left/right) live there and
+need no keybind.
+
 ## KRunner / Application Launcher
 
 The installer generates `~/.local/share/applications/streambeats-panel.desktop`

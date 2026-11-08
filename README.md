@@ -198,7 +198,10 @@ global KDE key to it — for example `Ctrl+Alt+M` →
 `$HOME/.local/bin/streambeats-panel toggle right` (this exact combo is
 verified working on KDE Plasma Wayland with the default Ghostty and Plasma
 keybinds; any free combo works). The 2-minute walkthrough:
-docs/kde-panel-integration.md, "Keybind" section. On Ghostty 1.4.0+
+docs/kde-panel-integration.md, "Keybind" section. Bind it as a **Command or
+Script** (not as an Application): the Application style makes Plasma
+flash a transient taskbar icon on every toggle — both styles and the
+switch are documented under "Binding styles" in that doc. On Ghostty 1.4.0+
 quick hosts and on kitty, the toggle is the native re-run relay (no
 kdotool, no unit guard — issues #134/#108): kitty is detached by the
 wrapper via `setsid`, and the ghostty quick host spawns its own claimed
