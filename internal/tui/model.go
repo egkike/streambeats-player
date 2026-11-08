@@ -410,8 +410,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case RootListedMsg:
 		// Library root picker listing (issue #164): dirs only, no recursion.
-		// A stale listing (the picker already closed) mutates nothing.
-		if m.mode != ModeRootPicker {
+		// A stale listing (the picker already closed) mutates nothing. R3-001
+		// (merged evidence): neither does a slow listing for a folder the
+		// picker ALREADY LEFT — races (descend-then-u, or reopen with old
+		// cmds in flight) are dropped so the HEAD listing always wins.
+		if m.mode != ModeRootPicker || msg.Dir != m.pickerDir {
 			return m, nil
 		}
 		m.pickerDir = msg.Dir

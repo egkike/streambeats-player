@@ -136,3 +136,18 @@ codear"). Issue: egkike/streambeats-player#164 (status:approved + type:feature).
   reliability `internal/tui/view.go:358` — re-derive against merged main
   before fixing (receipts store id+lens+file:line only). PR references this
   receipt as evidence.
+- **L7** (advisory dispositions, owner: "Arregla los 2 advisories"):
+  - **R3-001 = REAL, FIXED (RED→GREEN)**: the receipts line maps to the
+    RootListedMsg handler — a slow listing for a folder the picker already
+    left clobbered `pickerDir/pickerDirs/cursor` (race: descend-then-u, and
+    stale cmds crossing a reopen — the old guard only dropped wrong-MODE
+    messages). Fix: the handler now drops any listing whose `msg.Dir !=
+    m.pickerDir`, so the HEAD listing always wins; the stale in-flight
+    message and the real one are pinned separately
+    (TestRootPickerStaleListingForAFolderAlreadyLeftDropsMutatesNothing — RED
+    observed on the clobber, GREEN after the directory guard, suite green).
+  - **R3-002 = by-design NO-OP**: the receipts line maps to the dim "no
+    panel terminal installed" row (issue #90's visual-only divider). Cursor
+    never lands on it by construction (headers/dividers are outside
+    configRowCount — same contract as the section headers), tests pinned by
+    #90 still hold. Reason recorded; no change.
