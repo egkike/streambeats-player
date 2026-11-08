@@ -531,7 +531,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Shuffle):
 		// seeded per press: shuffle Remaining takes the rng as a parameter
 		// so tests stay deterministic
-		return m.shuffleRemaining(rand.New(rand.NewSource(time.Now().UnixNano())))
+		// shuffle ordering is not security-sensitive; crypto entropy would
+		// be wasted here (tests inject their own deterministic rng)
+		return m.shuffleRemaining(rand.New(rand.NewSource(time.Now().UnixNano()))) //nolint:gosec // G404: shuffle order, not cryptographic
 	case key.Matches(msg, keys.Quit):
 		m.quitting = true
 		if m.player == nil {
