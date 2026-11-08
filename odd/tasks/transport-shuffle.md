@@ -66,3 +66,9 @@ standing grant model).
   tiny queues is expected, not a bug. Seed-related fix: Fisher-Yates seeds are
   pinned per test (11/3) — changing them re-verifies the order-change assertion
   (test even checks "seed must reorder").
+- **L4** (CI evidence, e9e8e89): Verify Go code lint rejected the per-press seed
+  with gosec **G404** (math/rand) — a false positive here: the rng orders the
+  playlist, it guards no secret. Quieted with the repo idiom
+  `//nolint:gosec // G404: shuffle order, not cryptographic` + the honest
+  comment (precedent `musicdir.go:18`). Local it was silent: lint runs in CI
+  only. Shuffle tests re-run green after the annotation.
