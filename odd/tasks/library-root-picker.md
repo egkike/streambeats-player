@@ -126,3 +126,13 @@ codear"). Issue: egkike/streambeats-player#164 (status:approved + type:feature).
   LibraryListingReplaced); `>` degrades gracefully (autoAdvance's existing
   bounds End→playlist-ended) so no second guard was added (#88-style entry
   filter still keeps ListDir lazy).
+- **L6** (review receipts, d869e98+6c90861): lineage review-8cd660ea6c1687f6,
+  tier MEDIUM (1049 changed lines, budget 200), lenses review-risk (order 0) +
+  review-reliability (order 1) — owner-authorized group forecast, 2/2
+  reviewers admitted via last-event closure, authority burned (rev
+  sha256:c1719550d61bbef87b080df04c35a81ea61977a7d0d946e3b2b34f67ffcc784d).
+  TWO INFORMATIONAL advisories (non-blocking later-work, never reopen this
+  review): **R3-001** reliability `internal/tui/model.go:416`; **R3-002**
+  reliability `internal/tui/view.go:358` — re-derive against merged main
+  before fixing (receipts store id+lens+file:line only). PR references this
+  receipt as evidence.
