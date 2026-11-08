@@ -13,6 +13,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"streambeats/internal/catalog"
+	"streambeats/internal/theme"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -679,31 +680,141 @@ func TestOverflowingTrackRowKeepsTheDurationTail(t *testing.T) {
 // assumption (🔀 = 2, like 🔊) is what keeps the emoji frames closed; if a
 // live probe ever flips it down to 1, the table changes — never the frame
 // math (#60 CPR ritual).
+// TestKeycapsRowFitsAtWidth52 pins the end-to-end fit of the 6-cap transport
+// at the full 52-column panel tier (issue #172 S4, rebuilt measurement per
+// issue #175 S1-S3): content-anchored (no positional slice), painted-cell
+// width derived from the calibrated family table (issue #60 round-6), and a
+// loud failure whenever the frame cannot be found — the guard may never
+// silently skip or under-count.
 func TestKeycapsRowFitsAtWidth52(t *testing.T) {
-	m := layoutModel("")
-	m.width, m.height = 52, 24
-	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
-	emojiLine := stripANSI(strings.Join(rows[20:23], "\n"))
-	if strings.Contains(emojiLine, "╭") {
-		if widest := maxRuneWidth(emojiLine); widest > 52 {
-			t.Fatalf("emoji keycaps row paints %d runes, must fit 52", widest)
+	for _, tc := range []struct {
+		name  string
+		ascii bool
+	}{
+		{"emoji", false},
+		{"ascii", true},
+	} {
+		m := layoutModel("")
+		m.width, m.height = 52, 24
+		m.asciiTransport = tc.ascii
+		rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
+		block, ok := keycapBlock(rows)
+		if !ok {
+			t.Fatalf("%s: the keycaps frame is not anchored in the rendered view — content drift fails loud, never a silent skip", tc.name)
 		}
-	}
-	m.asciiTransport = true
-	rows2 := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
-	asciiLine := stripANSI(strings.Join(rows2[20:23], "\n"))
-	if runes := maxRuneWidth(asciiLine); runes > 52 {
-		t.Fatalf("ASCII keycaps row paints %d runes, must fit 52", runes)
+		for _, line := range block {
+			width, ok := paintedWidth(stripANSI(line))
+			if !ok {
+				t.Fatalf("%s: uncalibrated variation-selector token inside the keycap frame — the family table is the single painted source: %q", tc.name, line)
+			}
+			if width > 52 {
+				t.Errorf("%s: keycaps row paints %d cells, must fit the 52-column tier (no wrap, no clip):\n%q", tc.name, width, line)
+			}
+		}
 	}
 }
 
-// maxRuneWidth reports the widest line (rune count) of a multi-line strip.
-func maxRuneWidth(s string) int {
-	widest := 0
-	for _, line := range strings.Split(s, "\n") {
-		if n := len([]rune(line)); n > widest {
-			widest = n
+// keycapBlock returns the 3 stacked frame lines (╭───╮ / │…│ / ╰───╯) of the
+// bordered transport, anchored by CONTENT: the middle line is the one
+// carrying the first cap token of EITHER mode (⏮️ emoji, |< ASCII); its
+// neighbours close the box
+// (issue #175 S2 — a positional rows[20:23] slice could assert another
+// block after a layout shift, silently).
+func keycapBlock(rows []string) ([]string, bool) {
+	for i, line := range rows {
+		if i == 0 || i == len(rows)-1 {
+			continue
+		}
+		if (strings.Contains(line, "⏮️") || strings.Contains(line, "|<")) &&
+			strings.Contains(rows[i-1], "╭") &&
+			strings.Contains(rows[i+1], "╰") {
+			return []string{rows[i-1], line, rows[i+1]}, true
 		}
 	}
-	return widest
+	return nil, false
+}
+
+// paintedWidth measures one SGR-stripped line in painted cells, deriving
+// every counted glyph from the shipped single source (issue #60 round-6:
+// the calibrated panel table beats rune measurement): family icons count
+// via keycapIconWidths; every other rune paints exactly 1 cell (the keycap
+// frame is printable ASCII + box glyphs + the calibrated family only). A
+// residual variation selector is an UNCALIBRATED token — measuring it 1
+// cell would be the undercount trap of issue #172's review R3-001 — so it
+// refuses loudly (issue #175 S3).
+func paintedWidth(s string) (int, bool) {
+	rest := s
+	width := 0
+	for token, cells := range keycapIconWidths {
+		width += strings.Count(s, token) * cells
+		rest = strings.ReplaceAll(rest, token, "")
+	}
+	if strings.ContainsRune(rest, 0xFE0F) {
+		return 0, false
+	}
+	return width + len([]rune(rest)), true
+}
+
+// TestPaintedWidthObeysTheCalibratedFamily (issue #175 S1+S3): painted truth
+// derives from the calibrated single source, not rune counts; a VS16 token
+// outside the family refuses instead of under-counting.
+func TestPaintedWidthObeysTheCalibratedFamily(t *testing.T) {
+	cases := []struct {
+		name, line string
+		wantWidth  int
+		wantOK     bool
+	}{
+		{"VS16 family icon paints ONE cell per the probe table", "│ ⏮️ p │", 7, true},
+		{"presentational volume icon paints two", "│ 🔊 v │", 8, true},
+		{"shuffle icon paints two", "│ 🔀 z │", 8, true},
+		{"ASCII token stays rune-exact", "│ |< p │", 8, true},
+	}
+	for _, tc := range cases {
+		width, ok := paintedWidth(stripANSI(tc.line))
+		if ok != tc.wantOK {
+			t.Errorf("%s: paintedWidth ok = %v, want %v", tc.name, ok, tc.wantOK)
+		}
+		if width != tc.wantWidth {
+			t.Errorf("%s: paintedWidth = %d cells, want %d (%q)", tc.name, width, tc.wantWidth, tc.line)
+		}
+	}
+}
+
+// TestPaintedWidthRefusesUncalibratedSelectors (issue #175 S3): a VS16 token
+// outside the calibrated family would ride the 1-rune-count trap (it paints
+// TWO cells via the production fallback) — the guard refuses instead.
+func TestPaintedWidthRefusesUncalibratedSelectors(t *testing.T) {
+	width, ok := paintedWidth(stripANSI("│ ▶️ p │"))
+	if ok {
+		t.Fatalf("uncalibrated VS16 token measured %d cells; must refuse loudly, never under-count", width)
+	}
+}
+
+// TestKeycapBlockIsContentAnchored (issue #175 S2): the shipped block is the
+// 3 stacked frame lines of the bordered transport; a renderer without the
+// box (quiet theme renders the inline ASCII tokens) fails loud instead of
+// asserting nothing.
+func TestKeycapBlockIsContentAnchored(t *testing.T) {
+	m := layoutModel("")
+	m.width, m.height = 52, 24
+	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
+	block, ok := keycapBlock(rows)
+	if !ok {
+		t.Fatalf("keycaps frame not found in the default-theme view (block anchor drifted)")
+	}
+	if len(block) != 3 {
+		t.Fatalf("keycapBlock returned %d lines, must be the 3 stacked frame lines: %v", len(block), block)
+	}
+	if !strings.Contains(block[0], "╭") ||
+		!strings.Contains(block[1], "⏮️") ||
+		!strings.Contains(block[2], "╰") {
+		t.Fatalf("keycapBlock frame lines drifted: %v", block)
+	}
+	quiet := layoutModel("")
+	quiet.theme = theme.Quiet
+	quiet.width, quiet.height = 52, 24
+	qRows := strings.Split(strings.TrimSuffix(quiet.View(), "\n"), "\n")
+	if _, found := keycapBlock(qRows); found {
+		t.Fatalf("the no-box quiet inline transport must not anchor as the 3-line frame")
+	}
 }
