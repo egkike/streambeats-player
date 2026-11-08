@@ -26,10 +26,8 @@ standing grant model).
 
 ## Tasks
 
-- **T1** (S1, S3): shuffle unit in the tui model + `keys.go` entry + dispatch.
-- **T2** (S3, S4): RED→GREEN tests with `fakePlayer` fakes (order computed from
-  the remaining queue; idle/stop makes it a no-op; failure leaves data untouched;
-  honest expiring status rendered).
+- **T1** (S1, S3): shuffle unit in the tui model + `keys.go` entry + dispatch. **DONE** (b753bf3→bff7caa: `shuffleRemaining(rng)` with seeded rng, dispatch routes 'z' with a per-press seeded rng; signature returns concrete (Model, tea.Cmd) like its queueNext/queuePrev siblings).
+- **T2** (S3, S4): RED→GREEN tests. **DONE** (RED observed as 4× undefined `shuffleRemaining` build failures; GREEN 6-test family: multiset+order-change+grouping never crosses albums, idle/empty-future no-op with untouched data, library deque, dispatch routes 'z'; race detector clean; suite gofmt/vet/test/tidy clean).
 - **T3** (S5): docs: README keys sentence line + ODD log, native RDD review, PR
   `Closes #163` with exactly one `type:*` label.
 - **Docs deferred** (S2): visible 🔀 cap on the keycap row = separate future
@@ -53,3 +51,18 @@ standing grant model).
   (shuffle/repeat/seek comparison; shuffle recommended and confirmed — S1),
   keys-only confirmed (S2). Repeat deferred (S5), visible-cap rebalance deferred
   (S2 note in Tasks). No S# reopened.
+- **L3** (T1/T2 evidence): work-unit commit **bff7caa** — 103 lines in `model.go`
+  (helpers `shuffleSlice[T]`, `shuffleCatalogQueue`, `shuffleLibraryQueue`,
+  `Model.shuffleRemaining`; status counts the FUTURE tracks: "shuffled N tracks
+  after the current one"), 2 lines `keys.go` ('z'), 194 lines `model_test.go`
+  (6-test family; deterministic seeds 11/3 pinned; multiset via order-insensitive
+  `sortedSlugs` — the first RED roundtrip also proved the test suite rejects
+  order-sensitive multiset comparison), 2 lines README. Architectural note worth
+  pinning: shuffle does NOT cross albums — a track must stay in its own album
+  for the stream-resolve context (advanceCatalogCmd receives the album); the
+  visible order is album-order tail × within-album order, so two remaining
+  tracks in DIFFERENT albums with single-item groups may render identical after
+  a shuffle; the status still reports the honest count, identity permutation on
+  tiny queues is expected, not a bug. Seed-related fix: Fisher-Yates seeds are
+  pinned per test (11/3) — changing them re-verifies the order-change assertion
+  (test even checks "seed must reorder").
