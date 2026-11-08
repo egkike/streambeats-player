@@ -8,8 +8,10 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -58,6 +60,10 @@ const (
 	ModeLibrary
 	// ModeConfig shows the settings screen (theme selection, Phase A).
 	ModeConfig
+	// ModeRootPicker picks the library root (issue #164): a dedicated
+	// folder chooser reached from the settings screen's library-root row.
+	// It is appended so every existing mode keeps its value.
+	ModeRootPicker
 )
 
 const (
@@ -101,6 +107,13 @@ type Options struct {
 	Theme         string          // raw theme id from settings; "" = default
 	ThemeDark     bool            // resolved background detection result
 	SettingsStore *settings.Store // nil disables persistence (tests, alt runtimes)
+	// ListDir (issue #164): injectable directory lister for the library-root
+	// picker (validating/classifying a target in ONE call, S5); nil falls
+	// back to catalog.ListDir so no test touches the real filesystem.
+	ListDir func(dir string) ([]string, []string, error)
+	// UserHomeDir (issue #164): injectable $HOME for the picker's base and
+	// its ascend clamp (S2/S7); empty falls back to os.UserHomeDir().
+	UserHomeDir string
 	// PanelTerminal (issue #90): the persisted panel-terminal choice from
 	// settings.json; a foreign value sanitizes away (fails closed).
 	PanelTerminal string
@@ -143,6 +156,22 @@ type Model struct {
 	// index over the theme list and the screen to go back to.
 	configIndex  int
 	configReturn Mode
+	// Library root picker (issue #164): the current directory, its
+	// subdirectories and the cursor, plus where esc/o return to. The picker
+	// never edits libraryRoot until `o` commits (failure paths mutate
+	// NOTHING), and the root marking in the view DERIVES from libraryRoot —
+	// there is no sticky paint state.
+	pickerDir    string
+	pickerDirs   []string
+	pickerCursor int
+	pickerReturn Mode
+	// listDir/userHome are the injected fs surface (see Options); the zero
+	// values fall back to the production implementations.
+	listDir  func(dir string) ([]string, []string, error)
+	userHome string
+	// libraryStale (issue #164 S7): a root fix invalidates the library
+	// listing; the library view refetches from the new root on next open.
+	libraryStale bool
 
 	nowPlaying string
 	playing    bool
@@ -237,6 +266,8 @@ func NewModel(opts Options) Model {
 		asciiTransport: opts.AsciiTransport,
 		panelOffer:     panelTerminalRows(lookup),
 		panelTerminal:  opts.PanelTerminal,
+		listDir:        opts.ListDir,
+		userHome:       opts.UserHomeDir,
 	}
 	if opts.Catalog != nil {
 		m.albums = append([]catalog.AlbumEntry(nil), opts.Catalog.Albums...)
@@ -372,9 +403,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.libDirs = msg.Dirs
 		m.library = msg.Files
 		m.libraryCursor = 0
+		m.libraryStale = false // the listing now matches the current root
 		if len(msg.Dirs) == 0 && len(msg.Files) == 0 {
 			m.status = "this folder has no music — u: up, streambeats sync to fill"
 		}
+		return m, nil
+	case RootListedMsg:
+		// Library root picker listing (issue #164): dirs only, no recursion.
+		// A stale listing (the picker already closed) mutates nothing.
+		if m.mode != ModeRootPicker {
+			return m, nil
+		}
+		m.pickerDir = msg.Dir
+		m.pickerCursor = 0
+		if msg.Err != nil {
+			m.pickerDirs = nil
+			m.status = rootReadError(msg.Dir, msg.Err)
+			return m, nil
+		}
+		m.pickerDirs = msg.Dirs
+		if len(msg.Dirs) == 0 {
+			// S4 scenario 1 (descend + teach): the empty folder is still a
+			// fixable root, so the line teaches instead of blocking.
+			m.status = pickerEmptyStatus
+			return m, nil
+		}
+		m.status = ""
 		return m, nil
 	case CatalogScrapedMsg:
 		// Live-scrape resolution (issue #75): populate in place on success;
@@ -523,6 +577,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.mode == ModeConfig {
 		return m.configKey(msg)
 	}
+	// The root picker owns the keyboard while open (issue #164 S2): exactly
+	// j/k + arrows, enter, u, o and esc act.
+	if m.mode == ModeRootPicker {
+		return m.rootPickerKey(msg)
+	}
 	switch {
 	case key.Matches(msg, keys.QueueNext):
 		return m.queueNext()
@@ -559,7 +618,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Back):
 		m.back()
 	case key.Matches(msg, keys.Library):
-		m.toggleMode()
+		return m.toggleMode()
 	case key.Matches(msg, keys.Config):
 		m.openConfig()
 	case key.Matches(msg, keys.Pause):
@@ -594,8 +653,16 @@ func saveSettingsCmd(store settings.Store, set settings.Settings, notice string)
 
 // configRowCount counts the selectable rows of the settings screen (issue
 // #90 combined cursor, #140 S4): ALL theme rows — the ambient trio plus the
-// five artboard themes — plus the installed terminal rows.
+// five artboard themes — plus the installed terminal rows, plus the single
+// library-root row that opens the picker (issue #164 S1/S6; the row already
+// existed, so the screen budget does not grow).
 func configRowCount(m Model) int {
+	return configRootRowIndex(m) + 1
+}
+
+// configRootRowIndex is the flat settings-cursor index of the library-root
+// row: it is appended last, after every theme and terminal row.
+func configRootRowIndex(m Model) int {
 	return len(configAllThemes()) + len(m.panelOffer)
 }
 
@@ -647,19 +714,32 @@ func (m *Model) back() {
 }
 
 // toggleMode switches between the catalog and the local library list.
-func (m *Model) toggleMode() {
+// Issue #164 S7: a committed root fix invalidates the listing, so entering
+// the library after one refetches from the NEW root — lazily, through the
+// same lister, with no recursion.
+func (m Model) toggleMode() (tea.Model, tea.Cmd) {
 	if m.mode == ModeLibrary {
 		m.mode = ModeCatalog
 		m.status = ""
-		return
+		return m, nil
 	}
 	m.mode = ModeLibrary
 	m.inTracks = false
+	if m.libraryStale {
+		m.status = ""
+		dir := m.libraryDir
+		if dir == "" {
+			dir = m.libraryRoot
+		}
+		m.libraryDir = dir
+		return m, m.listLibraryCmd(dir)
+	}
 	if m.libEntryCount() == 0 {
 		m.status = "this folder has no music — u: up, streambeats sync to fill"
 	} else {
 		m.status = ""
 	}
+	return m, nil
 }
 
 // Library navigation (issue #76): lazy per-directory listing. The combined
@@ -682,7 +762,7 @@ func (m Model) descendLibrary(dir string) (tea.Model, tea.Cmd) {
 	m.library = nil
 	m.libDirs = nil
 	m.status = ""
-	return m, listLibraryCmd(dir)
+	return m, m.listLibraryCmd(dir)
 }
 
 // ascendLibrary goes to the parent directory, clamped at the library root:
@@ -700,12 +780,200 @@ func (m Model) ascendLibrary() (tea.Model, tea.Cmd) {
 }
 
 // listLibraryCmd lists one directory lazily: subdirectories + .mp3 files,
-// no recursion (issue #76 S3) — a $HOME root lists instantly.
-func listLibraryCmd(dir string) tea.Cmd {
+// no recursion (issue #76 S3) — a $HOME root lists instantly. Issue #164:
+// the lister is the model's injected one, so the root picker's refetch (S7)
+// runs through the same seam and tests never touch the real filesystem.
+func (m Model) listLibraryCmd(dir string) tea.Cmd {
+	list := m.lister()
 	return func() tea.Msg {
-		dirs, files, err := catalog.ListDir(dir)
+		dirs, files, err := list(dir)
 		return LibListedMsg{Dir: dir, Dirs: dirs, Files: files, Err: err}
 	}
+}
+
+// lister returns the directory lister in use: the injected one when tests or
+// alt runtimes provide it, catalog.ListDir otherwise.
+func (m Model) lister() func(dir string) ([]string, []string, error) {
+	if m.listDir != nil {
+		return m.listDir
+	}
+	return catalog.ListDir
+}
+
+// --- library root picker (issue #164) -----------------------------------
+
+const (
+	// pickerEmptyStatus is the S4 teaching line for a listing with no
+	// subdirectories: enter descends, the folder stays fixable with `o`.
+	pickerEmptyStatus = "no sub-directories here — o fixes this folder as the root"
+	// pickerEmptyFolderNote is the S4 append for a target with no audio
+	// files AND no subdirectories (album-only layouts save silently).
+	pickerEmptyFolderNote = " — empty folder (music comes via sync)"
+)
+
+// RootListedMsg is the result of one root-picker directory listing: Dirs are
+// the absolute subdirectories (files are irrelevant to a folder chooser).
+// A stale message (picker already closed) mutates nothing.
+type RootListedMsg struct {
+	Dir  string
+	Dirs []string
+	Err  error
+}
+
+// pickerBase is the picker's $HOME base and ascend clamp (S2/S7): the
+// injected home wins, then the live os.UserHomeDir; the library root is only
+// a last resort when neither resolves.
+func (m Model) pickerBase() string {
+	if m.userHome != "" {
+		return m.userHome
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		return home
+	}
+	return m.libraryRoot
+}
+
+// listRootCmd lists one picker directory through the injected lister.
+func (m Model) listRootCmd(dir string) tea.Cmd {
+	list := m.lister()
+	return func() tea.Msg {
+		dirs, _, err := list(dir)
+		return RootListedMsg{Dir: dir, Dirs: dirs, Err: err}
+	}
+}
+
+// openRootPicker enters the picker at $HOME (S2) and lists it. The settings
+// screen's return target is preserved: pickerReturn is what esc/o restore.
+func (m Model) openRootPicker() (tea.Model, tea.Cmd) {
+	base := m.pickerBase()
+	if base == "" {
+		m.setStatus("can not determine the home folder — set libraryRoot in settings.json")
+		return m, nil
+	}
+	m.pickerReturn = ModeConfig
+	m.mode = ModeRootPicker
+	m.pickerDir = base
+	m.pickerDirs = nil
+	m.pickerCursor = 0
+	m.status = ""
+	return m, m.listRootCmd(base)
+}
+
+// rootPickerKey runs the picker keyboard (S2): j/k and the arrows move, enter
+// descends, u ascends (clamped at $HOME), o fixes the folder, esc returns to
+// Settings. Every other binding is inert while the picker is open.
+func (m Model) rootPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Up):
+		m.pickerCursor = clampCursor(m.pickerCursor-1, len(m.pickerDirs))
+	case key.Matches(msg, keys.Down):
+		m.pickerCursor = clampCursor(m.pickerCursor+1, len(m.pickerDirs))
+	case key.Matches(msg, keys.Enter):
+		return m.pickerDescend()
+	case msg.String() == "u":
+		return m.pickerAscend()
+	case msg.String() == "o":
+		return m.pickerFix()
+	case key.Matches(msg, keys.Back):
+		m.mode = m.pickerReturn
+	}
+	return m, nil
+}
+
+// pickerDescend enters the highlighted subdirectory. An empty listing is not
+// a dead end (S4 scenario 1): the folder stays current, `o` can still fix it
+// and the teaching line explains it.
+func (m Model) pickerDescend() (tea.Model, tea.Cmd) {
+	if len(m.pickerDirs) == 0 {
+		m.status = pickerEmptyStatus
+		return m, nil
+	}
+	if m.pickerCursor >= len(m.pickerDirs) {
+		m.pickerCursor = len(m.pickerDirs) - 1
+	}
+	dir := m.pickerDirs[m.pickerCursor]
+	m.pickerDir = dir
+	m.pickerDirs = nil
+	m.pickerCursor = 0
+	m.status = ""
+	return m, m.listRootCmd(dir)
+}
+
+// pickerAscend goes to the parent directory, clamped at $HOME (S7) — never at
+// the (possibly old) library root, which the user must be able to leave.
+func (m Model) pickerAscend() (tea.Model, tea.Cmd) {
+	base := m.pickerBase()
+	dir := m.pickerDir
+	if dir == "" {
+		dir = base
+	}
+	parent := filepath.Dir(dir)
+	if base == "" || parent == dir || !strings.HasPrefix(parent, base) {
+		parent = base
+	}
+	m.pickerDir = parent
+	m.pickerDirs = nil
+	m.pickerCursor = 0
+	m.status = ""
+	return m, m.listRootCmd(parent)
+}
+
+// pickerFix is the `o` commit (S3/S5): the CURSOR folder — or the CURRENT
+// directory when the listing is empty. ONE pre-save lister call validates the
+// target and classifies it (zero extra IO); an unreadable target persists
+// NOTHING. On success the FULL settings set is written atomically and the
+// status states exactly what happened.
+func (m Model) pickerFix() (tea.Model, tea.Cmd) {
+	target := m.pickerDir
+	if len(m.pickerDirs) > 0 {
+		target = m.pickerDirs[clampCursor(m.pickerCursor, len(m.pickerDirs))]
+	}
+	if target == "" {
+		m.setStatus("no folder selected — enter a folder first")
+		return m, nil
+	}
+	dirs, files, err := m.lister()(target)
+	if err != nil {
+		// Failure paths mutate NOTHING (S4): no state change, no save cmd.
+		m.setStatus(rootReadError(target, err))
+		return m, nil
+	}
+	m.libraryRoot = target
+	m.libraryDir = target
+	m.libraryStale = true
+	m.mode = m.pickerReturn
+
+	detail := ""
+	if len(dirs) == 0 && len(files) == 0 {
+		// S4 scenario 3: only a truly empty target gets the notice — album
+		// layouts (subdirectories, no audio) are valid roots.
+		detail = pickerEmptyFolderNote
+	}
+	if m.settingsStore == nil {
+		m.setStatus(fmt.Sprintf("library root: %s (not saved anywhere)", target) + detail)
+		return m, nil
+	}
+	return m, saveSettingsCmd(*m.settingsStore, settings.Settings{
+		Theme:         m.theme.String(),
+		LibraryRoot:   m.libraryRoot,
+		PanelTerminal: m.panelTerminal,
+	}, fmt.Sprintf("library root: %s (saved)", target)+detail)
+}
+
+// rootReadError renders the honest read-failure status (Artboard C): the
+// path plus the underlying cause, never a raw wrapped chain.
+func rootReadError(dir string, err error) string {
+	return fmt.Sprintf("can not read %s: %s", dir, rootReadDetail(err))
+}
+
+// rootReadDetail unwraps *fs.PathError so the status does not repeat the
+// path ("open /x: permission denied" -> "permission denied").
+func rootReadDetail(err error) string {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) && pathErr.Err != nil {
+		return pathErr.Err.Error()
+	}
+	return err.Error()
 }
 
 // Config screen data (Phase A): the ordered theme list the config
@@ -788,6 +1056,11 @@ func (m Model) configKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Down):
 		m.configIndex = clampCursor(m.configIndex+1, configRowCount(m))
 	case key.Matches(msg, keys.Enter):
+		// The library-root row opens the picker (issue #164 S6); every other
+		// row keeps its existing commit behavior untouched.
+		if m.configIndex == configRootRowIndex(m) {
+			return m.openRootPicker()
+		}
 		if id, ok := m.configTerminalChoice(); ok {
 			return m.applyTerminalSelection(id)
 		}
@@ -1037,12 +1310,19 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 		return m
 	}
 	if m.mode == ModeLibrary {
+		// the library listing can shrink under a playing track (a fresh
+		// navigation/picker refetch replaces the slice): answer honestly
+		// instead of indexing out of range (TUI must not crash)
+		if m.playingLib < 0 {
+			m.status = "no previous track in the queue"
+			return m, nil
+		}
+		if m.playingLib >= len(m.library) || len(m.library) == 0 {
+			m.status = "the library listing changed since playback started — replay a track"
+			return m, nil
+		}
 		if m.playingLib <= 0 {
 			// top of the queue: replay the current item
-			if m.playingLib < 0 {
-				m.status = "no previous track in the queue"
-				return m, nil
-			}
 			return restart(), loadFileCmd(m.player, m.library[m.playingLib], libraryEntryTitle(m.library[m.playingLib]))
 		}
 		m.playingLib--

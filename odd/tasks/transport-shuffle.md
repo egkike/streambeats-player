@@ -72,3 +72,16 @@ standing grant model).
   `//nolint:gosec // G404: shuffle order, not cryptographic` + the honest
   comment (precedent `musicdir.go:18`). Local it was silent: lint runs in CI
   only. Shuffle tests re-run green after the annotation.
+- **L5** (merge evidence): PR #165 MERGED by owner (4d377ce, squash-free merge
+  commit); merge-commit CI GREEN on main, got the check-runs evidence
+  (Verify Go code success + Detect Go changes success, run 42499819229 family).
+  Receipts that ride the PR: review-024dd1752b5467e1 (base candidate) +
+  review-6ff04c602d40aa91 (corrected candidate post-G404), both APPROVED +
+  authority burned. Branch deleted with safe `-d`; local main synced
+  (`origin/main` == `main`).
+- **L4** (CI evidence, e9e8e89): Verify Go code lint rejected the per-press seed
+  with gosec **G404** (math/rand) — a false positive here: the rng orders the
+  playlist, it guards no secret. Quieted with the repo idiom
+  `//nolint:gosec // G404: shuffle order, not cryptographic` + the honest
+  comment (precedent `musicdir.go:18`). Local it was silent: lint runs in CI
+  only. Shuffle tests re-run green after the annotation.
