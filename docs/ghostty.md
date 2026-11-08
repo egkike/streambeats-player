@@ -5,7 +5,7 @@ slides in from any screen edge, so you can control music while working in
 another window. The launcher also supports **kitty** (0.42+ native quick
 access terminal) as an alternative panel host — see `docs/kitty.md` and the
 settings-menu choice (issue #90). Spec: `odd/tasks/streambeats.md` — S3
-(floating panel on any side), S7 (Quick Terminal Ghostty), S8 (herdr), task
+(floating panel on any side), S7 (Quick Terminal Ghostty), S8 (independent adjacently-hosted panel), task
 T7; quick-terminal parity: `odd/tasks/ghostty-quick-terminal.md` (issue #134).
 
 Reference: <https://ghostty.org/docs/config/reference>
@@ -167,17 +167,16 @@ A system-wide shortcut line (Ghostty's own `global:` keybind) is available as
 a commented line in each preset, but on this setup the KDE shortcut plus the
 relay covers it.
 
-## 6. herdr and gentle-shell
+## 6. Adjacent editor and agent windows
 
-`herdr` keeps living in its own, adjacent Ghostty window, and your
-gentle-shell (Pi) session keeps running inside it. The player panel is an
-independent ghostty instance (S8):
+Your editor and coding-agent sessions keep living in their own adjacent
+Ghostty windows; the player panel is an independent ghostty instance (S8):
 
-- starting or closing the player never touches herdr sessions, panes, or
-  agents;
+- starting or closing the player never touches other terminal sessions,
+  panes, or agents;
 - the panel sits beside or above the work window, so you can browse tracks
-  without switching herdr windows or interrupting a running agent;
-- keystrokes reach the panel only while it is focused, so editor and herdr
+  without switching windows or interrupting a running agent;
+- keystrokes reach the panel only while it is focused, so editor and agent
   shortcuts keep working the rest of the time;
 - only one quick terminal exists per ghostty instance — and each panel side
   has its own per-side instance anyway, so switching sides never needs to

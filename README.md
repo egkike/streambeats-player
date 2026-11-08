@@ -13,7 +13,8 @@
 </div>
 
 A floating, quick-terminal music player for the free [StreamBeats](https://streambeats.bandcamp.com/music)
-catalog — built for a live coding workflow (Ghostty + herdr + gentle-shell).
+catalog — first-class Ghostty quick-panel and Kitty side presets, usable
+from any Linux/macOS terminal.
 
 The catalog streams directly from Bandcamp's mp3-128 endpoints (StreamBeats
 releases are free), with an optional local library built from the same
@@ -267,7 +268,8 @@ recipe shows the one-shot behavior described above.)
 
 ## Notes
 
-- Runs beside herdr as an independent floating panel (Ghostty or kitty);
+- Runs as an independent floating panel beside your editor or agent
+  window (Ghostty or kitty);
   nothing needs to be embedded into the agent runtime.
 - MP3-128 is Bandcamp's streaming tier; for archival quality download the
   FLAC from Bandcamp manually per release.
