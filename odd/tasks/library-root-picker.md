@@ -75,17 +75,17 @@ codear"). Issue: egkike/streambeats-player#164 (status:approved + type:feature).
 ## Tasks
 
 - **T1** (S1, S2): ModeRootPicker state + keys (j/k/arrows, enter, u, o, esc) +
-  $HOME base + clamp — RED→GREEN with a fake fs (ListDir fake; NO real
-  filesystem cache, network or mpv).
-- **T2** (S3, S7): view — dirs-only listing with `/`, cursor, root color
-  marking (derived paint), teaching status on empty listing.
-- **T3** (S4, S5): 'o' flow — pre-save ListDir validate+classify, full-set
-  atomic persist, status variants (saved / saved+empty / failure-no-persist).
-- **T4** (S6): settings row copy `(enter to change)` + enter affordance into the
-  picker (configKey routing), budget pins intact.
-- **T5**: discriminative checks: gofmt/build/vet/test/tidy clean; suite; ODD
-  log; native RDD review on the committed candidate; PR `Closes #164` with
-  exactly one `type:*`.
+  $HOME base + clamp — done (worker cycle, navigator_test.go 12-test family,
+  lister() seam + Options.ListDir/UserHomeDir injection).
+- **T2** (S3, S7): view — done (renderPickerRow color-only mark, dirs-only
+  listing, picker footer/header; Playing palette role reused, zero glyphs).
+- **T3** (S4, S5): 'o' flow — done (single pre-save ListDir validate+classify,
+  full-set atomic persist, saved/saved+empty/failure-no-persist variants).
+- **T4** (S6): settings row copy `(enter to change)` + configRootRowIndex enter
+  routing — done (row renders unconditionally, cursor-aware, no new rows).
+- **T5**: pipeline green (gofmt/build/vet/suite/tidy + race not needed) with-
+  in-cycle extra guard for the stale playingLib (L5); native review + PR
+  `Closes #164` with exactly one `type:*`.
 
 ## Log
 
@@ -104,3 +104,25 @@ codear"). Issue: egkike/streambeats-player#164 (status:approved + type:feature).
   marking (S3, replacing the enter-then-o draft). (3) scenario rules chosen:
   descender+enseñar for 1, vacía-de-verdad for 3 (S4). No S# reopened by the
   refinements: S2/S3/S4 absorb them.
+- **L4** (T1-T4 implementation, worker cycle): ModeRootPicker shipped as a
+  dedicated mode — model.go +281 (Options.ListDir/UserHomeDir injection seam;
+  pickerDir/pickerDirs/pickerCursor/pickerReturn/libraryStale; configRootRowIndex
+  enter routing; toggleMode returns a cmd for the S7 lazy refetch), view.go +58
+  (picker header/footer, dirs-only rows, color-only root mark reusing the
+  Playing palette role, settings row copy `(enter to change)` rendered
+  unconditionally — budget intact, worst case 14/15 rows), navigator_test.go
+  +521 (fake lister + 12 tests pinning S1-S7, RED compile failures observed
+  first, 3 genuine behavior gaps corrected during the round:
+  root-fix target semantics + clamped-cursor expectations). Deviations recorded:
+  pickerReturn (NOT configReturn — reusing it would make picker-esc exit
+  Settings entirely), footer hint reuses the shipped `↑↓` pair (zero
+  EAW-ambiguous glyphs), library-root settings row reachable when unset.
+- **L5** (in-cycle guard): the worker flagged a reachable pre-existing #76
+  hazard — replacing the library listing (descend or post-fix refetch) while a
+  file plays leaves playingLib indexing the old slice and `<` panicked on the
+  old index (observed RED: index-out-of-range). Fixed inline (queuePrev bounds
+  guard: `the library listing changed since playback started — replay a
+  track`, failure path mutates nothing, TestQueuePrevAnswersHonestlyWhen
+  LibraryListingReplaced); `>` degrades gracefully (autoAdvance's existing
+  bounds End→playlist-ended) so no second guard was added (#88-style entry
+  filter still keeps ListDir lazy).
