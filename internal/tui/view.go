@@ -154,7 +154,7 @@ func navHints() string {
 // the frame closes even where measured ≠ painted width (round-6 span
 // doctrine: hand-rolled spans calibrated on the real panel beat word-wide
 // rune measurement).
-var keycapIconWidths = map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2}
+var keycapIconWidths = map[string]int{"⏮️": 1, "⏯️": 1, "⏹️": 1, "⏭️": 1, "🔊": 2, "🔀": 2}
 
 // Terminal-adaptive transport (issue #64): the calibrated emoji keycaps only
 // close their frames on ghostty 1.3.1 with the panel preset (legacy
@@ -166,7 +166,8 @@ var asciiTokens = map[string]string{
 	"⏯️": "||",
 	"⏭️": ">|",
 	"⏹️": "[]",
-	"🔊":  "vol",
+	"🔊":  "v",
+	"🔀":  "sh",
 }
 
 // isGhosttyTerminal fails closed (issue #64 S7): only the exact env value
@@ -188,6 +189,7 @@ var keycaps = []keycapSpec{
 	{"⏭️", "n"},
 	{"⏹️", "s"},
 	{"🔊", "+/-"},
+	{"🔀", "z"},
 }
 
 // keycapIconWidth is the calibrated painted width of an icon (CPR probe on

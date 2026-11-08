@@ -74,15 +74,15 @@ func TestKeycapsRowRendersASCIIOutsideGhostty(t *testing.T) {
 	rows := strings.Split(strings.TrimSuffix(m.View(), "\n"), "\n")
 	caps := stripANSI(strings.Join(rows[20:23], "\n"))
 	for _, want := range []string{
-		"╭──────╮╭────────╮╭──────╮╭──────╮╭─────────╮",
-		"│ |< p ││ || spc ││ >| n ││ [] s ││ vol +/- │",
-		"╰──────╯╰────────╯╰──────╯╰──────╯╰─────────╯",
+		"╭──────╮╭────────╮╭──────╮╭──────╮╭───────╮╭──────╮",
+		"│ |< p ││ || spc ││ >| n ││ [] s ││ v +/- ││ sh z │",
+		"╰──────╯╰────────╯╰──────╯╰──────╯╰───────╯╰──────╯",
 	} {
 		if !strings.Contains(caps, want) {
 			t.Fatalf("ASCII keycaps missing %q:\n%s", want, caps)
 		}
 	}
-	for _, ghosttyGlyph := range []string{"⏮️", "⏯️", "⏹️", "⏭️", "🔊", "\ufe0f"} {
+	for _, ghosttyGlyph := range []string{"⏮️", "⏯️", "⏹️", "⏭️", "🔊", "🔀", "\ufe0f", "\U0001f500"} {
 		if strings.Contains(caps, ghosttyGlyph) {
 			t.Fatalf("ASCII transport leaked the ghostty glyph %q:\n%s", ghosttyGlyph, caps)
 		}

@@ -49,10 +49,15 @@ grant "Dale al ciclo y veamos los mockups").
 
 ## Tasks
 
-- **T1** (S1-S5): crowcap tables+tests — RED via the existing pin family
-  (uncalibrated icon/pairs/ASCII widths), GREEN with table entries + `sh`
-  + `v` rebalance + the ≤52 fit guard; pipeline (gofmt/build/vet/suite;
-  race not applicable — no event-channel change). commit.
+- **T1** (S1-S5): DONE — RED was the existing pin family itself (2 pins
+  broke: TestKeycapWidthsMatchTheCalibratedTable on the uncalibrated 🔀 +
+  TestKeycapsRowRendersASCIIOutsideGhostty on the widths), GREEN via the
+  table entries + `sh` + `vol`→`v` + the new TestKeycapsRowFitsAtWidth52
+  (which went RED twice for correct reasons: line-concatenation bug, then
+  pass when measuring each stacked line). Pure view.go tables + keycaps
+  append; README keycap list updated (⏮ ⏯ ⏹ ⏭ 🔊 🔀 / |< || >| [] v sh).
+  Pipeline gofmt/build/vet/suite/tidy clean (race not applicable — view
+  layer only).
 - **T2** (S6): docs + ODD log; native review of the committed candidate; PR
   `Closes #172` + exactly one `type:*`.
 - Owner live check after merge (CPR confirm on the real panel; a frame
