@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="streambeats emblem">
+  <!-- streambeats emblem — standalone 512x512 crop of the card banner
+       (design/streambeats-hub-banner/01-vinyl-disc.html), for avatar-size
+       reuse. Static, no emoji glyphs (issues #60/#64 doctrine). -->
+  <defs>
+    <radialGradient id="e-ambient" cx="50%" cy="42%" r="80%">
+      <stop offset="0%" stop-color="#241a1f"/>
+      <stop offset="70%" stop-color="#1a1218"/>
+      <stop offset="100%" stop-color="#140d11"/>
+    </radialGradient>
+    <radialGradient id="e-label" cx="42%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#f0b45a"/>
+      <stop offset="70%" stop-color="#e8a33d"/>
+      <stop offset="100%" stop-color="#d18f2f"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="24" fill="url(#e-ambient)" stroke="#2e2027"/>
+  <circle cx="256" cy="256" r="196" fill="#120c0f" stroke="#2e2027"/>
+  <g fill="none" stroke="#201217" opacity="0.9">
+    <circle cx="256" cy="256" r="182"/>
+    <circle cx="256" cy="256" r="170"/>
+    <circle cx="256" cy="256" r="158"/>
+    <circle cx="256" cy="256" r="146"/>
+    <circle cx="256" cy="256" r="134"/>
+    <circle cx="256" cy="256" r="122"/>
+  </g>
+  <g fill="none" stroke="#18100f" opacity="0.75">
+    <circle cx="256" cy="256" r="176"/>
+    <circle cx="256" cy="256" r="152"/>
+    <circle cx="256" cy="256" r="128"/>
+    <circle cx="256" cy="256" r="104"/>
+  </g>
+  <path d="M 256 112 A 144 144 0 0 1 382 184" fill="none" stroke="#7fae5c" stroke-width="5" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="256" cy="256" r="64" fill="url(#e-label)" stroke="#b57c22"/>
+  <text x="256" y="247" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="19" font-weight="700" letter-spacing="2" fill="#1a1218">STREAM</text>
+  <text x="256" y="272" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="19" font-weight="700" letter-spacing="2" fill="#1a1218">BEATS</text>
+  <circle cx="256" cy="256" r="7" fill="#140d11"/>
+  <!-- minimal tonearm at 28deg for the emblem's identity -->
+  <g transform="rotate(26 430 92)">
+    <rect x="424" y="92" width="10" height="150" rx="5" fill="#8a7a5f"/>
+    <circle cx="429" cy="92" r="15" fill="#3a2c25" stroke="#5c5145" stroke-width="3"/>
+    <rect x="419" y="232" width="20" height="28" rx="6" fill="#e8a33d"/>
+  </g>
+</svg>

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-label="streambeats — floating terminal music player for the free StreamBeats catalog">
+  <!-- streambeats player card banner (Gentle Hub) — design artboard
+       design/streambeats-hub-banner/01-vinyl-disc.html, palette from
+       internal/theme/theme.go (Vinyl artboard palette + panel ambient).
+       Static by design: the hub card icon resolves the README's first
+       image as <img>, where CSS animation never runs; no emoji glyphs
+       (terminal-emoji width doctrine, issues #60/#64). -->
+  <defs>
+    <radialGradient id="ambient" cx="25%" cy="50%" r="80%">
+      <stop offset="0%" stop-color="#241a1f"/>
+      <stop offset="55%" stop-color="#1a1218"/>
+      <stop offset="100%" stop-color="#140d11"/>
+    </radialGradient>
+    <radialGradient id="lamp" cx="25%" cy="50%" r="30%">
+      <stop offset="0%" stop-color="#e8a33d" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#e8a33d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="discEdge" cx="40%" cy="35%" r="90%">
+      <stop offset="0%" stop-color="#241a1f"/>
+      <stop offset="100%" stop-color="#120c0f"/>
+    </radialGradient>
+    <radialGradient id="label" cx="42%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#f0b45a"/>
+      <stop offset="70%" stop-color="#e8a33d"/>
+      <stop offset="100%" stop-color="#d18f2f"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ambient field -->
+  <rect width="1280" height="400" rx="12" fill="url(#ambient)"/>
+  <rect width="1280" height="400" rx="12" fill="url(#lamp)"/>
+
+  <!-- vinyl disc: shell + groove rings (playing arc = moss "Playing" role) -->
+  <g>
+    <circle cx="340" cy="200" r="150" fill="url(#discEdge)" stroke="#2e2027"/>
+    <g fill="none" stroke="#201217" opacity="0.9">
+      <circle cx="340" cy="200" r="138"/>
+      <circle cx="340" cy="200" r="130"/>
+      <circle cx="340" cy="200" r="122"/>
+      <circle cx="340" cy="200" r="114"/>
+      <circle cx="340" cy="200" r="106"/>
+      <circle cx="340" cy="200" r="98"/>
+      <circle cx="340" cy="200" r="90"/>
+      <circle cx="340" cy="200" r="82"/>
+    </g>
+    <g fill="none" stroke="#18100f" opacity="0.75">
+      <circle cx="340" cy="200" r="134"/>
+      <circle cx="340" cy="200" r="118"/>
+      <circle cx="340" cy="200" r="102"/>
+      <circle cx="340" cy="200" r="86"/>
+      <circle cx="340" cy="200" r="70"/>
+    </g>
+    <!-- moss playing arc, rotated -28deg (the rotating "now playing" arc) -->
+    <path d="M 340 56 A 144 144 0 0 1 466 138" fill="none" stroke="#7fae5c" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+    <!-- amber record label -->
+    <circle cx="340" cy="200" r="48" fill="url(#label)" stroke="#b57c22"/>
+    <text x="340" y="193" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="13" font-weight="700" letter-spacing="2" fill="#1a1218">STREAM</text>
+    <text x="340" y="211" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="13" font-weight="700" letter-spacing="2" fill="#1a1218">BEATS</text>
+    <circle cx="340" cy="200" r="5" fill="#140d11"/>
+    <!-- tonearm: pivot + arm + amber head, rotated to the disc -->
+    <g transform="rotate(24 452 78)">
+      <rect x="448.5" y="78" width="7" height="132" rx="3.5" fill="#8a7a5f"/>
+      <circle cx="452" cy="78" r="11.5" fill="#3a2c25" stroke="#5c5145" stroke-width="2"/>
+      <rect x="444.5" y="200" width="15" height="22" rx="4" fill="#e8a33d"/>
+    </g>
+  </g>
+
+  <!-- wordmark -->
+  <text x="560" y="212" font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="84" font-weight="800" letter-spacing="-2" fill="#f5ead8">stream<tspan fill="#e8a33d">beats</tspan></text>
+  <text x="562" y="256" font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="21" fill="#b9a897">a floating <tspan fill="#7fae5c" font-weight="700">terminal music player</tspan> for the free StreamBeats catalog</text>
+
+  <!-- meta chips (the toolchain, verbatim from the repo README) -->
+  <g font-family="ui-monospace, 'JetBrains Mono', Consolas, monospace" font-size="13.5">
+    <rect x="562" y="284" width="176" height="26" rx="13" fill="#20151c" stroke="#4a3524"/>
+    <text x="650" y="301" text-anchor="middle" fill="#e8a33d">ghostty quick panel</text>
+    <rect x="748" y="284" width="192" height="26" rx="13" fill="#20151c" stroke="#3a2a20"/>
+    <text x="844" y="301" text-anchor="middle" fill="#d9c4ab">go + bubbletea + mpv</text>
+    <rect x="950" y="284" width="176" height="26" rx="13" fill="#20151c" stroke="#3a2a20"/>
+    <text x="1038" y="301" text-anchor="middle" fill="#d9c4ab">streams are free</text>
+  </g>
+</svg>
