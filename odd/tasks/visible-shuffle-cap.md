@@ -62,6 +62,17 @@ grant "Dale al ciclo y veamos los mockups").
   `Closes #172` + exactly one `type:*`.
 - Owner live check after merge (CPR confirm on the real panel; a frame
   1-cell drift = the #60 table-flip ritual, never code).
+- **L3** (tickets, 427e2b7): lineage review-6ce1c996d3fb5dec, tier MEDIUM (143
+  lines, budget 72), lenses review-readability (order 0) + review-reliability
+  (order 1) — owner-authorized group forecast, 2/2 admitted via last-event
+  closure, authority burned (rev sha256:c36a7b4a…7eb2538). Two INFORMATIONAL
+  advisories (non-blocking later-work): R2-001 readability + R3-001
+  reliability, both at internal/tui/view_test.go (the fit-guard's internal
+  measurement code), re-derive against merged main before fixing. NOTE for
+  the Engram ledger: this cycle's session was finalized early (v1.13.0
+  close) so the mem layer refused writes ("Pi runtime session is closing",
+  doctor: root_state ended, resume_required) — this repo log is the durable
+  record, mirroring issue #172 + PR #173 evidence.
 
 ## Log
 
