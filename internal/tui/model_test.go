@@ -6,7 +6,10 @@ package tui
 
 import (
 	"errors"
+	"math/rand"
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -1550,5 +1553,196 @@ func TestDebugInputHookLogsMessages(t *testing.T) {
 	// Without the hook nothing logs and nothing breaks.
 	if _, _ = NewModel(Options{}).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}); false {
 		t.Fatal("unreachable")
+	}
+}
+
+// --- shuffle (issue #163) ------------------------------------------------
+
+// shuffleFixtures builds a 3-album catalog with enough remaining items for a
+// real reorder: A(3), B(2), C(2).
+func shuffleFixtures() *catalog.Catalog {
+	mk := func(slug string, titles ...string) catalog.AlbumEntry {
+		a := catalog.AlbumEntry{Slug: slug, Title: slug, Artist: "StreamBeats"}
+		for i, title := range titles {
+			a.Tracks = append(a.Tracks, catalog.Track{Title: title, Slug: title, DurationSeconds: float64(120 + i)})
+		}
+		return a
+	}
+	return &catalog.Catalog{Albums: []catalog.AlbumEntry{
+		mk("album-a", "A1", "A2", "A3"),
+		mk("album-b", "B1", "B2"),
+		mk("album-c", "C1", "C2"),
+	}}
+}
+
+// shuffleTestModel returns a model playing the (albumIdx, trackIdx) row of a
+// custom catalog, plus a deep copy of the starting album list.
+func shuffleTestModel(t *testing.T, albumIdx, trackIdx int) (Model, []catalog.AlbumEntry) {
+	t.Helper()
+	m := testModel(Options{
+		Player:   &fakePlayer{},
+		Resolver: &fakeResolver{url: "https://stream.example/1"},
+		Catalog:  shuffleFixtures(),
+	})
+	for i := 0; i < albumIdx; i++ {
+		m, _ = press(t, m, 'j')
+	}
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // albums -> tracks
+	for i := 0; i < trackIdx; i++ {
+		m, _ = press(t, m, 'j')
+	}
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	msg := runCmd(t, cmd)
+	loaded, ok := msg.(loadedMsg)
+	if !ok || loaded.err != nil {
+		t.Fatalf("first play returned %T (%v)", msg, loaded.err)
+	}
+	m, _ = update(t, m, msg)
+	before := make([]catalog.AlbumEntry, len(m.albums))
+	for i := range m.albums {
+		before[i].Slug = m.albums[i].Slug
+		before[i].Title = m.albums[i].Title
+		before[i].Artist = m.albums[i].Artist
+		before[i].Tracks = append([]catalog.Track(nil), m.albums[i].Tracks...)
+	}
+	return m, before
+}
+
+func trackSlugs(albums []catalog.AlbumEntry) string {
+	var b strings.Builder
+	for _, a := range albums {
+		for _, tr := range a.Tracks {
+			b.WriteString(tr.Slug)
+			b.WriteByte('|')
+		}
+	}
+	return b.String()
+}
+
+// sortedSlugs is the order-insensitive counterpart of trackSlugs, for
+// multiset comparisons.
+func sortedSlugs(albums []catalog.AlbumEntry) string {
+	var b strings.Builder
+	slugs := []string{}
+	for _, a := range albums {
+		for _, tr := range a.Tracks {
+			slugs = append(slugs, tr.Slug)
+		}
+	}
+	sort.Strings(slugs)
+	for _, s := range slugs {
+		b.WriteString(s)
+		b.WriteByte('|')
+	}
+	return b.String()
+}
+
+func tailAlbumTracks(album catalog.AlbumEntry) string { return trackSlugs([]catalog.AlbumEntry{album}) }
+
+// S3: shuffling the REMAINING queue keeps the playing marker, the current
+// track and the already-played prefix intact, never mixes tracks across
+// albums, and (with this seed) actually reorders the tail.
+func TestShuffleReordersRemainingCatalogQueue(t *testing.T) {
+	m, before := shuffleTestModel(t, 0, 0)
+	m, cmd := m.shuffleRemaining(rand.New(rand.NewSource(11)))
+	if cmd != nil {
+		t.Fatal("shuffle must not spawn a command (zero mpv calls, invariant #1)")
+	}
+	if m.playingAlbum != 0 || m.playingTrack != 0 {
+		t.Fatalf("bookkeeping drifted: album %d/%d, want 0/0", m.playingAlbum, m.playingTrack)
+	}
+	// multiset preserved (order-insensitive)
+	if sortedSlugs(before) != sortedSlugs(m.albums) {
+		t.Fatalf("shuffle lost or duplicated tracks: %q != %q", sortedSlugs(before), sortedSlugs(m.albums))
+	}
+	if m.albums[0].Tracks[0].Slug != "A1" {
+		t.Fatalf("current track changed to %q", m.albums[0].Tracks[0].Slug)
+	}
+	if !reflect.DeepEqual(m.albums[0].Tracks[:1], before[0].Tracks[:1]) {
+		t.Fatal("prefix before the playing position mutated")
+	}
+	// grouping never crosses albums: each tail album keeps one ORIGINAL
+	// album's remaining multiset {A2,A3}/{B1,B2}/{C1,C2}
+	remainders := map[string]bool{"A2|A3|": true, "B1|B2|": true, "C1|C2|": true}
+	for a := 1; a < len(m.albums); a++ {
+		if !remainders[tailAlbumTracks(m.albums[a])] {
+			t.Fatalf("tail album %d holds foreign grouping %q", a, tailAlbumTracks(m.albums[a]))
+		}
+	}
+	if trackSlugs(m.albums[1:]) == trackSlugs(before[1:]) {
+		t.Fatal("shuffle left the tail identical -- seed must reorder the future")
+	}
+	// status counts the FUTURE tracks (current one stays put): 2 tail of
+	// the playing album + 2 + 2 full tail albums
+	if !strings.Contains(m.status, "shuffled 6 tracks") {
+		t.Fatalf("status = %q, want an honest shuffled count", m.status)
+	}
+}
+
+// S4: idle/stop is a no-op: data untouched, honest status, no mpv call.
+func TestShuffleIdleInert(t *testing.T) {
+	m := testModel(Options{Player: &fakePlayer{}})
+	before := m.albums
+	m, cmd := m.shuffleRemaining(rand.New(rand.NewSource(3)))
+	if cmd != nil {
+		t.Fatal("idle shuffle spawned a command")
+	}
+	if !reflect.DeepEqual(before, m.albums) {
+		t.Fatal("idle shuffle mutated the queue")
+	}
+	if !strings.Contains(m.status, "nothing is playing") {
+		t.Fatalf("status = %q, want the nothing-is-playing note", m.status)
+	}
+}
+
+// S4 edge: standing on the LAST track of the LAST album -- nothing ahead.
+func TestShuffleNothingLeftMutatesNothing(t *testing.T) {
+	m, before := shuffleTestModel(t, 2, 1)
+	m, cmd := m.shuffleRemaining(rand.New(rand.NewSource(3)))
+	if cmd != nil {
+		t.Fatal("no-remaining shuffle spawned a command")
+	}
+	if !reflect.DeepEqual(before, m.albums) {
+		t.Fatal("empty-future shuffle mutated the queue")
+	}
+	if !strings.Contains(m.status, "nothing left to shuffle") {
+		t.Fatalf("status = %q, want the nothing-left note", m.status)
+	}
+}
+
+// S3 library deque: flat list shuffle strictly after the playing index.
+func TestShuffleLibraryQueueShufflesAfterCursor(t *testing.T) {
+	m := testModel(Options{Player: &fakePlayer{}})
+	m.mode = ModeLibrary
+	m.library = []string{"/lib/t1.mp3", "/lib/t2.mp3", "/lib/t3.mp3", "/lib/t4.mp3", "/lib/t5.mp3"}
+	m.playing = true
+	m.playingLib = 1
+	before := append([]string(nil), m.library...)
+	m, cmd := m.shuffleRemaining(rand.New(rand.NewSource(11)))
+	if cmd != nil {
+		t.Fatal("library shuffle spawned a command")
+	}
+	if m.playingLib != 1 || !strings.HasSuffix(m.library[1], "/t2.mp3") {
+		t.Fatalf("playing position drifted: lib %d row %q", m.playingLib, m.library[1])
+	}
+	sorted := func(items []string) string {
+		s := append([]string(nil), items...)
+		sort.Strings(s)
+		return strings.Join(s, ",")
+	}
+	if sorted(before[2:]) != sorted(m.library[2:]) {
+		t.Fatal("library shuffle lost or duplicated tracks")
+	}
+	if !strings.Contains(m.status, "shuffled 3 tracks") {
+		t.Fatalf("status = %q, want an honest shuffled count", m.status)
+	}
+}
+
+// dispatch: the 'z' key routes through keys.Shuffle into the engine (S3).
+func TestShuffleKeyRoutesZ(t *testing.T) {
+	m, _ := shuffleTestModel(t, 0, 0)
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
+	if !strings.Contains(m.status, "shuffled") {
+		t.Fatalf("status = %q -- 'z' did not route to the shuffle engine", m.status)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"path/filepath"
 	"strings"
 	"time"
@@ -527,6 +528,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.queueNext()
 	case key.Matches(msg, keys.QueuePrev):
 		return m.queuePrev()
+	case key.Matches(msg, keys.Shuffle):
+		// seeded per press: shuffle Remaining takes the rng as a parameter
+		// so tests stay deterministic
+		return m.shuffleRemaining(rand.New(rand.NewSource(time.Now().UnixNano())))
 	case key.Matches(msg, keys.Quit):
 		m.quitting = true
 		if m.player == nil {
@@ -1067,6 +1072,104 @@ func (m Model) queuePrev() (tea.Model, tea.Cmd) {
 	m.progressMisses = 0
 	album := m.albums[m.playingAlbum]
 	return m, advanceCatalogCmd(m.player, m.resolve, album, album.Tracks[m.playingTrack], "")
+}
+
+// --- shuffle (issue #163) -----------------------------------------------
+
+// shuffleSlice is an in-place Fisher-Yates pass over s.
+func shuffleSlice[T any](s []T, rng *rand.Rand) {
+	for i := len(s) - 1; i > 0; i-- {
+		j := rng.Intn(i + 1)
+		s[i], s[j] = s[j], s[i]
+	}
+}
+
+// shuffleCatalogQueue reorders the REMAINING queue of a catalog: the playing
+// marker and every position before it are untouched. Album grouping never
+// crosses albums (a track must keep its own album for the resolve), so the
+// future is permuted as (a) the order of the albums AFTER the playing one and
+// (b) the track order inside each of them plus the tail of the current one.
+// Zero mpv calls: the queue is Go-side, idle-active stays the only advance
+// trigger, and the returned albums are fresh copies — the caller's data is
+// replaced in full only on success.
+func shuffleCatalogQueue(albums []catalog.AlbumEntry, playingAlbum, playingTrack int, rng *rand.Rand) (int, []catalog.AlbumEntry) {
+	out := make([]catalog.AlbumEntry, len(albums))
+	count := 0
+	for i := range albums {
+		out[i].Slug, out[i].Title, out[i].Artist = albums[i].Slug, albums[i].Title, albums[i].Artist
+		tracks := append([]catalog.Track(nil), albums[i].Tracks...)
+		if i == playingAlbum {
+			if playingTrack+1 < len(tracks) {
+				shuffleSlice(tracks[playingTrack+1:], rng)
+				count += len(tracks) - (playingTrack + 1)
+			}
+		} else if i > playingAlbum {
+			shuffleSlice(tracks, rng)
+			count += len(tracks)
+		}
+		out[i].Tracks = tracks
+	}
+	// album-order tail shuffle (not just within-albums): same fisher pass
+	// limited to the positions after the playing album
+	for i := len(out) - 1; i > playingAlbum+1; i-- {
+		j := playingAlbum + 1 + rng.Intn(i-playingAlbum)
+		out[i], out[j] = out[j], out[i]
+	}
+	return count, out
+}
+
+// shuffleLibraryQueue reorders the flat library deque strictly after the
+// playing index; returns fresh backing storage.
+func shuffleLibraryQueue(lib []string, playingLib int, rng *rand.Rand) (int, []string) {
+	out := append([]string(nil), lib...)
+	if playingLib+1 >= len(out) {
+		return 0, out
+	}
+	shuffleSlice(out[playingLib+1:], rng)
+	return len(out) - (playingLib + 1), out
+}
+
+// shuffleRemaining is the 'z' handler: a queue shuffle that never touches mpv
+// and never mutates the current/played part. Guards follow the queueNext/
+// queuePrev family: no player, no playback, empty future — no data change,
+// honest status.
+func (m Model) shuffleRemaining(rng *rand.Rand) (Model, tea.Cmd) {
+	if m.player == nil {
+		m.setStatus(friendlyError("playback unavailable", errNoPlayer))
+		return m, nil
+	}
+	if !m.playing {
+		m.setStatus("nothing is playing — press enter on a track")
+		return m, nil
+	}
+	var count int
+	if m.mode == ModeLibrary {
+		if m.playingLib < 0 || m.playingLib >= len(m.library) {
+			m.setStatus("nothing left to shuffle")
+			return m, nil
+		}
+		var lib []string
+		count, lib = shuffleLibraryQueue(m.library, m.playingLib, rng)
+		if count == 0 {
+			m.setStatus("nothing left to shuffle")
+			return m, nil
+		}
+		m.library = lib
+	} else {
+		if len(m.albums) == 0 || m.playingAlbum < 0 || m.playingAlbum >= len(m.albums) {
+			m.setStatus("nothing left to shuffle")
+			return m, nil
+		}
+		var albums []catalog.AlbumEntry
+		count, albums = shuffleCatalogQueue(m.albums, m.playingAlbum, m.playingTrack, rng)
+		if count == 0 {
+			m.setStatus("nothing left to shuffle")
+			return m, nil
+		}
+		m.albums = albums
+	}
+	m.setStatus(fmt.Sprintf("shuffled %d tracks after the current one", count))
+	return m, nil
 }
 
 // autoAdvance plays the successor of the source that just finished. It is
