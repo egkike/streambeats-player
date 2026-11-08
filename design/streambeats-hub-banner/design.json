@@ -1,0 +1,28 @@
+{
+  "title": "Gentle Hub card banner for streambeats-player",
+  "brief": "Card icon/banner for the Gentle Hub listing (gentle-hub-project topic): the card icon resolves from the FIRST image of the README, so we need a static SVG-safe banner (1280x400) that reads BOTH as hub card icon (small crop) and as README head. Brand identity comes from the repo's own theme palettes (internal/theme/theme.go artboardPalettes): vinyl amber #e8a33d, synthwave magenta #ff5ec8, quiet ink blue #7aa2f7, over the dark panel base.",
+  "feature": "",
+  "artboards": [
+    {
+      "file": "01-vinyl-disc.html",
+      "title": "Vinyl disc",
+      "tradeoff": "Strongest product motif (the vinyl record reads at any size, even 64px without text); the turntable scene is warmer than the rest of the README's terminal look",
+      "width": 1280,
+      "height": 400
+    },
+    {
+      "file": "02-synthwave-panel.html",
+      "title": "Synthwave panel",
+      "tradeoff": "Shows the actual product (mini TUI panel with list rows, transient keycaps and the playing bar), drawn geometry-safe for SVG; busier and less iconic at small crop",
+      "width": 1280,
+      "height": 400
+    },
+    {
+      "file": "03-quiet-wordmark.html",
+      "title": "Quiet wordmark",
+      "tradeoff": "Most scannable at small sizes and cleanest next to the gentle-ai badge; carries the weakest product identity (wordmark first, tool second)",
+      "width": 1280,
+      "height": 400
+    }
+  ]
+}
