@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>streambeats hub banner — vinyl disc</title>
+<style>
+  :root {
+    /* Brand palette sourced from internal/theme/theme.go (Vinyl artboard
+       palette + the dark panel ambient). */
+    --base: #1a1218;
+    --amber: #e8a33d;
+    --amber-dim: #8a7a5f;
+    --moss: #7fae5c;
+    --cream: #f5ead8;
+    --coral: #d9704f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0d090c; }
+  body {
+    font-family: ui-monospace, "JetBrains Mono", "Fira Code", Consolas, monospace;
+    display: grid; place-items: center;
+    min-height: 100vh; padding: 20px;
+  }
+  .banner {
+    width: 1280px; height: 400px; background:
+      radial-gradient(circle at 22% 52%, #241a1f 0%, #1a1218 55%, #140d11 100%);
+    border-radius: 12px; border: 1px solid #2e2027;
+    position: relative; overflow: hidden;
+    display: flex; align-items: center;
+  }
+  /* faint outer glow ring like a turntable lamp */
+  .banner::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 25% 50%, #e8a33d17 0%, transparent 42%);
+    pointer-events: none;
+  }
+  .disc {
+    position: absolute; left: 190px; top: 50%;
+    width: 300px; height: 300px; margin-top: -150px;
+    border-radius: 50%;
+    background:
+      repeating-radial-gradient(circle at 50% 50%,
+        #201217 0px, #201217 5px, #18100f 6px, #18100f 9px);
+    border: 1px solid #2e2027;
+    box-shadow: 0 10px 40px #00000066, 0 0 0 1px #000 inset;
+  }
+  .disc-label {
+    position: absolute; left: 50%; top: 50%;
+    width: 96px; height: 96px; margin: -48px 0 0 -48px;
+    border-radius: 50%;
+    background: var(--amber);
+    display: grid; place-items: center;
+  }
+  .disc-label b {
+    font-size: 13px; letter-spacing: .12em; font-weight: 700;
+    color: #1a1218;
+  }
+  .disc-spindle {
+    position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+    margin: -5px 0 0 -5px; border-radius: 50%; background: #140d11;
+  }
+  .disc-shine { /* playing arc, moss = the "Playing" role color */
+    position: absolute; left: 190px; top: 50%; width: 300px; height: 300px;
+    margin-top: -150px; border-radius: 50%;
+    border: 3px solid transparent; border-right-color: var(--moss);
+    transform: rotate(-28deg);
+    filter: drop-shadow(0 0 6px #7fae5c66);
+  }
+  .tonearm {
+    position: absolute; left: 452px; top: 78px;
+    width: 7px; height: 132px;
+    background: linear-gradient(#8a7a5f, #5c5145); border-radius: 4px;
+    transform: rotate(24deg); transform-origin: top center;
+  }
+  .tonearm::before { /* pivot */
+    content: ""; position: absolute; left: -8px; top: -12px;
+    width: 23px; height: 23px; border-radius: 50%;
+    background: #3a2c25; border: 2px solid #5c5145;
+  }
+  .tonearm::after { /* needle head */
+    content: ""; position: absolute; left: -4px; bottom: -10px;
+    width: 15px; height: 22px; border-radius: 4px; background: var(--amber);
+  }
+  .wordmark-block {
+    margin-left: 560px; color: var(--cream);
+  }
+  .wordmark {
+    font-size: 84px; font-weight: 800; letter-spacing: -0.03em;
+    color: var(--cream);
+  }
+  .wordmark .amp { color: var(--amber); }
+  .tagline {
+    margin-top: 10px; font-size: 21px; color: #b9a897; letter-spacing: .02em;
+  }
+  .tagline b { color: var(--moss); font-weight: 700; }
+  .meta {
+    margin-top: 26px; display: flex; gap: 10px; flex-wrap: wrap;
+    font-size: 13.5px;
+  }
+  .chip {
+    color: #d9c4ab; border: 1px solid #3a2a20; border-radius: 999px;
+    padding: 4px 12px; background: #20151c;
+  }
+  .chip.term { color: var(--amber); border-color: #4a3524; }
+  /* small-size check strip: what the hub card icon will crop at ~64px */
+  .small-check {
+    margin-top: 18px; display: flex; align-items: center; gap: 14px;
+    color: #6d5c50; font-size: 11.5px;
+  }
+  .mini {
+    width: 64px; height: 64px; border-radius: 8px; overflow: hidden;
+    border: 1px solid #2e2027; background: var(--base);
+    display: grid; place-items: center; position: relative;
+  }
+  .mini .mini-disc {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: repeating-radial-gradient(circle at 50% 50%,
+      #201217 0px, #201217 2px, #18100f 2.5px, #18100f 4px);
+  }
+  .mini .mini-label {
+    position: absolute; left: 50%; top: 50%; width: 20px; height: 20px;
+    margin: -10px 0 0 -10px; border-radius: 50%; background: var(--amber);
+  }
+</style>
+</head>
+<body>
+  <main class="banner" role="img" aria-label="streambeats — floating terminal music player for the free StreamBeats catalog">
+    <div class="disc" aria-hidden="true">
+      <div class="disc-label"><b>STREAM<br/>BEATS</b></div>
+      <div class="disc-spindle"></div>
+    </div>
+    <div class="disc-shine" aria-hidden="true"></div>
+    <div class="tonearm" aria-hidden="true"></div>
+    <div class="wordmark-block">
+      <h1 class="wordmark" style="margin:0">stream<span class="amp">beats</span></h1>
+      <p class="tagline" style="margin:10px 0 0">a floating <b>terminal music player</b> for the free StreamBeats catalog</p>
+      <div class="meta" aria-hidden="true">
+        <span class="chip term">ghostty quick panel</span>
+        <span class="chip">go + bubbletea + mpv</span>
+        <span class="chip">streams are free (CI… MIT)</span>
+      </div>
+      <div class="small-check">
+        <span>hub card icon, 64 px:</span>
+        <div class="mini"><div class="mini-disc"></div><div class="mini-label"></div></div>
+        <span>disc + amber label still reads — no wordmark needed at icon size</span>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

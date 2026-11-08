@@ -2,8 +2,12 @@
 
 <div align="center">
 
+<a href="https://github.com/egkike/streambeats-player">
+  <img width="1280" src="docs/assets/streambeats-vinyl-banner.svg" alt="streambeats — floating terminal music player for the free StreamBeats catalog" />
+</a>
+
 <a href="https://github.com/Gentleman-Programming/gentle-ai">
-  <img width="220" src="https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/docs/assets/brand/built-with-gentle-ai.png" alt="Built with Gentle-AI" />
+  <img width="180" src="https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/docs/assets/brand/built-with-gentle-ai.png" alt="Built with Gentle-AI" />
 </a>
 
 </div>
