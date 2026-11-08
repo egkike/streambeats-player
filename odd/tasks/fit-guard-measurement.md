@@ -47,3 +47,11 @@ calibrated table, content-anchored block, loud failures. Zero production surface
   mismatches that failed loud: the ASCII-mode token needed its own anchor (`|<`)
   and the ASCII case counts 8 (rune-exact), both fixed. Pipeline:
   gofmt empty, build/vet clean, FULL suite green -count=1, tidy -diff empty.
+- **L4** (T2 evidence, 7695cc9 candidate): native review lineage review-aa104ba311d57817 (medium, 198
+  lines, budget 99, lenses review-readability 0 + review-reliability 1, 2/2 admitted via
+  pi-host-relay runs gpt-6-luna, 22.9-34.8s) — APPROVED closed on last-event closure, authority
+  burned at rev sha256:f8146a92e1fe20ae2d42b8c5b8defa23a88e0e3b771ecf79bf14899c014c2686
+  (gentle-ai.review-acknowledged/v1, delivery -> ordinary-repository-policy). Two INFORMATIONAL
+  WARNING advisories gift-wrapped inside the rewritten guard (the new R-labels are fresh, non-
+  blocking later work): R2-001 readability internal/tui/view_test.go:751-755; R3-001 reliability
+  internal/tui/view_test.go:747-750.
