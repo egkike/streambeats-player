@@ -116,3 +116,18 @@ troubleshooting page. Zero Go surface.
   `author_association` allowlist). Both are informational: neither opened a
   correction nor reopens the review, so they travel as separate follow-up work,
   not as edits to this approved candidate.
+- **L13** (merge evidence, cycle closed): PR #181 merged by the owner as a merge-PR
+  commit, not a squash — `08c783a8b469ccd03113c65f96c17792b6921cde`, so the six
+  work-unit commits survive in history with their messages. Issue #180 closed by
+  `Closes #180`. Pre-merge required checks: `issue-gate`, `Detect Go changes`,
+  `Verify Go code`, `Install macOS` — all pass, and both Go paths were **real**
+  runs, not the docs-only echo, because `.github/workflows/ci.yml` sits in the
+  `code` and `installer` filters (29s of `-race` suite, 36s of macOS smoke test).
+  Post-merge `ci` on `main` for exactly `08c783a` is `success` on the `push`
+  event and was **not cancelled** — `ci.yml` cancels in flight only on
+  `pull_request`, so the merge-commit run stands as evidence for that SHA.
+  Verified on `main`, not on the branch: `CONTRIBUTING.md`, the three
+  `ISSUE_TEMPLATE/` files and `close-unsolicited-prs.yml` are present.
+  **Not proven by any of this:** `close-unsolicited-prs.yml` has never executed —
+  it triggers only on an outside `pull_request_target`, and a green `ci` does not
+  touch it. Its first run is its first real test.
