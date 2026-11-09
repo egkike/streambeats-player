@@ -94,6 +94,26 @@ policy comment and no review. That workflow is policy, not access control: it ne
 checks out the head, and it must never close the maintainer's own PRs. The public
 document mirrors this section, so a gate change moves both in the same work unit.
 
+**Accepted risks on the contribution surface** (review findings `R2-001` and
+`R4-001` of issue #180). These are knowingly accepted, not fixed, and not
+forgotten — that is why each one names the trigger that reopens it:
+
+- **The area dropdown is duplicated** in `.github/ISSUE_TEMPLATE/bug_report.yml`
+  and `feature_request.yml`. GitHub issue forms cannot share an option list
+  across files — YAML anchors do not cross file boundaries — so duplicating them
+  is the only way to keep both forms complete. The guard would be a structural
+  test comparing the two lists, and the drift it prevents is smaller than the
+  cost of carrying it today. **Revisit when** a third form appears, or an area
+  option changes more than once in one release cycle.
+- **`close-unsolicited-prs.yml` has no automated test.** Its trusted branch is
+  proven by execution rather than by assertion: every maintainer pull request
+  leaves the job as `skipping`, which is the S4 negative control running in
+  production. The deny branch needs an outside author and no local test can
+  manufacture one; a YAML assertion would pin the shape (allowlist rather than
+  deny-list, no `checkout`, no `${{ }}` inside `run:`) and say nothing about
+  runtime. **Revisit when** the allowlist, the trigger types or the permissions
+  change — the moment the untested branch is most likely to break.
+
 ## Security & Robustness
 - No secrets anywhere; the catalog cache never stores stream tokens; sockets are local unix domain sockets.
 - Everything from the network is untrusted: parse with strict JSON/regex, never concatenate; failures surface as
