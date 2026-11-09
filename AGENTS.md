@@ -65,7 +65,7 @@ The public repo runs a strict review gate; me/agents NEVER merge, the owner does
 
 | Type | Examples | Path to main |
 |------|----------|--------------|
-| Documentation / tracking | `docs/**`, `README.md`, `AGENTS.md`, `odd/**` | branch → owner review → **PR under the `main-ci-gate` ruleset**, owner merges |
+| Documentation / tracking | `docs/**`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `odd/**` | branch → owner review → **PR under the `main-ci-gate` ruleset**, owner merges |
 | Code | `*.go`, `go.mod`, `go.sum`, `scripts/`, `assets/`, `.github/`, `.goreleaser.yaml` | issue-first PR, owner merges |
 
 **Issue-first flow (code changes) — the only accepted path to `main`:**
@@ -82,16 +82,25 @@ Full ordered pipeline (each number is a hard ordering; no step is skipped, only 
 | 5 | **Sync**: pull, merge-commit CI green BEFORE any new push to `main`, docs/log follow-up (fits the docs lane), then a release tag ONLY if the PR is release-bound AND the merge-commit CI ran green | agent | merge-commit CI is the evidence for that exact SHA — a cancelled run proves nothing (concurrency cancel-in-progress) |
 
 Two deliberate exceptions, still owner-owned:
-- **Docs/tracking lane** (`docs/**`, `README.md`, `AGENTS.md`, `odd/**`): docs-only changes skip the issue-first requirement when no other code travels with them, but the `main-ci-gate` ruleset routes every `main` write through a PR (a skipped required check is rejected, GH013) — PRs #16 and #19 are the model; the owner merges.
+- **Docs/tracking lane** (`docs/**`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `odd/**`): docs-only changes skip the issue-first requirement when no other code travels with them, but the `main-ci-gate` ruleset routes every `main` write through a PR (a skipped required check is rejected, GH013) — PRs #16 and #19 are the model; the owner merges.
 - **`size:exception`**: declares a PR that exceeds the ~400-line advisory heuristic (review workload guard); it blocks nothing, it only makes the oversize visible to the owner during planning.
 
 **The `pr-gate` check is a review signal, not a hard lock:** branch protection is owner-managed; the owner may still merge over a red gate deliberately (e.g. hotfix during outage) — prefer documenting that on the PR.
+
+**External intake is issues-only:** `CONTRIBUTING.md` states it and
+`.github/workflows/close-unsolicited-prs.yml` enforces it — a pull request whose author
+association is outside `{OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR}` is closed with the
+policy comment and no review. That workflow is policy, not access control: it never
+checks out the head, and it must never close the maintainer's own PRs. The public
+document mirrors this section, so a gate change moves both in the same work unit.
 
 ## Security & Robustness
 - No secrets anywhere; the catalog cache never stores stream tokens; sockets are local unix domain sockets.
 - Everything from the network is untrusted: parse with strict JSON/regex, never concatenate; failures surface as
   friendly human statuses (the TUI must not crash for absent mpv, flaky Bandcamp or broken URLs).
 - Horizontal bounds: TUI view handles any terminal width; heavy work lives in commands, never in Update.
+- Vulnerability disclosure goes through the repository's private advisory form
+  (`CONTRIBUTING.md` § Security) — never a public issue.
 
 ## Public-Repo Etiquette (streambeats-player, MIT)
 - This is a public repository: keep personal data out of code/docs; the ODD log references the user's workflow but

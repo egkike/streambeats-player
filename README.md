@@ -273,3 +273,15 @@ recipe shows the one-shot behavior described above.)
   nothing needs to be embedded into the agent runtime.
 - MP3-128 is Bandcamp's streaming tier; for archival quality download the
   FLAC from Bandcamp manually per release.
+
+## Contributing
+
+This repository takes **issues only** — pull requests from outside the delivery
+gate are closed automatically with a link to the policy. Bug reports and feature
+requests are the whole contribution: the maintainer implements and delivers the
+work under the project's internal review gate.
+
+Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before you open anything; it is short
+and it is the whole policy. Install questions are usually answered by
+[`docs/install.md`](./docs/install.md) and the troubleshooting section of
+[`docs/ghostty.md`](./docs/ghostty.md).

@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install in one line
+    url: https://github.com/egkike/streambeats-player/blob/main/README.md#install-one-line
+    about: The standard path, before you report an install failure.
+  - name: Install guide (requirements, honest corners, uninstall)
+    url: https://github.com/egkike/streambeats-player/blob/main/docs/install.md
+    about: Read this first if the installer, a pin or an uninstall behaved unexpectedly.
+  - name: Panels and troubleshooting
+    url: https://github.com/egkike/streambeats-player/blob/main/docs/ghostty.md
+    about: Ghostty and kitty quick-terminal setup, including the troubleshooting section.
+  - name: Contribution policy
+    url: https://github.com/egkike/streambeats-player/blob/main/CONTRIBUTING.md
+    about: This repository accepts issues only — pull requests are closed automatically.
