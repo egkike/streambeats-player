@@ -175,3 +175,25 @@ troubleshooting page. Zero Go surface.
 - **L17** (GREEN): real repo, 6 assertions, 6 pass, exit 0. The `AGENTS.md` entry that
   called these two findings accepted risk is replaced: leaving it would have made the
   file claim a deferral the repo no longer honours.
+- **L18** (issue #190, the seven advisories of the #189 receipt): the accepted-risk
+  cycle produced seven non-blocking findings, all on
+  `scripts/tests/policy_surface_test.sh`, and all the same disease — assertions
+  that could pass without proving what they claimed. Their text was never
+  persisted (acknowledging a review consumes its store), so each was re-derived
+  from the review's own line reference. Fixed: associations are now parsed out of
+  the `fromJSON('[ … ]')` literal instead of grepped from the whole file; the
+  `types:` assertion accepts both YAML spellings and compares a normalised set;
+  indentation is measured on the first non-whitespace character so tabs no longer
+  end a `run:` block early; zero `run:` blocks and fewer than two extracted
+  options now fail instead of passing vacuously; `set -e` is documented as
+  deliberately absent rather than blindly added, since a failing `grep -q` is this
+  harness's control flow; the YAML-anchor premise in the header is marked as
+  something the test cannot verify.
+- **L19** (RED and GREEN for L18): seven throwaway fixtures. Five existing ones
+  still fail as before, plus `no-run` and `tabs-inject`. The two that prove the
+  hardening, run against BOTH scripts: `owner-in-comment` (association removed
+  from the array, the string left in a comment) **passed with the old script and
+  fails with the new one** — that is R3-002 made visible; `block-types` (same
+  behaviour, block-list spelling) **failed with the old script and passes with the
+  new one** — that is R3-001's false positive removed. Real tree: 10 assertions,
+  10 pass, exit 0.
