@@ -101,3 +101,18 @@ troubleshooting page. Zero Go surface.
   this cycle (`PUT /repos/egkike/streambeats-player/private-vulnerability-reporting`
   → `{"enabled": true}`). Additive and reversible; the owner can disable it again,
   in which case that section must fall back to the direct contact and say so.
+- **L11** (native review receipt): lineage `review-0f5e8ee4d2791c1b`, tier `high`,
+  537 changed lines, three lenses admitted on the last event — `review-risk`,
+  `review-resilience`, `review-readability`. Outcome **approved**; authority burned
+  with `gentle-ai.review-acknowledged/v1` at consumed revision
+  `sha256:0a2a296e80240ee3de431022a59cd6aa82b70e71b1e41d0cf4773268fd8eec28` for
+  target `sha256:248d64aa6a7e2e28ff20382142a2926dd0021609d721bc014ec0f67b06c30466`.
+  Correction budget (200) went **unused**: no correction was opened.
+- **L12** (advisory findings, non-blocking, recorded for later work — never a reason
+  to re-run this review): `R2-001` readability `SUGGESTION` at
+  `.github/ISSUE_TEMPLATE/feature_request.yml:27-40` (the seven-option area
+  dropdown, identical to the bug form) and `R4-001` resilience `WARNING` at
+  `.github/workflows/close-unsolicited-prs.yml:53-62` (the fail-closed
+  `author_association` allowlist). Both are informational: neither opened a
+  correction nor reopens the review, so they travel as separate follow-up work,
+  not as edits to this approved candidate.
