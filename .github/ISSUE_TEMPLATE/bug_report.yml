@@ -1,0 +1,151 @@
+name: Bug Report
+description: Report something that does not work as documented
+title: "bug: "
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## How this repository works
+
+        This project accepts **issues only** — pull requests are closed
+        automatically. Reporting the bug here is the whole contribution; the
+        maintainer implements the fix. See
+        [CONTRIBUTING.md](https://github.com/egkike/streambeats-player/blob/main/CONTRIBUTING.md).
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched the open and closed issues and this is not a duplicate
+          required: true
+        - label: I understand this repository takes issues only, not pull requests
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What is broken
+      description: One or two sentences. The detail belongs in the fields below.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Catalog (Bandcamp scraping, `refresh`, `sync`, local library)
+        - Playback (mpv, loadfile, queue advance, track transitions)
+        - TUI (keys, views, status lines, themes or the `c` settings screen)
+        - Launcher or floating panel (Ghostty, kitty, KDE Plasma)
+        - Installer or uninstall (`scripts/install.sh`)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal and in order. A report we cannot replay is a report we cannot fix.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Quote the status line the player displayed. Failures are user-facing text by design, so the exact wording is the useful part.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ### Environment
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: |
+        The release you installed (for example `v1.1.0`), or `git rev-parse --short HEAD`
+        when you built from source. There is no `--version` flag yet — do not guess one.
+      placeholder: e.g. v1.1.0, or 9023a54 from a source build
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Platform
+      options:
+        - Linux (KDE Plasma Wayland)
+        - Linux (other Wayland compositor)
+        - Linux (X11)
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Other / WSL2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How was it installed
+      options:
+        - One-line installer (`scripts/install.sh`)
+        - Pinned release (`--version vX.Y.Z`)
+        - Release tarball
+        - Built from source (`go build`)
+        - Upgraded from a previous release
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mpv
+    attributes:
+      label: mpv
+      description: Output of `mpv --version`. Playback needs mpv; browsing the catalog does not.
+      options:
+        - Installed, playback works
+        - Installed, playback is what misbehaves
+        - Not installed (browsing only)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and evidence
+      description: |
+        Run `streambeats` (or `./bin/streambeats` from a checkout) in a shell and paste
+        what it printed, plus your `$TERM`. Redact personal paths and hostnames.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Workarounds you tried, when it started, related issues.
+    validations:
+      required: false
