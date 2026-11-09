@@ -77,6 +77,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # The contribution surface lives in files no Go test can reach, so it is
+      # guarded from the one job that ALWAYS runs. Deliberately unconditional: a
+      # PR that edits only close-unsolicited-prs.yml sets no `code` filter, and a
+      # step gated on that filter would never guard the file it exists to guard
+      # (issue #188).
+      - name: Contribution surface invariants
+        run: bash scripts/tests/policy_surface_test.sh
+
       - name: Set up Go
         if: needs.changes.outputs.code == 'true'
         uses: actions/setup-go@v7
