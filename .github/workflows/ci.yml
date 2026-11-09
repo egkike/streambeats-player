@@ -5,7 +5,9 @@
 # reported; path filtering happens at the JOB level via dorny/paths-filter.
 # When no Go code changed, the "ci" job is skipped and GitHub treats a skipped
 # required check as approved (an absent check would instead block the push).
-# Docs-only changes therefore flow to main directly without friction.
+# Docs-only changes therefore satisfy the required check without running the Go
+# pipeline — but they still reach main only through a pull request: the
+# `main-ci-gate` ruleset routes every main write through one (AGENTS.md lanes).
 #
 # Pipeline mirrors AGENTS.md "Testing Standards":
 #   go fmt -> go vet -> golangci-lint -> go build -> go test -race -> govulncheck

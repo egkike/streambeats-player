@@ -78,3 +78,26 @@ troubleshooting page. Zero Go surface.
   which path applies.
 - **L7**: issue #180 opened with `status:approved` + `type:chore`; branch
   `feature/contribution-intake`.
+- **L8** (delivery strategy, slice boundary recorded): the slice closed at 497
+  authored lines in 4 commits, past the ~400-line advisory. Strategy: **one pull
+  request declared `size:exception`**, not a chain. Reason: `CONTRIBUTING.md` and
+  both issue forms reference `.github/workflows/close-unsolicited-prs.yml` by
+  name, so splitting docs from CI would ship a document pointing at a workflow
+  that does not exist yet — a false claim, which S1/S3 forbid. The text and the
+  enforcement are one behavior; they travel together, and the advisory exists to
+  make the oversize visible, which the label does.
+- **L9** (T5 evidence): `gofmt -l .` clean; `go build ./...`, `go vet ./...`,
+  `go mod tidy -diff` clean; `go test ./...` green on all six packages (no Go file
+  touched — the run proves that, it does not merely assert it). Issue forms and
+  `config.yml` parse as YAML with all required fields carrying an `id`; every
+  relative link and every `contact_links` anchor resolves against the real
+  headings (`README.md#install-one-line`, `docs/ghostty.md#troubleshooting`).
+  `actionlint` is clean on the new workflow once its stale runner-label list is
+  excluded — the same false positive `ci.yml` and `release.yml` already carry for
+  `ubuntu-26.04` (issue #161 pin).
+- **L10** (decision, outside the tree): private vulnerability reporting was
+  **disabled** on the repository (`{"enabled": false}`), so `CONTRIBUTING.md` §
+  Security would have pointed at a form that does not exist. Enabled it during
+  this cycle (`PUT /repos/egkike/streambeats-player/private-vulnerability-reporting`
+  → `{"enabled": true}`). Additive and reversible; the owner can disable it again,
+  in which case that section must fall back to the direct contact and say so.
