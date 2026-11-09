@@ -137,3 +137,14 @@ troubleshooting page. Zero Go surface.
   no untrusted author has exercised it, and no local test can manufacture one, so
   `R4-001` keeps that half open rather than trading it for a green check that
   asserts nothing about runtime.
+- **L14** (incident, merge raced a correction): the `L13` correction above was
+  pushed to `docs/contribution-intake-close` at 23:06 and PR #182 was merged at
+  23:07 while the PR head still pointed at the pre-correction commit. GitHub
+  accepted the push (the branch tip on `origin` is the corrected commit
+  `a19513c`), but the merge took the registered head `ed02e84`, so `main` carried
+  the line "`close-unsolicited-prs.yml` has never executed" — which the very same
+  PR's run had just disproved. The claim survived in `main` for minutes, until
+  this follow-up. **Lesson, for the branch rules:** a correction pushed to a PR
+  branch is not delivered by the push; it is delivered when the PR head SHA
+  matches the corrected commit. Merge only what the head SHA confirms, never what
+  the branch tip suggests.
