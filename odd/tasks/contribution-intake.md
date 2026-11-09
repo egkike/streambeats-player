@@ -31,6 +31,10 @@ troubleshooting page. Zero Go surface.
 - **S6**: every link resolves. `CONTRIBUTING.md` and the forms point at
   `README.md#install-one-line`, `docs/install.md` and `docs/ghostty.md#troubleshooting`
   — the anchors that exist, never a guessed one.
+- **S7**: the two invariants no Go test can reach — the `area` options shared by
+  both issue forms, and the fail-closed shape of `close-unsolicited-prs.yml` — are
+  pinned by a shell test that runs **unconditionally** in the `ci` job, so a PR that
+  touches only that workflow is still guarded rather than skipped.
 
 ## Tasks
 
@@ -47,6 +51,10 @@ troubleshooting page. Zero Go surface.
   main directly" comment the ruleset contradicts. Route: inline; commit 4.
 - **T5** (S5, S6): local pipeline, `actionlint`, yaml parse, link check, native RDD
   review of the committed candidate. Push, PR and merge stay with the owner.
+- **T6** (S7): `scripts/tests/policy_surface_test.sh`, the unconditional step in
+  `ci.yml`, and an `AGENTS.md` correction that moves both entries from accepted risk
+  to guarded. Route: inline; RED observed on four throwaway fixtures, then GREEN.
+  Risk: item 5 (`ci.yml`). Commit 5.
 
 ## Log
 
@@ -148,3 +156,22 @@ troubleshooting page. Zero Go surface.
   branch is not delivered by the push; it is delivered when the PR head SHA
   matches the corrected commit. Merge only what the head SHA confirms, never what
   the branch tip suggests.
+- **L15** (issue #188, the advisories resolved instead of accepted): the owner asked
+  for the surface to be clean, which reversed the earlier accept-and-document
+  decision. `scripts/tests/policy_surface_test.sh` now pins both findings — the
+  `area` options must be identical across the two forms, and
+  `close-unsolicited-prs.yml` must keep its fail-closed shape (allowlist over
+  `author_association`, no `actions/checkout`, no `${{ }}` inside a `run:`). Wired as
+  an **unconditional** step in the `ci` job: a PR editing only that workflow sets no
+  `code` filter, so a conditional step would never guard it.
+- **L16** (RED, and a fixture of mine that was wrong): four throwaway fixtures in a
+  scratch tree, one per rule. `deny` (allowlist flipped to `contains(`), `checkout`
+  (an `actions/checkout` step added) and `inject` (an expression moved into `run:`)
+  each failed with the right message and exit 1. The first `drift` fixture **passed**,
+  and the test was right: I had appended the extra option at the end of the file,
+  outside the `id: area` block, so the extractor correctly ignored it. Rebuilt inside
+  the options block, it failed with `bug_report=7 feature_request=8`. A RED that is
+  not real RED is worse than none — it looks like proof.
+- **L17** (GREEN): real repo, 6 assertions, 6 pass, exit 0. The `AGENTS.md` entry that
+  called these two findings accepted risk is replaced: leaving it would have made the
+  file claim a deferral the repo no longer honours.

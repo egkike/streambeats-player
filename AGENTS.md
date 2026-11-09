@@ -51,6 +51,14 @@ built for a live coding workflow (Ghostty + herdr + gentle-shell, KDE Plasma Way
 - Table-driven style; every test asserts observable behavior (statuses, progress values, command payloads).
 - Pipeline before any commit: `gofmt -l .` clean, `go build ./...`, `go vet ./...`, `go test ./...`, and `go mod tidy -diff` empty (the dependency manifest stays tidy; issue #98).
   Race detector when touching the IPC/event channel: `go test -race ./internal/player/ ./internal/tui/`.
+- **Contribution surface invariants:** `scripts/tests/policy_surface_test.sh` pins
+  what no Go test can reach — the `area` options must stay identical across the two
+  issue forms, and `close-unsolicited-prs.yml` must keep its fail-closed shape (allowlist
+  over `author_association`, no `actions/checkout`, no `${{ }}` inside a `run:`). It runs
+  **unconditionally** in the `ci` job: a PR that edits only that workflow sets no `code`
+  filter, so a conditional step would never guard the file it exists to guard. It asserts
+  form, not runtime — the deny branch still needs a real outside pull request, and the
+  script says so instead of letting a green check imply more.
 
 ## Git & Branch Rules
 - One feature branch per cycle (`feature/<name>`), Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs(odd):`, `test:`).
